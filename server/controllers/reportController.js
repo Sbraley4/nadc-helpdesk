@@ -379,8 +379,186 @@ async function getSLAComplianceReport(req, res, next) {
   }
 }
 
+/**
+ * GET /api/reports/time-materials
+ * Time and materials report
+ */
+async function getTimeAndMaterialsReport(req, res, next) {
+  try {
+    const { startDate, endDate, agentId, companyId } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const timeWhere = {
+      date: { gte: start, lte: end },
+      ...(agentId && { agentId }),
+      ...(companyId && { ticket: { companyId } }),
+    };
+
+    const materialWhere = {
+      createdAt: { gte: start, lte: end },
+      ...(agentId && { agentId }),
+      ...(companyId && { ticket: { companyId } }),
+    };
+
+    // Time entries
+    const timeEntries = await prisma.timeEntry.findMany({
+      where: timeWhere,
+      include: {
+        agent: { select: { name: true } },
+        ticket: {
+          select: { ticketNumber: true, company: { select: { name: true } } },
+        },
+      },
+    });
+
+    // Aggregate time
+    const totalTimeResult = await prisma.timeEntry.aggregate({
+      where: timeWhere,
+      _sum: { hours: true, minutes: true },
+    });
+
+    const totalHours = totalTimeResult._sum.hours || 0;
+    const totalMinutes = totalTimeResult._sum.minutes || 0;
+
+    // Time by agent
+    const timeByAgentMap = {};
+    for (const entry of timeEntries) {
+      const name = entry.agent.name;
+      if (!timeByAgentMap[name]) {
+        timeByAgentMap[name] = { hours: 0, minutes: 0 };
+      }
+      timeByAgentMap[name].hours += entry.hours;
+      timeByAgentMap[name].minutes += entry.minutes;
+    }
+    const timeByAgent = Object.entries(timeByAgentMap).map(([agentName, t]) => ({
+      agentName,
+      hours: t.hours + Math.floor(t.minutes / 60),
+      minutes: t.minutes % 60,
+    }));
+
+    // Time by company
+    const timeByCompanyMap = {};
+    for (const entry of timeEntries) {
+      const name = entry.ticket.company?.name || 'No Company';
+      if (!timeByCompanyMap[name]) {
+        timeByCompanyMap[name] = { hours: 0, minutes: 0 };
+      }
+      timeByCompanyMap[name].hours += entry.hours;
+      timeByCompanyMap[name].minutes += entry.minutes;
+    }
+    const timeByCompany = Object.entries(timeByCompanyMap).map(([companyName, t]) => ({
+      companyName,
+      hours: t.hours + Math.floor(t.minutes / 60),
+      minutes: t.minutes % 60,
+    }));
+
+    // Time by day
+    const timeByDayMap = {};
+    for (const entry of timeEntries) {
+      const day = entry.date.toISOString().split('T')[0];
+      if (!timeByDayMap[day]) {
+        timeByDayMap[day] = { hours: 0, minutes: 0 };
+      }
+      timeByDayMap[day].hours += entry.hours;
+      timeByDayMap[day].minutes += entry.minutes;
+    }
+    const timeByDay = Object.entries(timeByDayMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, t]) => ({
+        date,
+        hours: t.hours + Math.floor(t.minutes / 60),
+        minutes: t.minutes % 60,
+      }));
+
+    // Material entries
+    const materialEntries = await prisma.materialEntry.findMany({
+      where: materialWhere,
+      include: {
+        agent: { select: { name: true } },
+        ticket: {
+          select: { ticketNumber: true, company: { select: { name: true } } },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalMaterialCost = materialEntries.reduce((sum, m) => sum + m.totalCost, 0);
+
+    // Materials by agent
+    const matByAgentMap = {};
+    for (const entry of materialEntries) {
+      const name = entry.agent.name;
+      if (!matByAgentMap[name]) matByAgentMap[name] = 0;
+      matByAgentMap[name] += entry.totalCost;
+    }
+    const materialsByAgent = Object.entries(matByAgentMap).map(([agentName, totalCost]) => ({
+      agentName,
+      totalCost,
+    }));
+
+    // Materials by company
+    const matByCompanyMap = {};
+    for (const entry of materialEntries) {
+      const name = entry.ticket.company?.name || 'No Company';
+      if (!matByCompanyMap[name]) matByCompanyMap[name] = 0;
+      matByCompanyMap[name] += entry.totalCost;
+    }
+    const materialsByCompany = Object.entries(matByCompanyMap).map(([companyName, totalCost]) => ({
+      companyName,
+      totalCost,
+    }));
+
+    // Material entries formatted
+    const materialEntriesFormatted = materialEntries.map((m) => ({
+      itemName: m.itemName,
+      quantity: m.quantity,
+      unitCost: m.unitCost,
+      totalCost: m.totalCost,
+      agentName: m.agent.name,
+      companyName: m.ticket.company?.name || 'No Company',
+      ticketNumber: m.ticket.ticketNumber,
+      date: m.createdAt.toISOString().split('T')[0],
+    }));
+
+    res.json({
+      timeEntries: {
+        totalHours: totalHours + Math.floor(totalMinutes / 60),
+        totalMinutes: totalMinutes % 60,
+        formatted: formatTimeHM(totalHours, totalMinutes),
+        byAgent: timeByAgent,
+        byCompany: timeByCompany,
+        byDay: timeByDay,
+      },
+      materials: {
+        totalCost: totalMaterialCost,
+        byAgent: materialsByAgent,
+        byCompany: materialsByCompany,
+        entries: materialEntriesFormatted,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function formatTimeHM(hours, minutes) {
+  const totalH = hours + Math.floor(minutes / 60);
+  const totalM = minutes % 60;
+  if (totalH === 0) return `${totalM}m`;
+  if (totalM === 0) return `${totalH}h`;
+  return `${totalH}h ${totalM}m`;
+}
+
 module.exports = {
   getTicketVolumeReport,
   getAgentPerformanceReport,
   getSLAComplianceReport,
+  getTimeAndMaterialsReport,
 };
