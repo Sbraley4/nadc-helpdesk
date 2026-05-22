@@ -556,9 +556,219 @@ function formatTimeHM(hours, minutes) {
   return `${totalH}h ${totalM}m`;
 }
 
+/**
+ * GET /api/reports/export
+ * Export report as CSV
+ */
+async function exportReport(req, res, next) {
+  try {
+    const { type, startDate, endDate, format = 'csv' } = req.query;
+
+    if (!type || !startDate || !endDate) {
+      return res.status(400).json({ error: 'type, startDate, and endDate are required' });
+    }
+
+    if (format !== 'csv') {
+      return res.status(400).json({ error: 'Only CSV format is supported' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    let csvContent = '';
+    const filename = `${type}-${startDate}-to-${endDate}.csv`;
+
+    switch (type) {
+      case 'ticket-volume':
+        csvContent = await generateTicketVolumeCsv(start, end);
+        break;
+      case 'agent-performance':
+        csvContent = await generateAgentPerformanceCsv(start, end);
+        break;
+      case 'sla-compliance':
+        csvContent = await generateSlaComplianceCsv(start, end);
+        break;
+      case 'time-materials':
+        csvContent = await generateTimeMaterialsCsv(start, end);
+        break;
+      default:
+        return res.status(400).json({ error: 'Invalid report type' });
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvContent);
+  } catch (error) {
+    next(error);
+  }
+}
+
+function escapeCsvValue(value) {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function arrayToCsv(headers, rows) {
+  const headerLine = headers.map(escapeCsvValue).join(',');
+  const dataLines = rows.map((row) => row.map(escapeCsvValue).join(','));
+  return [headerLine, ...dataLines].join('\n');
+}
+
+async function generateTicketVolumeCsv(start, end) {
+  const tickets = await prisma.ticket.findMany({
+    where: { createdAt: { gte: start, lte: end } },
+    select: {
+      ticketNumber: true,
+      subject: true,
+      status: true,
+      priority: true,
+      createdAt: true,
+      resolvedAt: true,
+      closedAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const headers = ['Ticket #', 'Subject', 'Status', 'Priority', 'Created', 'Resolved', 'Closed'];
+  const rows = tickets.map((t) => [
+    t.ticketNumber,
+    t.subject,
+    t.status,
+    t.priority,
+    t.createdAt.toISOString(),
+    t.resolvedAt?.toISOString() || '',
+    t.closedAt?.toISOString() || '',
+  ]);
+
+  return arrayToCsv(headers, rows);
+}
+
+async function generateAgentPerformanceCsv(start, end) {
+  const agents = await prisma.user.findMany({
+    where: { isActive: true, role: { in: ['ADMIN', 'AGENT'] } },
+    select: { id: true, name: true },
+  });
+
+  const headers = [
+    'Agent', 'Tickets Assigned', 'Tickets Closed',
+    'Avg First Response (hrs)', 'Avg Resolution (hrs)',
+    'SLA Breaches', 'Hours Logged'
+  ];
+
+  const rows = await Promise.all(
+    agents.map(async (agent) => {
+      const assigned = await prisma.ticket.count({
+        where: { assigneeId: agent.id, createdAt: { gte: start, lte: end } },
+      });
+      const closed = await prisma.ticket.count({
+        where: { assigneeId: agent.id, createdAt: { gte: start, lte: end }, status: 'CLOSED' },
+      });
+      const avgFirst = await getAgentAvgFirstResponse(agent.id, start, end);
+      const avgRes = await getAgentAvgResolutionTime(agent.id, start, end);
+      const breaches = await prisma.ticket.count({
+        where: { assigneeId: agent.id, createdAt: { gte: start, lte: end }, slaBreached: true },
+      });
+      const hours = await getAgentTotalHours(agent.id, start, end);
+
+      return [
+        agent.name,
+        assigned,
+        closed,
+        avgFirst || 'N/A',
+        avgRes || 'N/A',
+        breaches,
+        hours,
+      ];
+    })
+  );
+
+  return arrayToCsv(headers, rows);
+}
+
+async function generateSlaComplianceCsv(start, end) {
+  const tickets = await prisma.ticket.findMany({
+    where: { createdAt: { gte: start, lte: end }, slaBreached: true },
+    select: {
+      ticketNumber: true,
+      subject: true,
+      priority: true,
+      createdAt: true,
+      assignee: { select: { name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const headers = ['Ticket #', 'Subject', 'Priority', 'Assignee', 'Created'];
+  const rows = tickets.map((t) => [
+    t.ticketNumber,
+    t.subject,
+    t.priority,
+    t.assignee?.name || 'Unassigned',
+    t.createdAt.toISOString(),
+  ]);
+
+  return arrayToCsv(headers, rows);
+}
+
+async function generateTimeMaterialsCsv(start, end) {
+  const timeEntries = await prisma.timeEntry.findMany({
+    where: { date: { gte: start, lte: end } },
+    include: {
+      agent: { select: { name: true } },
+      ticket: { select: { ticketNumber: true } },
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  const materialEntries = await prisma.materialEntry.findMany({
+    where: { createdAt: { gte: start, lte: end } },
+    include: {
+      agent: { select: { name: true } },
+      ticket: { select: { ticketNumber: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // Time section
+  let csv = 'TIME ENTRIES\n';
+  csv += 'Date,Ticket #,Agent,Hours,Minutes,Description\n';
+  for (const t of timeEntries) {
+    csv += [
+      t.date.toISOString().split('T')[0],
+      t.ticket.ticketNumber,
+      escapeCsvValue(t.agent.name),
+      t.hours,
+      t.minutes,
+      escapeCsvValue(t.description || ''),
+    ].join(',') + '\n';
+  }
+
+  csv += '\nMATERIAL ENTRIES\n';
+  csv += 'Date,Ticket #,Agent,Item,Quantity,Unit Cost,Total Cost\n';
+  for (const m of materialEntries) {
+    csv += [
+      m.createdAt.toISOString().split('T')[0],
+      m.ticket.ticketNumber,
+      escapeCsvValue(m.agent.name),
+      escapeCsvValue(m.itemName),
+      m.quantity,
+      m.unitCost,
+      m.totalCost,
+    ].join(',') + '\n';
+  }
+
+  return csv;
+}
+
 module.exports = {
   getTicketVolumeReport,
   getAgentPerformanceReport,
   getSLAComplianceReport,
   getTimeAndMaterialsReport,
+  exportReport,
 };
