@@ -253,6 +253,10 @@ server.listen(PORT, () => {
   const { scheduleReviewRequestJob } = require('./jobs/reviewRequestJob');
   scheduleReviewRequestJob();
 
+  // Initialize automation job
+  const { scheduleAutomationJob } = require('./jobs/automationJob');
+  scheduleAutomationJob();
+
   // Start IMAP listener if configured
   const { startImapListener } = require('./services/imapService');
   startImapListener();
