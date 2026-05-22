@@ -280,7 +280,107 @@ async function getAgentTotalHours(agentId, start, end) {
   return Math.round((hours + minutes / 60) * 100) / 100;
 }
 
+/**
+ * GET /api/reports/sla-compliance
+ * SLA compliance breakdown
+ */
+async function getSLAComplianceReport(req, res, next) {
+  try {
+    const { startDate, endDate, priority } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' });
+    }
+
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const baseWhere = {
+      createdAt: { gte: start, lte: end },
+      ...(priority && { priority }),
+    };
+
+    // Overall compliance
+    const [totalTickets, breachedTickets] = await Promise.all([
+      prisma.ticket.count({ where: baseWhere }),
+      prisma.ticket.count({ where: { ...baseWhere, slaBreached: true } }),
+    ]);
+
+    const compliant = totalTickets - breachedTickets;
+    const compliancePercent = totalTickets > 0
+      ? Math.round((compliant / totalTickets) * 100)
+      : 100;
+
+    // By priority
+    const priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+    const byPriority = await Promise.all(
+      priorities.map(async (p) => {
+        const [total, breached] = await Promise.all([
+          prisma.ticket.count({
+            where: { createdAt: { gte: start, lte: end }, priority: p },
+          }),
+          prisma.ticket.count({
+            where: { createdAt: { gte: start, lte: end }, priority: p, slaBreached: true },
+          }),
+        ]);
+
+        return {
+          priority: p,
+          compliant: total - breached,
+          breached,
+          compliancePercent: total > 0 ? Math.round(((total - breached) / total) * 100) : 100,
+        };
+      })
+    );
+
+    // Breached tickets list
+    const breachedTicketsList = await prisma.ticket.findMany({
+      where: { ...baseWhere, slaBreached: true },
+      select: {
+        id: true,
+        ticketNumber: true,
+        subject: true,
+        priority: true,
+        createdAt: true,
+        assignee: { select: { name: true } },
+        activities: {
+          where: { type: 'SLA_BREACHED' },
+          select: { createdAt: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    const breachedTicketsFormatted = breachedTicketsList.map((t) => ({
+      ticketId: t.id,
+      ticketNumber: t.ticketNumber,
+      subject: t.subject,
+      priority: t.priority,
+      assigneeName: t.assignee?.name || 'Unassigned',
+      createdAt: t.createdAt,
+      breachedAt: t.activities[0]?.createdAt || null,
+    }));
+
+    res.json({
+      overall: {
+        compliant,
+        breached: breachedTickets,
+        compliancePercent,
+      },
+      byPriority,
+      breachedTickets: breachedTicketsFormatted,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getTicketVolumeReport,
   getAgentPerformanceReport,
+  getSLAComplianceReport,
 };
