@@ -377,7 +377,143 @@ async function getMaterialsThisMonth(monthStart) {
   };
 }
 
+/**
+ * GET /api/dashboard/trends
+ * Returns trend data for specified period
+ */
+async function getDashboardTrends(req, res, next) {
+  try {
+    const { period = '30d' } = req.query;
+
+    let days;
+    switch (period) {
+      case '7d':
+        days = 7;
+        break;
+      case '90d':
+        days = 90;
+        break;
+      default:
+        days = 30;
+    }
+
+    const now = new Date();
+    const since = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const [createdVsResolved, avgResponseTrend, slaComplianceRate] = await Promise.all([
+      getTrendCreatedVsResolved(since, days),
+      getAvgResponseTrend(since, days),
+      getSlaComplianceTrend(since, days),
+    ]);
+
+    res.json({
+      createdVsResolved,
+      avgResponseTrend,
+      slaComplianceRate,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function getTrendCreatedVsResolved(since, days) {
+  const result = [];
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const [created, resolved] = await Promise.all([
+      prisma.ticket.count({ where: { createdAt: { gte: dayStart, lt: dayEnd } } }),
+      prisma.ticket.count({ where: { resolvedAt: { gte: dayStart, lt: dayEnd } } }),
+    ]);
+
+    result.push({
+      date: dayStart.toISOString().split('T')[0],
+      created,
+      resolved,
+    });
+  }
+
+  return result;
+}
+
+async function getAvgResponseTrend(since, days) {
+  const result = [];
+  const now = new Date();
+
+  // Group by week if > 30 days
+  const groupByWeek = days > 30;
+  const interval = groupByWeek ? 7 : 1;
+
+  for (let i = Math.floor(days / interval) - 1; i >= 0; i--) {
+    const endDate = new Date(now.getTime() - i * interval * 24 * 60 * 60 * 1000);
+    const startDate = new Date(endDate.getTime() - interval * 24 * 60 * 60 * 1000);
+
+    const tickets = await prisma.ticket.findMany({
+      where: {
+        firstResponseAt: { not: null },
+        createdAt: { gte: startDate, lt: endDate },
+      },
+      select: { createdAt: true, firstResponseAt: true },
+    });
+
+    let avgHours = 0;
+    if (tickets.length > 0) {
+      const totalMs = tickets.reduce((sum, t) => {
+        return sum + (t.firstResponseAt.getTime() - t.createdAt.getTime());
+      }, 0);
+      avgHours = totalMs / tickets.length / (1000 * 60 * 60);
+    }
+
+    result.push({
+      date: startDate.toISOString().split('T')[0],
+      avgHours: Math.round(avgHours * 100) / 100,
+    });
+  }
+
+  return result;
+}
+
+async function getSlaComplianceTrend(since, days) {
+  const result = [];
+  const now = new Date();
+
+  const groupByWeek = days > 30;
+  const interval = groupByWeek ? 7 : 1;
+
+  for (let i = Math.floor(days / interval) - 1; i >= 0; i--) {
+    const endDate = new Date(now.getTime() - i * interval * 24 * 60 * 60 * 1000);
+    const startDate = new Date(endDate.getTime() - interval * 24 * 60 * 60 * 1000);
+
+    const [total, breached] = await Promise.all([
+      prisma.ticket.count({
+        where: { createdAt: { gte: startDate, lt: endDate } },
+      }),
+      prisma.ticket.count({
+        where: {
+          createdAt: { gte: startDate, lt: endDate },
+          slaBreached: true,
+        },
+      }),
+    ]);
+
+    const compliant = total - breached;
+    const compliantPercent = total > 0 ? Math.round((compliant / total) * 100) : 100;
+
+    result.push({
+      date: startDate.toISOString().split('T')[0],
+      compliantPercent,
+    });
+  }
+
+  return result;
+}
+
 module.exports = {
   getDashboardStats,
+  getDashboardTrends,
   formatHours,
 };
