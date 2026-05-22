@@ -125,10 +125,12 @@ app.use('/api/notifications', notificationRoutes);
 const businessHoursRoutes = require('./routes/businessHours');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
+const automationRoutes = require('./routes/automations');
 
 app.use('/api/business-hours', businessHoursRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/automations', automationRoutes);
 
 // ============================================================================
 // Future route imports (Phase 8+)
