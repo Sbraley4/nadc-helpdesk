@@ -123,8 +123,10 @@ app.use('/api/notifications', notificationRoutes);
 // Route imports - Phase 7
 // ============================================================================
 const businessHoursRoutes = require('./routes/businessHours');
+const dashboardRoutes = require('./routes/dashboard');
 
 app.use('/api/business-hours', businessHoursRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // ============================================================================
 // Future route imports (Phase 8+)
