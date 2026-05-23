@@ -1,0 +1,628 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  ADMIN
+  AGENT
+  VIEWER
+}
+
+enum Availability {
+  ONLINE
+  BUSY
+  AWAY
+  OFFLINE
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketType {
+  QUESTION
+  INCIDENT
+  PROBLEM
+  FEATURE_REQUEST
+}
+
+enum AutomationTrigger {
+  TICKET_CREATED
+  TICKET_UPDATED
+  REPLY_RECEIVED
+  TIME_BASED
+}
+
+enum CustomFieldType {
+  TEXT
+  DROPDOWN
+  CHECKBOX
+  DATE
+}
+
+enum DeviceType {
+  DESKTOP
+  LAPTOP
+  SERVER
+  PRINTER
+  ROUTER
+  SWITCH
+  FIREWALL
+  PHONE
+  TABLET
+  OTHER
+}
+
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum SatisfactionRatingValue {
+  POSITIVE
+  NEGATIVE
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+// User (agents and admins)
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  password     String
+  role         Role         @default(AGENT)
+  avatar       String?
+  signature    String?
+  availability Availability @default(OFFLINE)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  assignedTickets    Ticket[]              @relation("AssignedTickets")
+  groups             UserGroup[]
+  notifications      Notification[]
+  replies            TicketReply[]
+  activities         TicketActivity[]
+  cannedResponses    CannedResponse[]
+  kbArticles         KBArticle[]
+  uploadedFiles      TicketAttachment[]
+  watchedTickets     TicketWatcher[]
+  assignedCompanies  Company[]             @relation("AssignedAgent")
+  timeEntries        TimeEntry[]
+  materialEntries    MaterialEntry[]
+  checkedItems       TicketChecklistItem[]
+  createdTemplates   TicketTemplate[]      @relation("TemplateCreator")
+  assignedTemplates  TicketTemplate[]      @relation("TemplateAssignee")
+}
+
+// Contact (ticket requesters / clients)
+model Contact {
+  id                     String                   @id @default(cuid())
+  name                   String
+  email                  String                   @unique
+  phone                  String?
+  portalPassword         String?
+  notes                  String?
+  companyId              String?
+  lastReviewRequestedAt  DateTime?
+  reviewOptOut           Boolean                  @default(false)
+  reviewRating           SatisfactionRatingValue?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+
+  // Relations
+  company             Company?             @relation(fields: [companyId], references: [id])
+  tickets             Ticket[]
+  satisfactionRatings SatisfactionRating[]
+}
+
+// Company
+model Company {
+  id              String   @id @default(cuid())
+  name            String
+  domain          String?
+  notes           String?
+  assignedAgentId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  contacts      Contact[]
+  tickets       Ticket[]
+  assignedAgent User?     @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  devices       Device[]
+}
+
+// Ticket
+model Ticket {
+  id                        String       @id @default(cuid())
+  ticketNumber              Int          @unique @default(autoincrement())
+  subject                   String
+  description               String       @db.Text
+  status                    TicketStatus @default(OPEN)
+  priority                  Priority     @default(MEDIUM)
+  type                      TicketType   @default(QUESTION)
+  dueDate                   DateTime?
+  firstResponseAt           DateTime?
+  resolvedAt                DateTime?
+  closedAt                  DateTime?
+  slaBreached               Boolean      @default(false)
+  resolutionSummary         String?      @db.Text
+  reviewRequestedAt         DateTime?
+  reviewRequestScheduledFor DateTime?
+  requesterId               String
+  companyId                 String?
+  assigneeId                String?
+  groupId                   String?
+  slaPolicyId               String?
+  mergedIntoId              String?
+  createdAt                 DateTime     @default(now())
+  updatedAt                 DateTime     @updatedAt
+
+  // Relations
+  requester          Contact              @relation(fields: [requesterId], references: [id])
+  company            Company?             @relation(fields: [companyId], references: [id])
+  assignee           User?                @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  group              Group?               @relation(fields: [groupId], references: [id])
+  slaPolicy          SLAPolicy?           @relation(fields: [slaPolicyId], references: [id])
+  mergedInto         Ticket?              @relation("MergedTickets", fields: [mergedIntoId], references: [id])
+  mergedTickets      Ticket[]             @relation("MergedTickets")
+  replies            TicketReply[]
+  attachments        TicketAttachment[]
+  tags               TicketTag[]
+  activities         TicketActivity[]
+  watchers           TicketWatcher[]
+  relatedTickets     RelatedTicket[]      @relation("TicketRelations")
+  relatedTo          RelatedTicket[]      @relation("RelatedTo")
+  customFields       CustomFieldValue[]
+  notifications      Notification[]
+  timeEntries        TimeEntry[]
+  materialEntries    MaterialEntry[]
+  checklistItems     TicketChecklistItem[]
+  devices            TicketDevice[]
+  satisfactionRating SatisfactionRating?
+}
+
+// TicketReply
+model TicketReply {
+  id         String   @id @default(cuid())
+  body       String   @db.Text
+  isInternal Boolean  @default(false)
+  authorId   String
+  ticketId   String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  author      User               @relation(fields: [authorId], references: [id])
+  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  attachments TicketAttachment[]
+}
+
+// TicketActivity (audit log)
+model TicketActivity {
+  id          String   @id @default(cuid())
+  type        String
+  description String
+  metadata    Json?
+  userId      String?
+  ticketId    String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user   User?  @relation(fields: [userId], references: [id])
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+// TicketAttachment
+model TicketAttachment {
+  id           String   @id @default(cuid())
+  filename     String
+  storedName   String
+  mimeType     String
+  size         Int
+  ticketId     String?
+  replyId      String?
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  ticket     Ticket?      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  reply      TicketReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  uploadedBy User         @relation(fields: [uploadedById], references: [id])
+}
+
+// Tag
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tickets TicketTag[]
+}
+
+// TicketTag (explicit join table)
+model TicketTag {
+  ticketId String
+  tagId    String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, tagId])
+}
+
+// TicketWatcher (join table)
+model TicketWatcher {
+  ticketId String
+  userId   String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, userId])
+}
+
+// RelatedTicket (self-relation join table)
+model RelatedTicket {
+  ticketId        String
+  relatedTicketId String
+
+  ticket        Ticket @relation("TicketRelations", fields: [ticketId], references: [id], onDelete: Cascade)
+  relatedTicket Ticket @relation("RelatedTo", fields: [relatedTicketId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, relatedTicketId])
+}
+
+// Group (agent groups)
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  agents    UserGroup[]
+  tickets   Ticket[]
+  templates TicketTemplate[]
+}
+
+// UserGroup (join table)
+model UserGroup {
+  userId  String
+  groupId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([userId, groupId])
+}
+
+// SLAPolicy
+model SLAPolicy {
+  id                 String   @id @default(cuid())
+  name               String
+  firstResponseHours Int
+  resolutionHours    Int
+  appliesTo          Priority
+  businessHoursOnly  Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // Relations
+  tickets Ticket[]
+}
+
+// AutomationRule
+model AutomationRule {
+  id         String            @id @default(cuid())
+  name       String
+  isActive   Boolean           @default(true)
+  trigger    AutomationTrigger
+  conditions Json
+  actions    Json
+  runOrder   Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+// CannedResponse
+model CannedResponse {
+  id          String   @id @default(cuid())
+  title       String
+  body        String   @db.Text
+  tags        String[]
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdBy User @relation(fields: [createdById], references: [id])
+}
+
+// KBCategory (Knowledge Base Category)
+model KBCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  articles KBArticle[]
+}
+
+// KBArticle (Knowledge Base Article)
+model KBArticle {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  body        String   @db.Text
+  isPublished Boolean  @default(false)
+  categoryId  String
+  authorId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  category KBCategory @relation(fields: [categoryId], references: [id])
+  author   User       @relation(fields: [authorId], references: [id])
+}
+
+// Notification
+model Notification {
+  id        String    @id @default(cuid())
+  type      String
+  title     String
+  message   String
+  link      String?
+  readAt    DateTime?
+  userId    String
+  ticketId  String?
+  createdAt DateTime  @default(now())
+
+  // Relations
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+// CustomField
+model CustomField {
+  id         String          @id @default(cuid())
+  label      String
+  fieldKey   String          @unique
+  fieldType  CustomFieldType
+  options    Json?
+  isRequired Boolean         @default(false)
+  order      Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  // Relations
+  values CustomFieldValue[]
+}
+
+// CustomFieldValue
+model CustomFieldValue {
+  id       String @id @default(cuid())
+  value    String
+  fieldId  String
+  ticketId String
+
+  // Relations
+  field  CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  ticket Ticket      @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, ticketId])
+}
+
+// BusinessHours
+model BusinessHours {
+  id        String   @id @default(cuid())
+  dayOfWeek Int
+  isOpen    Boolean
+  openTime  String?
+  closeTime String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dayOfWeek])
+}
+
+// ============================================================================
+// PHASE 5b MODELS
+// ============================================================================
+
+// TimeEntry - track time spent on tickets
+model TimeEntry {
+  id          String   @id @default(cuid())
+  ticketId    String
+  agentId     String
+  date        DateTime
+  hours       Int      @default(0)
+  minutes     Int      @default(0)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  agent  User   @relation(fields: [agentId], references: [id])
+}
+
+// MaterialEntry - track materials/expenses on tickets
+model MaterialEntry {
+  id        String   @id @default(cuid())
+  ticketId  String
+  agentId   String
+  itemName  String
+  quantity  Float    @default(1)
+  unitCost  Float    @default(0)
+  totalCost Float
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  agent  User   @relation(fields: [agentId], references: [id])
+}
+
+// Device - company assets/equipment
+model Device {
+  id              String     @id @default(cuid())
+  name            String
+  type            DeviceType
+  make            String?
+  model           String?
+  serialNumber    String?
+  operatingSystem String?
+  ipAddress       String?
+  notes           String?
+  isActive        Boolean    @default(true)
+  companyId       String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // Relations
+  company Company        @relation(fields: [companyId], references: [id])
+  tickets TicketDevice[]
+}
+
+// TicketDevice - join table for tickets and devices
+model TicketDevice {
+  ticketId String
+  deviceId String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, deviceId])
+}
+
+// TicketTemplate - reusable ticket templates
+model TicketTemplate {
+  id          String     @id @default(cuid())
+  name        String
+  subject     String
+  description String     @db.Text
+  priority    Priority   @default(MEDIUM)
+  type        TicketType @default(QUESTION)
+  assigneeId  String?
+  groupId     String?
+  tags        String[]
+  isActive    Boolean    @default(true)
+  createdById String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  checklistItems    TemplateChecklistItem[]
+  recurringSchedule RecurringSchedule?
+  createdBy         User                    @relation("TemplateCreator", fields: [createdById], references: [id])
+  assignee          User?                   @relation("TemplateAssignee", fields: [assigneeId], references: [id])
+  group             Group?                  @relation(fields: [groupId], references: [id])
+}
+
+// TemplateChecklistItem - checklist items in templates
+model TemplateChecklistItem {
+  id         String @id @default(cuid())
+  templateId String
+  label      String
+  order      Int    @default(0)
+
+  // Relations
+  template TicketTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+// TicketChecklistItem - checklist items on tickets
+model TicketChecklistItem {
+  id          String    @id @default(cuid())
+  ticketId    String
+  label       String
+  isChecked   Boolean   @default(false)
+  order       Int       @default(0)
+  checkedAt   DateTime?
+  checkedById String?
+
+  // Relations
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  checkedBy User?  @relation(fields: [checkedById], references: [id])
+}
+
+// RecurringSchedule - schedule for recurring tickets
+model RecurringSchedule {
+  id         String             @id @default(cuid())
+  templateId String             @unique
+  frequency  RecurringFrequency
+  dayOfWeek  Int?
+  dayOfMonth Int?
+  startDate  DateTime
+  endDate    DateTime?
+  lastRunAt  DateTime?
+  nextRunAt  DateTime
+  isActive   Boolean            @default(true)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  // Relations
+  template TicketTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+// SatisfactionRating - customer satisfaction ratings
+model SatisfactionRating {
+  id        String                  @id @default(cuid())
+  ticketId  String                  @unique
+  contactId String
+  rating    SatisfactionRatingValue
+  feedback  String?
+  ratedAt   DateTime                @default(now())
+
+  // Relations
+  ticket  Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id])
+}
+
+// AppSetting - key-value settings store
+model AppSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}

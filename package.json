@@ -1,0 +1,20 @@
+{
+  "name": "nadc-helpdesk",
+  "version": "1.0.0",
+  "description": "Self-hosted helpdesk ticketing system",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm --prefix client run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "prisma:generate": "npm --prefix server run prisma:generate",
+    "prisma:push": "npm --prefix server run prisma:push",
+    "prisma:studio": "npm --prefix server run prisma:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "playwright": "^1.60.0"
+  }
+}

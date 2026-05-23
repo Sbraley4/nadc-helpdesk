@@ -634,7 +634,7 @@ const updateTicket = async (req, res, next) => {
     // Run automations
     try {
       const ticketForAutomation = await prisma.ticket.findUnique({
-        where: { id: ticket.id },
+        where: { id },
         include: {
           requester: { select: { id: true, name: true, email: true } },
           company: { select: { id: true, name: true } },

@@ -1,0 +1,39 @@
+{
+  "name": "nadc-helpdesk-server",
+  "version": "1.0.0",
+  "description": "NADC Helpdesk API Server",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-validator": "^7.2.0",
+    "helmet": "^8.0.0",
+    "imap": "^0.8.19",
+    "jsonwebtoken": "^9.0.2",
+    "mailparser": "^3.9.8",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.10.1",
+    "socket.io": "^4.8.0",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7",
+    "prisma": "^6.8.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  }
+}
