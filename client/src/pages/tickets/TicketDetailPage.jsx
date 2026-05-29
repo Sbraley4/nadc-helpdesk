@@ -633,11 +633,13 @@ export default function TicketDetailPage() {
             <div key={reply.id} className={"p-6 border-b border-gray-200 group relative " + (reply.isInternal ? 'bg-yellow-50' : '')}>
               <div className="flex items-start gap-3">
                 <Avatar name={reply.author?.name} size="md" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-gray-900">{reply.author?.name}</span>
-                    {reply.isInternal && <Badge variant="warning" size="sm">Internal Note</Badge>}
-                    <span className="text-sm text-gray-500">{format(new Date(reply.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-900">{reply.author?.name}</span>
+                      {reply.isInternal && <Badge variant="warning" size="sm">Internal Note</Badge>}
+                    </div>
+                    <span className="text-xs sm:text-sm text-gray-500">{format(new Date(reply.createdAt), 'MMM d, yyyy h:mm a')}</span>
                   </div>
                   {editingReplyId === reply.id ? (
                     <div className="space-y-2">
@@ -721,11 +723,49 @@ export default function TicketDetailPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* Mobile action buttons - inline below content, always visible */}
+                  {reply.isInternal && !editingReplyId && (
+                    <div className="sm:hidden flex flex-wrap gap-2 mt-3 pt-3 border-t border-yellow-200">
+                      <button
+                        onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to delete this note?')) {
+                            deleteReplyMutation.mutate(reply.id);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-600 bg-white rounded-lg border border-gray-200 active:bg-red-50 touch-manipulation min-h-[36px]"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setForwardingReply(reply)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                      >
+                        <Forward size={14} />
+                        Forward
+                      </button>
+                      <button
+                        onClick={() => setThreadReplyId(reply.id)}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                      >
+                        <MessageSquare size={14} />
+                        Reply
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Action buttons for internal notes */}
+                {/* Desktop action buttons - absolute positioned, hover visible */}
                 {reply.isInternal && !editingReplyId && (
-                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="hidden sm:flex absolute top-4 right-4 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
                       className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded"
