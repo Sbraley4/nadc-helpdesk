@@ -129,7 +129,7 @@ async function getWorkloadSummary(req, res, next) {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Get all agents
+    // Get all agents (including ADMIN role)
     const agents = await prisma.user.findMany({
       where: {
         role: { in: ['ADMIN', 'AGENT'] },
@@ -143,19 +143,27 @@ async function getWorkloadSummary(req, res, next) {
       },
     });
 
-    // For each agent, count tickets with due dates in range
+    // For each agent, get their open/pending tickets
     const workload = await Promise.all(
       agents.map(async (agent) => {
-        const [ticketCount, timeEntries] = await Promise.all([
-          prisma.ticket.count({
+        const [tickets, timeEntries] = await Promise.all([
+          prisma.ticket.findMany({
             where: {
               assigneeId: agent.id,
-              dueDate: {
-                gte: startDate,
-                lte: endDate,
-              },
-              status: { in: ['OPEN', 'PENDING'] },
+              status: { in: ['OPEN', 'PENDING', 'IN_PROGRESS'] },
             },
+            select: {
+              id: true,
+              ticketNumber: true,
+              subject: true,
+              status: true,
+              priority: true,
+              dueDate: true,
+              requester: {
+                select: { id: true, name: true },
+              },
+            },
+            orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
           }),
           prisma.timeEntry.aggregate({
             where: {
@@ -174,18 +182,51 @@ async function getWorkloadSummary(req, res, next) {
 
         const totalHours = (timeEntries._sum.hours || 0) +
           Math.floor((timeEntries._sum.minutes || 0) / 60);
-        const totalMinutes = (timeEntries._sum.minutes || 0) % 60;
 
         return {
-          ...agent,
-          ticketsDue: ticketCount,
-          timeLogged: {
-            hours: totalHours,
-            minutes: totalMinutes,
-          },
+          agentId: agent.id,
+          agent,
+          tickets: tickets.map(t => ({
+            ...t,
+            contact: t.requester, // Frontend expects 'contact' not 'requester'
+          })),
+          ticketCount: tickets.length,
+          totalHours,
         };
       })
     );
+
+    // Get unassigned tickets
+    const unassignedTickets = await prisma.ticket.findMany({
+      where: {
+        assigneeId: null,
+        status: { in: ['OPEN', 'PENDING', 'IN_PROGRESS'] },
+      },
+      select: {
+        id: true,
+        ticketNumber: true,
+        subject: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        requester: {
+          select: { id: true, name: true },
+        },
+      },
+      orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
+    });
+
+    // Always add unassigned column
+    workload.push({
+      agentId: null,
+      agent: null,
+      tickets: unassignedTickets.map(t => ({
+        ...t,
+        contact: t.requester,
+      })),
+      ticketCount: unassignedTickets.length,
+      totalHours: 0,
+    });
 
     res.json({ workload });
   } catch (error) {
