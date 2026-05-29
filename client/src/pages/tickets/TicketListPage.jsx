@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Plus, AlertCircle, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { tickets } from '../../api';
+import { Plus, AlertCircle, Clock, CheckCircle, XCircle, ChevronDown } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { tickets, agents } from '../../api';
 import { Badge, Button, SearchInput, Select, Pagination, EmptyState, CenteredSpinner, Avatar } from '../../components/shared';
 
 const statusConfig = {
@@ -37,12 +38,15 @@ const priorityOptions = [
 ];
 export default function TicketListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const filters = {
     page: parseInt(searchParams.get('page') || '1'),
     search: searchParams.get('search') || '',
     status: searchParams.get('status') || '',
     priority: searchParams.get('priority') || '',
+    assigneeId: searchParams.get('assigneeId') || '',
   };
 
   const updateFilters = (newFilters) => {
@@ -56,6 +60,21 @@ export default function TicketListPage() {
     setSearchParams(params);
   };
 
+  // Fetch agents for assignee filter
+  const { data: agentsData } = useQuery({
+    queryKey: ['agents'],
+    queryFn: agents.getAgents,
+  });
+
+  const assigneeOptions = [
+    { value: '', label: 'All Agents' },
+    { value: 'unassigned', label: 'Unassigned' },
+    ...(agentsData?.agents || []).map((agent) => ({
+      value: agent.id,
+      label: agent.name,
+    })),
+  ];
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['tickets', filters],
     queryFn: () => tickets.getTickets({
@@ -64,7 +83,20 @@ export default function TicketListPage() {
       search: filters.search || undefined,
       status: filters.status || undefined,
       priority: filters.priority || undefined,
+      assigneeId: filters.assigneeId || undefined,
     }),
+  });
+
+  // Mutation for quick status change
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ ticketId, status }) => tickets.updateTicket(ticketId, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tickets']);
+      toast.success('Status updated');
+    },
+    onError: () => {
+      toast.error('Failed to update status');
+    },
   });
 
   const ticketList = data?.tickets || [];
@@ -94,8 +126,9 @@ export default function TicketListPage() {
           <SearchInput value={filters.search} onChange={(value) => updateFilters({ search: value, page: 1 })} placeholder="Search tickets..." className="w-64" />
           <Select options={statusOptions} value={filters.status} onChange={(e) => updateFilters({ status: e.target.value, page: 1 })} className="w-40" />
           <Select options={priorityOptions} value={filters.priority} onChange={(e) => updateFilters({ priority: e.target.value, page: 1 })} className="w-40" />
-          {(filters.search || filters.status || filters.priority) && (
-            <Button variant="ghost" size="sm" onClick={() => updateFilters({ search: '', status: '', priority: '', page: 1 })}>Clear filters</Button>
+          <Select options={assigneeOptions} value={filters.assigneeId} onChange={(e) => updateFilters({ assigneeId: e.target.value, page: 1 })} className="w-44" />
+          {(filters.search || filters.status || filters.priority || filters.assigneeId) && (
+            <Button variant="ghost" size="sm" onClick={() => updateFilters({ search: '', status: '', priority: '', assigneeId: '', page: 1 })}>Clear filters</Button>
           )}
         </div>
       </div>
@@ -121,7 +154,14 @@ export default function TicketListPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {ticketList.map((ticket) => <TicketRow key={ticket.id} ticket={ticket} />)}
+                {ticketList.map((ticket) => (
+                  <TicketRow
+                    key={ticket.id}
+                    ticket={ticket}
+                    onStatusChange={(ticketId, status) => updateStatusMutation.mutate({ ticketId, status })}
+                    onNavigate={navigate}
+                  />
+                ))}
               </tbody>
             </table>
             <Pagination currentPage={filters.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={20} onPageChange={(page) => updateFilters({ page })} />
@@ -131,26 +171,72 @@ export default function TicketListPage() {
     </div>
   );
 }
-function TicketRow({ ticket }) {
+function TicketRow({ ticket, onStatusChange, onNavigate }) {
   const ticketUrl = '/tickets/' + ticket.id;
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  const handleStatusClick = (e) => {
+    e.stopPropagation();
+    setShowStatusDropdown(!showStatusDropdown);
+  };
+
+  const handleStatusChange = (newStatus) => {
+    if (newStatus !== ticket.status) {
+      onStatusChange(ticket.id, newStatus);
+    }
+    setShowStatusDropdown(false);
+  };
+
   return (
-    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => (window.location.href = ticketUrl)}>
+    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => onNavigate(ticketUrl)}>
       <td className="px-6 py-4">
         <Link to={ticketUrl} className="block" onClick={(e) => e.stopPropagation()}>
-          <p className="text-sm font-medium text-gray-900 hover:text-primary">{ticket.subject}</p>
-          <p className="text-xs text-gray-500 mt-0.5">#{ticket.id}</p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-primary">#{ticket.ticketNumber}</span>
+            <p className="text-sm font-medium text-gray-900 hover:text-primary">{ticket.subject}</p>
+          </div>
         </Link>
       </td>
       <td className="px-6 py-4">
         <div className="flex items-center gap-2">
-          <Avatar name={ticket.contact?.name} size="xs" />
+          <Avatar name={ticket.requester?.name} size="xs" />
           <div>
-            <p className="text-sm text-gray-900">{ticket.contact?.name || 'Unknown'}</p>
-            <p className="text-xs text-gray-500">{ticket.contact?.company?.name}</p>
+            <p className="text-sm text-gray-900">{ticket.requester?.name || 'Unknown'}</p>
+            <p className="text-xs text-gray-500">{ticket.company?.name}</p>
           </div>
         </div>
       </td>
-      <td className="px-6 py-4"><Badge variant={statusConfig[ticket.status]?.variant}>{statusConfig[ticket.status]?.label}</Badge></td>
+      <td className="px-6 py-4 relative">
+        <button
+          onClick={handleStatusClick}
+          className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+        >
+          <Badge variant={statusConfig[ticket.status]?.variant}>
+            {statusConfig[ticket.status]?.label}
+          </Badge>
+          <ChevronDown size={14} className="text-gray-400" />
+        </button>
+        {showStatusDropdown && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowStatusDropdown(false); }} />
+            <div className="absolute z-20 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]">
+              {['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'].map((status) => (
+                <button
+                  key={status}
+                  onClick={(e) => { e.stopPropagation(); handleStatusChange(status); }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2 ${
+                    ticket.status === status ? 'bg-gray-50 font-medium' : ''
+                  }`}
+                >
+                  <Badge variant={statusConfig[status]?.variant} size="sm">
+                    {statusConfig[status]?.label}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </td>
       <td className="px-6 py-4"><Badge variant={priorityConfig[ticket.priority]?.variant}>{priorityConfig[ticket.priority]?.label}</Badge></td>
       <td className="px-6 py-4">
         {ticket.assignee ? (

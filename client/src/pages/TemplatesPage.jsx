@@ -98,11 +98,11 @@ export default function TemplatesPage() {
       name: template.name,
       description: template.description || '',
       subject: template.subject,
-      body: template.body || '',
+      body: template.description || '', // Use description as body content
       priority: template.priority,
       assigneeId: template.assigneeId || '',
       tagIds: template.tags?.map((t) => t.id) || [],
-      checklistItems: template.checklistItems?.map((item) => item.text) || [],
+      checklistItems: template.checklistItems?.map((item) => item.label || item.text || item) || [],
       isRecurring: !!template.recurringSchedule,
       recurringFrequency: template.recurringSchedule?.frequency || 'WEEKLY',
       recurringDayOfWeek: template.recurringSchedule?.dayOfWeek || 1,
@@ -118,17 +118,17 @@ export default function TemplatesPage() {
     try {
       const payload = {
         name: form.name,
-        description: form.description || null,
         subject: form.subject,
-        body: form.body || null,
+        description: form.body || form.description || '', // Map body to description
         priority: form.priority,
         assigneeId: form.assigneeId || null,
-        tagIds: form.tagIds,
-        checklistItems: form.checklistItems,
-        isRecurring: form.isRecurring,
-        recurringFrequency: form.isRecurring ? form.recurringFrequency : null,
-        recurringDayOfWeek: form.isRecurring ? form.recurringDayOfWeek : null,
-        recurringDayOfMonth: form.isRecurring ? form.recurringDayOfMonth : null,
+        tags: form.tagIds, // Backend expects 'tags' as array
+        checklistItems: form.checklistItems.map((item) => ({ label: item })), // Convert strings to {label} objects
+        recurring: form.isRecurring ? {
+          frequency: form.recurringFrequency,
+          dayOfWeek: form.recurringDayOfWeek,
+          dayOfMonth: form.recurringDayOfMonth,
+        } : null,
       };
 
       if (editingTemplate) {
@@ -158,14 +158,10 @@ export default function TemplatesPage() {
     }
   };
 
-  const handleCreateTicket = async (templateId) => {
-    try {
-      const result = await templates.createTicketFromTemplate(templateId, {});
-      // Navigate to the new ticket
-      window.location.href = `/tickets/${result.ticket.id}`;
-    } catch (error) {
-      console.error('Failed to create ticket from template:', error);
-    }
+  const handleCreateTicket = (templateId) => {
+    // Navigate to new ticket page with template ID as query param
+    // User will select a contact on the new ticket page
+    window.location.href = `/tickets/new?templateId=${templateId}`;
   };
 
   const addChecklistItem = () => {
