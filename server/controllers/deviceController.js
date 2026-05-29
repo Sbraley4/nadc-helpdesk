@@ -71,7 +71,6 @@ async function getDevice(req, res, next) {
         },
         tickets: {
           take: 10,
-          orderBy: { createdAt: 'desc' },
           include: {
             ticket: {
               select: {
@@ -94,10 +93,10 @@ async function getDevice(req, res, next) {
     // Flatten ticket data
     const formattedDevice = {
       ...device,
-      tickets: device.tickets.map((td) => td.ticket),
+      tickets: device.tickets.map((td) => ({ ticketId: td.ticketId, ticket: td.ticket })),
     };
 
-    res.json(formattedDevice);
+    res.json({ device: formattedDevice });
   } catch (error) {
     next(error);
   }

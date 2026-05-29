@@ -1,4 +1,5 @@
 require('dotenv').config();
+// Server startup
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -135,15 +136,18 @@ app.use('/api/automations', automationRoutes);
 app.use('/api/search', searchRoutes);
 
 // ============================================================================
-// Future route imports (Phase 8+)
+// Route imports - Phase 8 (Client Portal & Knowledge Base)
 // ============================================================================
-// const automationRoutes = require('./routes/automations');
-// const kbRoutes = require('./routes/kb');
-// const reportRoutes = require('./routes/reports');
+const portalAuthRoutes = require('./routes/portalAuth');
+const portalTicketRoutes = require('./routes/portalTickets');
+const kbRoutes = require('./routes/kb');
 
-// app.use('/api/automations', automationRoutes);
-// app.use('/api/kb', kbRoutes);
-// app.use('/api/reports', reportRoutes);
+// Portal routes (public and portal-authenticated)
+app.use('/api/portal/auth', portalAuthRoutes);
+app.use('/api/portal/tickets', portalTicketRoutes);
+
+// Knowledge base routes (public read, agent-only write)
+app.use('/api/kb', kbRoutes);
 // ============================================================================
 
 // Socket.io connection handling
@@ -208,7 +212,22 @@ io.on('connection', (socket) => {
 // Make io accessible to routes
 app.set('io', io);
 
-// 404 handler
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.join(__dirname, 'public');
+  app.use(express.static(publicPath));
+
+  // Handle client-side routing - serve index.html for non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
+
+// 404 handler (for API routes only in production)
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });

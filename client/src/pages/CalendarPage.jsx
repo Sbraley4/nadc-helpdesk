@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User } from 'lucide-react';
-import { calendar, agents } from '../api';
-import { Spinner, Badge, Avatar } from '../components/shared';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus } from 'lucide-react';
+import { calendar, agents, tickets as ticketsApi, contacts, companies } from '../api';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal } from '../components/shared';
+import toast from 'react-hot-toast';
 
 const priorityColors = {
   LOW: 'bg-gray-100 text-gray-700 border-gray-300',
@@ -27,6 +28,22 @@ export default function CalendarPage() {
   const [agentsList, setAgentsList] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // New ticket modal state
+  const [showNewTicketModal, setShowNewTicketModal] = useState(false);
+  const [newTicketDate, setNewTicketDate] = useState(null);
+  const [newTicketTime, setNewTicketTime] = useState('09:00');
+  const [contactsList, setContactsList] = useState([]);
+  const [companiesList, setCompaniesList] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [newTicketForm, setNewTicketForm] = useState({
+    subject: '',
+    description: '',
+    priority: 'MEDIUM',
+    contactId: '',
+    companyId: '',
+    assigneeId: '',
+  });
 
   // Get date range based on current view
   const dateRange = useMemo(() => {
@@ -57,16 +74,20 @@ export default function CalendarPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [ticketsData, agentsData] = await Promise.all([
+        const [ticketsData, agentsData, contactsData, companiesData] = await Promise.all([
           calendar.getCalendarTickets({
             start: dateRange.start.toISOString(),
             end: dateRange.end.toISOString(),
             agentId: selectedAgent || undefined,
           }),
           agents.getAgents(),
+          contacts.getContacts({ limit: 100 }),
+          companies.getCompanies({ limit: 100 }),
         ]);
         setTickets(ticketsData.tickets || []);
         setAgentsList(agentsData.agents || []);
+        setContactsList(contactsData.contacts || []);
+        setCompaniesList(companiesData.companies || []);
       } catch (error) {
         console.error('Failed to fetch calendar data:', error);
       } finally {
@@ -177,15 +198,81 @@ export default function CalendarPage() {
   const renderTicketPill = (ticket) => (
     <button
       key={ticket.id}
-      onClick={() => navigate(`/tickets/${ticket.id}`)}
+      onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
       className={`w-full text-left text-xs p-1 rounded border truncate mb-0.5 hover:opacity-80 transition-opacity ${
         priorityColors[ticket.priority]
       }`}
     >
       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${statusColors[ticket.status]}`} />
-      #{ticket.id} {ticket.subject}
+      <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
     </button>
   );
+
+  // Navigate to day view when clicking a day in month view
+  const handleDayClick = (date) => {
+    setCurrentDate(date);
+    setView('day');
+  };
+
+  // Open new ticket modal when clicking a time slot in day/week view
+  const handleTimeSlotClick = (date, hour) => {
+    const time = `${hour.toString().padStart(2, '0')}:00`;
+    setNewTicketDate(date);
+    setNewTicketTime(time);
+    setNewTicketForm({
+      subject: '',
+      description: '',
+      priority: 'MEDIUM',
+      contactId: '',
+      companyId: '',
+      assigneeId: '',
+    });
+    setShowNewTicketModal(true);
+  };
+
+  // Create ticket from modal
+  const handleCreateTicket = async (e) => {
+    e.preventDefault();
+    if (!newTicketForm.subject || !newTicketForm.contactId) {
+      toast.error('Subject and contact are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      // Combine date and time for dueDate
+      const dueDateTime = new Date(newTicketDate);
+      const [hours, minutes] = newTicketTime.split(':');
+      dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      const ticketData = {
+        subject: newTicketForm.subject,
+        description: newTicketForm.description,
+        priority: newTicketForm.priority,
+        requesterId: newTicketForm.contactId,
+        companyId: newTicketForm.companyId || null,
+        assigneeId: newTicketForm.assigneeId || null,
+        dueDate: dueDateTime.toISOString(),
+      };
+
+      const result = await ticketsApi.createTicket(ticketData);
+      toast.success('Ticket created successfully');
+      setShowNewTicketModal(false);
+      // Refresh calendar data
+      const ticketsData = await calendar.getCalendarTickets({
+        start: dateRange.start.toISOString(),
+        end: dateRange.end.toISOString(),
+        agentId: selectedAgent || undefined,
+      });
+      setTickets(ticketsData.tickets || []);
+      // Navigate to the new ticket
+      navigate(`/tickets/${result.id}`);
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      toast.error(error.response?.data?.error || 'Failed to create ticket');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const renderMonthView = () => (
     <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
@@ -199,9 +286,11 @@ export default function CalendarPage() {
         return (
           <div
             key={idx}
-            className={`bg-white p-1 min-h-[80px] md:min-h-[100px] ${
+            onClick={() => handleDayClick(date)}
+            className={`bg-white p-1 min-h-[80px] md:min-h-[100px] cursor-pointer hover:bg-gray-50 transition-colors ${
               !isCurrentMonth ? 'opacity-50' : ''
             }`}
+            title="Click to view day schedule"
           >
             <div
               className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
@@ -264,23 +353,32 @@ export default function CalendarPage() {
             ))}
           </div>
           <div className="relative">
-            {/* Grid lines */}
+            {/* Clickable time slots */}
             <div className="absolute inset-0 divide-y divide-gray-100">
               {hours.map((hour) => (
-                <div key={hour} className="h-16" />
+                <div
+                  key={hour}
+                  className="h-16 cursor-pointer hover:bg-primary/5 transition-colors group"
+                  onClick={() => handleTimeSlotClick(currentDate, hour)}
+                  title={`Click to create ticket at ${hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}`}
+                >
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full text-primary text-xs">
+                    <Plus size={14} className="mr-1" /> New Ticket
+                  </div>
+                </div>
               ))}
             </div>
             {/* Tickets */}
-            <div className="relative p-2 space-y-2">
+            <div className="relative p-2 space-y-2 pointer-events-none">
               {dayTickets.map((ticket) => (
                 <button
                   key={ticket.id}
-                  onClick={() => navigate(`/tickets/${ticket.id}`)}
-                  className={`w-full text-left p-2 rounded border ${priorityColors[ticket.priority]} hover:opacity-80 transition-opacity`}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
+                  className={`w-full text-left p-2 rounded border pointer-events-auto ${priorityColors[ticket.priority]} hover:opacity-80 transition-opacity`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${statusColors[ticket.status]}`} />
-                    <span className="font-medium text-sm">#{ticket.id}</span>
+                    <span className="font-bold text-sm text-primary">#{ticket.ticketNumber}</span>
                   </div>
                   <div className="text-sm truncate">{ticket.subject}</div>
                   {ticket.assignee && (
@@ -292,8 +390,8 @@ export default function CalendarPage() {
                 </button>
               ))}
               {dayTickets.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No tickets scheduled for this day
+                <div className="text-center py-8 text-gray-500 pointer-events-auto">
+                  Click a time slot to create a new ticket
                 </div>
               )}
             </div>
@@ -391,6 +489,120 @@ export default function CalendarPage() {
           {view === 'day' && renderDayView()}
         </div>
       )}
+
+      {/* New Ticket Modal */}
+      <Modal
+        isOpen={showNewTicketModal}
+        onClose={() => setShowNewTicketModal(false)}
+        title="Create New Ticket"
+        size="lg"
+      >
+        <form onSubmit={handleCreateTicket} className="space-y-4">
+          {/* Date and Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input
+                type="date"
+                value={newTicketDate ? newTicketDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => setNewTicketDate(new Date(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+              <input
+                type="time"
+                value={newTicketTime}
+                onChange={(e) => setNewTicketTime(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Subject */}
+          <Input
+            label={<>Subject <span className="text-red-500">*</span></>}
+            value={newTicketForm.subject}
+            onChange={(e) => setNewTicketForm(prev => ({ ...prev, subject: e.target.value }))}
+            placeholder="Brief description of the issue"
+            required
+          />
+
+          {/* Contact and Company */}
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label={<>Contact <span className="text-red-500">*</span></>}
+              value={newTicketForm.contactId}
+              onChange={(e) => {
+                const contact = contactsList.find(c => c.id === e.target.value);
+                setNewTicketForm(prev => ({
+                  ...prev,
+                  contactId: e.target.value,
+                  companyId: contact?.company?.id || prev.companyId,
+                }));
+              }}
+              options={[
+                { value: '', label: 'Select contact' },
+                ...contactsList.map(c => ({ value: c.id, label: `${c.name} (${c.email})` })),
+              ]}
+              required
+            />
+            <Select
+              label="Company"
+              value={newTicketForm.companyId}
+              onChange={(e) => setNewTicketForm(prev => ({ ...prev, companyId: e.target.value }))}
+              options={[
+                { value: '', label: 'Select company' },
+                ...companiesList.map(c => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </div>
+
+          {/* Priority and Assignee */}
+          <div className="grid grid-cols-2 gap-4">
+            <Select
+              label="Priority"
+              value={newTicketForm.priority}
+              onChange={(e) => setNewTicketForm(prev => ({ ...prev, priority: e.target.value }))}
+              options={[
+                { value: 'LOW', label: 'Low' },
+                { value: 'MEDIUM', label: 'Medium' },
+                { value: 'HIGH', label: 'High' },
+                { value: 'URGENT', label: 'Urgent' },
+              ]}
+            />
+            <Select
+              label="Assignee"
+              value={newTicketForm.assigneeId}
+              onChange={(e) => setNewTicketForm(prev => ({ ...prev, assigneeId: e.target.value }))}
+              options={[
+                { value: '', label: 'Unassigned' },
+                ...agentsList.map(a => ({ value: a.id, label: a.name })),
+              ]}
+            />
+          </div>
+
+          {/* Description */}
+          <Textarea
+            label="Description"
+            value={newTicketForm.description}
+            onChange={(e) => setNewTicketForm(prev => ({ ...prev, description: e.target.value }))}
+            placeholder="Detailed description of the issue"
+            rows={4}
+          />
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={() => setShowNewTicketModal(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? <Spinner size="sm" /> : 'Create Ticket'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
