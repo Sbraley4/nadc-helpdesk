@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, replies, agents } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea } from '../../components/shared';
+import { tickets, replies, agents, kb, templates, checklist, timeEntries } from '../../api';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
@@ -46,6 +46,77 @@ export default function TicketDetailPage() {
   const [typingUsers, setTypingUsers] = useState([]);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
+  const [showKBModal, setShowKBModal] = useState(false);
+  const [kbSearchQuery, setKbSearchQuery] = useState('');
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [notifyAgents, setNotifyAgents] = useState([]);
+  const [editingReplyId, setEditingReplyId] = useState(null);
+  const [editingReplyContent, setEditingReplyContent] = useState('');
+  const [forwardingReply, setForwardingReply] = useState(null);
+  const [forwardAgentId, setForwardAgentId] = useState('');
+  const [threadReplyId, setThreadReplyId] = useState(null);
+  const [threadContent, setThreadContent] = useState('');
+
+  // Checklist state
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [showChecklist, setShowChecklist] = useState(true);
+
+  // Time logging in notes state
+  const [showTimeLog, setShowTimeLog] = useState(false);
+  const [timeLogDate, setTimeLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const [timeLogStartTime, setTimeLogStartTime] = useState('');
+  const [timeLogFinishTime, setTimeLogFinishTime] = useState('');
+  const [timeLogBtoType, setTimeLogBtoType] = useState('BTO'); // 'BTO' or 'ETA'
+  const [timeLogBtoTime, setTimeLogBtoTime] = useState('');
+  const [timeLogBtoLocation, setTimeLogBtoLocation] = useState('');
+  const [timeLogDescription, setTimeLogDescription] = useState('');
+
+  // Smart note parser state
+  const [parsedData, setParsedData] = useState(null);
+  const [showParsePreview, setShowParsePreview] = useState(false);
+
+  // Note expansion state
+  const [expandedNotes, setExpandedNotes] = useState({});
+
+  // Mobile sidebar state
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+
+  // Helper function to format note body with preserved line breaks
+  const formatNoteBody = (body, isExpanded = true) => {
+    if (!body) return '';
+    // Convert newlines to <br> tags to preserve formatting
+    const formattedBody = body
+      .replace(/\n/g, '<br>')
+      .replace(/  /g, '&nbsp;&nbsp;'); // Preserve double spaces
+
+    // If not expanded, truncate to first 150 chars or first 2 lines
+    if (!isExpanded) {
+      const lines = body.split('\n');
+      const previewLines = lines.slice(0, 2);
+      let preview = previewLines.join('\n');
+      if (lines.length > 2 || preview.length > 150) {
+        preview = preview.substring(0, 150) + '...';
+      }
+      return preview.replace(/\n/g, '<br>').replace(/  /g, '&nbsp;&nbsp;');
+    }
+    return formattedBody;
+  };
+
+  // Toggle note expansion
+  const toggleNoteExpanded = (replyId) => {
+    setExpandedNotes(prev => ({
+      ...prev,
+      [replyId]: !prev[replyId],
+    }));
+  };
+
+  // Check if a note needs expansion (more than 2 lines or > 150 chars)
+  const needsExpansion = (body) => {
+    if (!body) return false;
+    const lines = body.split('\n');
+    return lines.length > 2 || body.length > 150;
+  };
 
   // Connect to ticket socket room
   const socket = useTicketSocket(id);
@@ -163,6 +234,60 @@ export default function TicketDetailPage() {
     queryFn: agents.getAgents,
   });
 
+  // Search KB articles
+  const { data: kbSearchResults } = useQuery({
+    queryKey: ['kb-search', kbSearchQuery],
+    queryFn: () => kb.searchArticles(kbSearchQuery, 10),
+    enabled: kbSearchQuery.length >= 2 && showKBModal,
+  });
+
+  // Fetch templates for template modal
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: templates.getTemplates,
+    enabled: showTemplateModal,
+  });
+
+  // Fetch checklist items
+  const { data: checklistData } = useQuery({
+    queryKey: ['checklist', id],
+    queryFn: () => checklist.getChecklist(id),
+    enabled: !!id,
+  });
+
+  const checklistItems = checklistData?.items || [];
+
+  // Filter templates by search query
+  const filteredTemplates = (templatesData?.templates || []).filter(
+    (t) =>
+      templateSearchQuery.length < 2 ||
+      t.name.toLowerCase().includes(templateSearchQuery.toLowerCase()) ||
+      t.description?.toLowerCase().includes(templateSearchQuery.toLowerCase())
+  );
+
+  // Insert template content into reply
+  const handleInsertTemplate = (template) => {
+    const templateContent = template.description || template.subject || '';
+    setReplyContent((prev) => prev + (prev ? '\n\n' : '') + templateContent);
+    setShowTemplateModal(false);
+    setTemplateSearchQuery('');
+    toast.success('Template inserted');
+  };
+
+  // Insert KB article content into reply
+  const handleInsertKBArticle = async (article) => {
+    try {
+      const articleData = await kb.getArticle(article.slug);
+      const articleContent = `\n\n--- From Knowledge Base: ${articleData.title} ---\n\n${articleData.body}\n`;
+      setReplyContent((prev) => prev + articleContent);
+      setShowKBModal(false);
+      setKbSearchQuery('');
+      toast.success('Article inserted');
+    } catch (err) {
+      toast.error('Failed to load article');
+    }
+  };
+
   // Update ticket mutation
   const updateMutation = useMutation({
     mutationFn: (data) => tickets.updateTicket(id, data),
@@ -187,12 +312,258 @@ export default function TicketDetailPage() {
       toast.error(error.response?.data?.message || 'Failed to send reply');
     },
   });
-  const handleSendReply = () => {
+
+  // Edit reply mutation
+  const editReplyMutation = useMutation({
+    mutationFn: ({ replyId, body }) => replies.updateReply(id, replyId, { body }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['replies', id]);
+      setEditingReplyId(null);
+      setEditingReplyContent('');
+      toast.success('Note updated');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update note');
+    },
+  });
+
+  // Delete reply mutation
+  const deleteReplyMutation = useMutation({
+    mutationFn: (replyId) => replies.deleteReply(id, replyId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['replies', id]);
+      toast.success('Note deleted');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to delete note');
+    },
+  });
+
+  // Checklist mutations
+  const addChecklistMutation = useMutation({
+    mutationFn: (data) => checklist.addItem(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['checklist', id]);
+      setNewChecklistItem('');
+      toast.success('Checklist item added');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to add item');
+    },
+  });
+
+  const updateChecklistMutation = useMutation({
+    mutationFn: ({ itemId, data }) => checklist.updateItem(id, itemId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['checklist', id]);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update item');
+    },
+  });
+
+  const deleteChecklistMutation = useMutation({
+    mutationFn: (itemId) => checklist.deleteItem(id, itemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['checklist', id]);
+      toast.success('Item deleted');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete item');
+    },
+  });
+
+  // Time entry mutation
+  const createTimeEntryMutation = useMutation({
+    mutationFn: (data) => timeEntries.createTimeEntry(id, data),
+    onSuccess: () => {
+      toast.success('Time logged');
+      setTimeLogHours('');
+      setTimeLogMinutes('');
+      setTimeLogDescription('');
+      setShowTimeLog(false);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to log time');
+    },
+  });
+  // Helper function to format time for display (e.g., "9:00am")
+  const formatTimeDisplay = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'pm' : 'am';
+    const displayHours = hours % 12 || 12;
+    return `${displayHours}:${minutes.toString().padStart(2, '0')}${period}`;
+  };
+
+  // Helper function to calculate duration in hours and minutes from start/finish times
+  const calculateDuration = (startTime, finishTime) => {
+    if (!startTime || !finishTime) return { hours: 0, minutes: 0 };
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [finishHours, finishMinutes] = finishTime.split(':').map(Number);
+    let totalMinutes = (finishHours * 60 + finishMinutes) - (startHours * 60 + startMinutes);
+    if (totalMinutes < 0) totalMinutes += 24 * 60; // Handle overnight
+    return { hours: Math.floor(totalMinutes / 60), minutes: totalMinutes % 60 };
+  };
+
+  // Format the time log description with start/finish/BTO format
+  const formatTimeLogDescription = () => {
+    let desc = '';
+    if (timeLogStartTime && timeLogFinishTime) {
+      desc = `${formatTimeDisplay(timeLogStartTime)} - ${formatTimeDisplay(timeLogFinishTime)}`;
+      if (timeLogBtoTime) {
+        if (timeLogBtoType === 'BTO') {
+          desc += ` | BTO ${formatTimeDisplay(timeLogBtoTime)}`;
+        } else {
+          desc += ` | ETA to ${timeLogBtoLocation || '[Location]'} - ${formatTimeDisplay(timeLogBtoTime)}`;
+        }
+      }
+    }
+    return desc;
+  };
+
+  const handleSendReply = async () => {
     if (!replyContent.trim()) return;
-    replyMutation.mutate({
-      content: replyContent,
-      isInternal: isInternalNote,
-    });
+
+    // Build the note body with time log info if present
+    let noteBody = replyContent;
+
+    // If time logging fields are filled, create time entry and append to note
+    if (isInternalNote && showTimeLog && timeLogStartTime && timeLogFinishTime) {
+      const { hours, minutes } = calculateDuration(timeLogStartTime, timeLogFinishTime);
+      if (hours > 0 || minutes > 0) {
+        try {
+          const formattedDesc = formatTimeLogDescription();
+          await timeEntries.createTimeEntry(id, {
+            date: timeLogDate,
+            hours,
+            minutes,
+            description: formattedDesc || timeLogDescription || replyContent.substring(0, 200),
+          });
+          toast.success('Time logged');
+
+          // Append time log info to the note body
+          const dateFormatted = new Date(timeLogDate).toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+          });
+          let timeLogSummary = `\n\n--- Time Logged ---\nDate: ${dateFormatted}\nTime: ${formattedDesc}`;
+          timeLogSummary += `\nDuration: ${hours}h ${minutes}m`;
+          noteBody += timeLogSummary;
+        } catch (err) {
+          toast.error('Failed to log time');
+        }
+      }
+    }
+
+    const formData = new FormData();
+    formData.append('body', noteBody);
+    formData.append('isInternal', isInternalNote);
+    if (isInternalNote && notifyAgents.length > 0) {
+      formData.append('notifyAgentIds', JSON.stringify(notifyAgents));
+    }
+    replyMutation.mutate(formData);
+    setNotifyAgents([]);
+    setTimeLogStartTime('');
+    setTimeLogFinishTime('');
+    setTimeLogBtoType('BTO');
+    setTimeLogBtoTime('');
+    setTimeLogBtoLocation('');
+    setTimeLogDescription('');
+    setShowTimeLog(false);
+  };
+
+  // Smart note parser - parses time patterns and material entries
+  const parseNote = () => {
+    const text = replyContent;
+    const result = { time: null, materials: [] };
+
+    // Parse time patterns: "9:00am-3:00pm", "9am-3pm", "9:00-15:00"
+    const timePatterns = [
+      /(\d{1,2}):?(\d{2})?\s*(am|pm)?\s*[-–]\s*(\d{1,2}):?(\d{2})?\s*(am|pm)?/gi,
+    ];
+
+    for (const pattern of timePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const timeStr = match[0];
+        // Parse start and end times
+        const parts = timeStr.split(/[-–]/);
+        if (parts.length === 2) {
+          const parseTime = (str) => {
+            const m = str.trim().match(/(\d{1,2}):?(\d{2})?\s*(am|pm)?/i);
+            if (m) {
+              let hours = parseInt(m[1]);
+              const mins = parseInt(m[2]) || 0;
+              const period = (m[3] || '').toLowerCase();
+              if (period === 'pm' && hours < 12) hours += 12;
+              if (period === 'am' && hours === 12) hours = 0;
+              return hours + mins / 60;
+            }
+            return null;
+          };
+          const startHours = parseTime(parts[0]);
+          const endHours = parseTime(parts[1]);
+          if (startHours !== null && endHours !== null) {
+            let duration = endHours - startHours;
+            if (duration < 0) duration += 24; // Handle overnight
+            result.time = {
+              hours: Math.floor(duration),
+              minutes: Math.round((duration % 1) * 60),
+              source: timeStr,
+            };
+          }
+        }
+        break;
+      }
+    }
+
+    // Parse material patterns: lines starting with "-" that contain quantities
+    const lines = text.split('\n');
+    const materialPattern = /^-\s*(\d+(?:\.\d+)?)\s*(.+)/;
+    for (const line of lines) {
+      const match = line.match(materialPattern);
+      if (match) {
+        result.materials.push({
+          quantity: parseFloat(match[1]),
+          description: match[2].trim(),
+        });
+      }
+    }
+
+    if (result.time || result.materials.length > 0) {
+      setParsedData(result);
+      setShowParsePreview(true);
+    } else {
+      toast('No time or materials found in note', { icon: 'ℹ️' });
+    }
+  };
+
+  // Confirm parsed data
+  const confirmParsedData = async () => {
+    try {
+      // Create time entry if parsed
+      if (parsedData.time) {
+        await timeEntries.createTimeEntry(id, {
+          date: new Date().toISOString().split('T')[0],
+          hours: parsedData.time.hours,
+          minutes: parsedData.time.minutes,
+          description: `Parsed from note: ${parsedData.time.source}`,
+        });
+      }
+
+      // Note: Materials would need a separate API - for now just log them
+      if (parsedData.materials.length > 0) {
+        toast.success(`Found ${parsedData.materials.length} materials (material logging requires manual entry)`);
+      }
+
+      toast.success(`Time logged: ${parsedData.time?.hours || 0}h ${parsedData.time?.minutes || 0}m`);
+      setShowParsePreview(false);
+      setParsedData(null);
+    } catch (err) {
+      toast.error('Failed to log parsed data');
+    }
   };
 
   const agentOptions = [
@@ -205,7 +576,7 @@ export default function TicketDetailPage() {
 
   if (isLoading) return <CenteredSpinner />;
 
-  if (error || !ticketData?.ticket) {
+  if (error || !ticketData?.id) {
     return (
       <EmptyState
         title="Ticket not found"
@@ -215,23 +586,31 @@ export default function TicketDetailPage() {
     );
   }
 
-  const ticket = ticketData.ticket;
+  const ticket = ticketData;
   const replyList = repliesData?.replies || [];
   return (
-    <div className="flex gap-6">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
       {/* Main content */}
       <div className="flex-1 min-w-0">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate('/tickets')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6">
+          <button onClick={() => navigate('/tickets')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center">
             <ArrowLeft size={20} />
           </button>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-gray-900">{ticket.subject}</h1>
-              <span className="text-gray-500">#{ticket.id}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-2">
+              <h1 className="text-lg md:text-xl font-bold text-gray-900 truncate">{ticket.subject}</h1>
+              <span className="text-sm text-gray-500">#{ticket.ticketNumber}</span>
             </div>
           </div>
+          {/* Mobile sidebar toggle */}
+          <button
+            onClick={() => setShowMobileSidebar(true)}
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
+            title="Ticket Details"
+          >
+            <Settings2 size={20} />
+          </button>
         </div>
 
         {/* Conversation */}
@@ -239,10 +618,10 @@ export default function TicketDetailPage() {
           {/* Original ticket description */}
           <div className="p-6 border-b border-gray-200">
             <div className="flex items-start gap-3">
-              <Avatar name={ticket.contact?.name} size="md" />
+              <Avatar name={ticket.requester?.name} size="md" />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-gray-900">{ticket.contact?.name}</span>
+                  <span className="font-medium text-gray-900">{ticket.requester?.name}</span>
                   <span className="text-sm text-gray-500">{format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</span>
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: ticket.description }} />
@@ -251,7 +630,7 @@ export default function TicketDetailPage() {
           </div>
           {/* Replies */}
           {replyList.map((reply) => (
-            <div key={reply.id} className={"p-6 border-b border-gray-200 " + (reply.isInternal ? 'bg-yellow-50' : '')}>
+            <div key={reply.id} className={"p-6 border-b border-gray-200 group relative " + (reply.isInternal ? 'bg-yellow-50' : '')}>
               <div className="flex items-start gap-3">
                 <Avatar name={reply.author?.name} size="md" />
                 <div className="flex-1">
@@ -260,8 +639,127 @@ export default function TicketDetailPage() {
                     {reply.isInternal && <Badge variant="warning" size="sm">Internal Note</Badge>}
                     <span className="text-sm text-gray-500">{format(new Date(reply.createdAt), 'MMM d, yyyy h:mm a')}</span>
                   </div>
-                  <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: reply.content }} />
+                  {editingReplyId === reply.id ? (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={editingReplyContent}
+                        onChange={(e) => setEditingReplyContent(e.target.value)}
+                        rows={4}
+                        autoGrow
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => editReplyMutation.mutate({ replyId: reply.id, body: editingReplyContent })}
+                          isLoading={editReplyMutation.isPending}
+                        >
+                          Save
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEditingReplyId(null); setEditingReplyContent(''); }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div
+                        className="prose prose-sm max-w-none text-gray-700"
+                        style={{ whiteSpace: 'pre-wrap' }}
+                        dangerouslySetInnerHTML={{
+                          __html: formatNoteBody(reply.body, expandedNotes[reply.id] !== false || !needsExpansion(reply.body))
+                        }}
+                      />
+                      {needsExpansion(reply.body) && (
+                        <button
+                          onClick={() => toggleNoteExpanded(reply.id)}
+                          className="mt-2 text-sm text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+                        >
+                          {expandedNotes[reply.id] === false ? (
+                            <>
+                              <ChevronDown size={14} />
+                              Show more
+                            </>
+                          ) : (
+                            <>
+                              <ChevronUp size={14} />
+                              Show less
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Thread reply input */}
+                  {threadReplyId === reply.id && (
+                    <div className="mt-3 pl-4 border-l-2 border-yellow-300">
+                      <Textarea
+                        value={threadContent}
+                        onChange={(e) => setThreadContent(e.target.value)}
+                        placeholder="Reply to this note..."
+                        rows={3}
+                        autoGrow
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const formData = new FormData();
+                            formData.append('body', `@${reply.author?.name}: ${threadContent}`);
+                            formData.append('isInternal', true);
+                            replyMutation.mutate(formData);
+                            setThreadReplyId(null);
+                            setThreadContent('');
+                          }}
+                          disabled={!threadContent.trim()}
+                        >
+                          Reply
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setThreadReplyId(null); setThreadContent(''); }}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Action buttons for internal notes */}
+                {reply.isInternal && !editingReplyId && (
+                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded"
+                      title="Edit"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('Are you sure you want to delete this note?')) {
+                          deleteReplyMutation.mutate(reply.id);
+                        }
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-white rounded"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => setForwardingReply(reply)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded"
+                      title="Forward to Agent"
+                    >
+                      <Forward size={14} />
+                    </button>
+                    <button
+                      onClick={() => setThreadReplyId(reply.id)}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded"
+                      title="Reply to this note"
+                    >
+                      <MessageSquare size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -283,111 +781,581 @@ export default function TicketDetailPage() {
           )}
 
           {/* Reply form */}
-          <div className="p-6">
-            <div className="flex gap-2 mb-3">
+          <div className="p-4 md:p-6">
+            <div className="flex flex-wrap gap-2 mb-3">
               <button
                 type="button"
                 onClick={() => setIsInternalNote(false)}
-                className={"px-3 py-1.5 text-sm font-medium rounded-lg transition-colors " + (!isInternalNote ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                className={"px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[40px] touch-manipulation " + (!isInternalNote ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
               >
                 Reply
               </button>
               <button
                 type="button"
                 onClick={() => setIsInternalNote(true)}
-                className={"px-3 py-1.5 text-sm font-medium rounded-lg transition-colors " + (isInternalNote ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                className={"px-3 py-2 text-sm font-medium rounded-lg transition-colors min-h-[40px] touch-manipulation " + (isInternalNote ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
               >
                 Internal Note
               </button>
+              <div className="hidden md:block flex-1" />
+              <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+                <button
+                  type="button"
+                  onClick={() => setShowKBModal(true)}
+                  className="flex-1 md:flex-none px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
+                  title="Insert KB Article"
+                >
+                  <BookOpen size={14} />
+                  <span className="hidden sm:inline">Insert</span> KB
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(true)}
+                  className="flex-1 md:flex-none px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
+                  title="Use Template"
+                >
+                  <FileText size={14} />
+                  Template
+                </button>
+              </div>
             </div>
+
+            {/* Notify Teammates Section - MOVED TO TOP */}
+            {isInternalNote && (
+              <div className="mb-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                  <Bell size={14} />
+                  Notify teammates:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {(agentsData?.agents || []).map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => {
+                        setNotifyAgents((prev) =>
+                          prev.includes(agent.id)
+                            ? prev.filter((aid) => aid !== agent.id)
+                            : [...prev, agent.id]
+                        );
+                      }}
+                      className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                        notifyAgents.includes(agent.id)
+                          ? 'bg-primary text-white'
+                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      <Avatar name={agent.name} size="xs" />
+                      {agent.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Textarea
               value={replyContent}
               onChange={handleReplyChange}
               placeholder={isInternalNote ? 'Add an internal note...' : 'Type your reply...'}
-              rows={4}
+              rows={6}
+              minHeight={200}
+              autoGrow
             />
-            <div className="flex justify-end mt-3">
-              <Button
-                onClick={handleSendReply}
-                isLoading={replyMutation.isPending}
-                disabled={!replyContent.trim()}
-                leftIcon={<Send size={16} />}
-              >
-                {isInternalNote ? 'Add Note' : 'Send Reply'}
-              </Button>
+
+            {/* Time Logging Section (collapsed by default) */}
+            {isInternalNote && (
+              <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowTimeLog(!showTimeLog)}
+                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <Clock size={14} />
+                    Log Time
+                  </span>
+                  {showTimeLog ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {showTimeLog && (
+                  <div className="p-3 space-y-3 bg-white">
+                    {/* Date */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={timeLogDate}
+                        onChange={(e) => setTimeLogDate(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+
+                    {/* Start and Finish Time */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Start Time</label>
+                        <input
+                          type="time"
+                          value={timeLogStartTime}
+                          onChange={(e) => setTimeLogStartTime(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Finish Time</label>
+                        <input
+                          type="time"
+                          value={timeLogFinishTime}
+                          onChange={(e) => setTimeLogFinishTime(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* BTO / ETA Section */}
+                    <div className="border-t pt-3">
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="btoType"
+                            value="BTO"
+                            checked={timeLogBtoType === 'BTO'}
+                            onChange={(e) => setTimeLogBtoType(e.target.value)}
+                            className="text-primary focus:ring-primary"
+                          />
+                          <span className="text-xs font-medium text-gray-700">BTO (Back to Office)</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="btoType"
+                            value="ETA"
+                            checked={timeLogBtoType === 'ETA'}
+                            onChange={(e) => setTimeLogBtoType(e.target.value)}
+                            className="text-primary focus:ring-primary"
+                          />
+                          <span className="text-xs font-medium text-gray-700">ETA (to location)</span>
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {timeLogBtoType === 'ETA' && (
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Location</label>
+                            <input
+                              type="text"
+                              value={timeLogBtoLocation}
+                              onChange={(e) => setTimeLogBtoLocation(e.target.value)}
+                              placeholder="e.g., Client Name"
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                            />
+                          </div>
+                        )}
+                        <div className={timeLogBtoType === 'BTO' ? 'col-span-2' : ''}>
+                          <label className="block text-xs text-gray-500 mb-1">
+                            {timeLogBtoType === 'BTO' ? 'BTO Time' : 'ETA Time'}
+                          </label>
+                          <input
+                            type="time"
+                            value={timeLogBtoTime}
+                            onChange={(e) => setTimeLogBtoTime(e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Preview */}
+                    {timeLogStartTime && timeLogFinishTime && (
+                      <div className="bg-gray-50 rounded p-2 text-xs text-gray-600">
+                        <span className="font-medium">Preview:</span> {formatTimeLogDescription() || 'Enter start and finish times'}
+                        {timeLogStartTime && timeLogFinishTime && (
+                          <span className="ml-2 text-gray-500">
+                            ({calculateDuration(timeLogStartTime, timeLogFinishTime).hours}h {calculateDuration(timeLogStartTime, timeLogFinishTime).minutes}m)
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Parse Preview Modal */}
+            {showParsePreview && parsedData && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="text-sm font-medium text-blue-800 mb-2">Found:</h4>
+                {parsedData.time && (
+                  <p className="text-sm text-blue-700">
+                    ⏱️ {parsedData.time.hours} hours, {parsedData.time.minutes} minutes
+                  </p>
+                )}
+                {parsedData.materials.length > 0 && (
+                  <p className="text-sm text-blue-700">
+                    📦 {parsedData.materials.length} material{parsedData.materials.length > 1 ? 's' : ''}
+                  </p>
+                )}
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" onClick={confirmParsedData}>
+                    Confirm & Log
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setShowParsePreview(false); setParsedData(null); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between mt-3">
+              {isInternalNote && (
+                <Button
+                  variant="outline"
+                  onClick={parseNote}
+                  disabled={!replyContent.trim()}
+                  leftIcon={<Zap size={16} />}
+                >
+                  Parse & Log
+                </Button>
+              )}
+              <div className={!isInternalNote ? 'ml-auto' : ''}>
+                <Button
+                  onClick={handleSendReply}
+                  isLoading={replyMutation.isPending}
+                  disabled={!replyContent.trim()}
+                  leftIcon={<Send size={16} />}
+                >
+                  {isInternalNote ? 'Add Note' : 'Send Reply'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-      {/* Sidebar */}
-      <div className="w-80 flex-shrink-0">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
-          {/* Status */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <Select
-              options={statusOptions}
-              value={ticket.status}
-              onChange={(e) => updateMutation.mutate({ status: e.target.value })}
-            />
-          </div>
 
-          {/* Priority */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-            <Select
-              options={priorityOptions}
-              value={ticket.priority}
-              onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
-            />
-          </div>
-
-          {/* Assignee */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
-            <Select
-              options={agentOptions}
-              value={ticket.assigneeId || ''}
-              onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
-            />
-          </div>
-
-          <hr className="border-gray-200" />
-
-          {/* Contact info */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-2">Contact</h3>
-            <div className="flex items-center gap-2">
-              <Avatar name={ticket.contact?.name} size="sm" />
-              <div>
-                <Link to={'/contacts/' + ticket.contact?.id} className="text-sm font-medium text-gray-900 hover:text-primary">
-                  {ticket.contact?.name}
-                </Link>
-                <p className="text-xs text-gray-500">{ticket.contact?.email}</p>
+      {/* KB Article Modal */}
+      {showKBModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Insert Knowledge Base Article</h3>
+              <button onClick={() => { setShowKBModal(false); setKbSearchQuery(''); }} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative mb-4">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search articles..."
+                  value={kbSearchQuery}
+                  onChange={(e) => setKbSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {kbSearchQuery.length < 2 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">Type at least 2 characters to search</p>
+                ) : kbSearchResults?.results?.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No articles found</p>
+                ) : (
+                  <div className="space-y-2">
+                    {kbSearchResults?.results?.map((article) => (
+                      <button
+                        key={article.id}
+                        onClick={() => handleInsertKBArticle(article)}
+                        className="w-full p-3 text-left rounded-lg border border-gray-200 hover:border-primary hover:bg-gray-50 transition-colors"
+                      >
+                        <p className="font-medium text-gray-900">{article.title}</p>
+                        <p className="text-xs text-gray-500 mt-1">{article.category?.name}</p>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{article.excerpt}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Company info */}
-          {ticket.contact?.company && (
+      {/* Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Use Template</h3>
+              <button onClick={() => { setShowTemplateModal(false); setTemplateSearchQuery(''); }} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <div className="relative mb-4">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search templates..."
+                  value={templateSearchQuery}
+                  onChange={(e) => setTemplateSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {filteredTemplates.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No templates found</p>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => handleInsertTemplate(template)}
+                        className="w-full p-3 text-left rounded-lg border border-gray-200 hover:border-primary hover:bg-gray-50 transition-colors"
+                      >
+                        <p className="font-medium text-gray-900">{template.name}</p>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{template.description || template.subject}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forward Note Modal */}
+      {forwardingReply && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Forward Note to Agent</h3>
+              <button onClick={() => { setForwardingReply(null); setForwardAgentId(''); }} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Agent</label>
+              <Select
+                options={agentOptions.filter(a => a.value)}
+                value={forwardAgentId}
+                onChange={(e) => setForwardAgentId(e.target.value)}
+              />
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+                <p className="font-medium mb-1">Note preview:</p>
+                <p className="line-clamp-3">{forwardingReply.body?.replace(/<[^>]*>/g, '')}</p>
+              </div>
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={() => { setForwardingReply(null); setForwardAgentId(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!forwardAgentId}
+                  onClick={() => {
+                    const selectedAgent = agentsData?.agents?.find(a => a.id === forwardAgentId);
+                    const formData = new FormData();
+                    formData.append('body', `@${selectedAgent?.name} - Forwarded note from ${forwardingReply.author?.name}:\n\n${forwardingReply.body}`);
+                    formData.append('isInternal', true);
+                    replyMutation.mutate(formData);
+                    setForwardingReply(null);
+                    setForwardAgentId('');
+                  }}
+                >
+                  Forward
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-40 animate-fadeIn"
+          onClick={() => setShowMobileSidebar(false)}
+        />
+      )}
+
+      {/* Sidebar - Desktop: static, Mobile: slide-in panel */}
+      <div className={`
+        lg:w-80 lg:flex-shrink-0 lg:relative lg:block
+        ${showMobileSidebar
+          ? 'fixed inset-y-0 right-0 w-[85%] max-w-sm z-50 bg-gray-50 overflow-y-auto animate-slideInLeft'
+          : 'hidden lg:block'
+        }
+      `}>
+        {/* Mobile header for sidebar */}
+        <div className="lg:hidden sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+          <h2 className="font-semibold text-gray-900">Ticket Details</h2>
+          <button
+            onClick={() => setShowMobileSidebar(false)}
+            className="p-2 hover:bg-gray-100 rounded-lg touch-manipulation"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 lg:p-0">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
+            {/* Status */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Company</h3>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <Select
+                options={statusOptions}
+                value={ticket.status}
+                onChange={(e) => updateMutation.mutate({ status: e.target.value })}
+              />
+            </div>
+
+            {/* Priority */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+              <Select
+                options={priorityOptions}
+                value={ticket.priority}
+                onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
+              />
+            </div>
+
+            {/* Assignee */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+              <Select
+                options={agentOptions}
+                value={ticket.assigneeId || ''}
+                onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
+              />
+            </div>
+
+            <hr className="border-gray-200" />
+
+            {/* Contact info */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Contact</h3>
               <div className="flex items-center gap-2">
-                <Building2 size={16} className="text-gray-400" />
-                <Link to={'/companies/' + ticket.contact.company.id} className="text-sm text-gray-900 hover:text-primary">
-                  {ticket.contact.company.name}
-                </Link>
+                <Avatar name={ticket.requester?.name} size="sm" />
+                <div className="min-w-0">
+                  <Link to={'/contacts/' + ticket.requester?.id} className="text-sm font-medium text-gray-900 hover:text-primary block truncate">
+                    {ticket.requester?.name}
+                  </Link>
+                  <p className="text-xs text-gray-500 truncate">{ticket.requester?.email}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Company info */}
+            {ticket.company && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Company</h3>
+                <div className="flex items-center gap-2">
+                  <Building2 size={16} className="text-gray-400 flex-shrink-0" />
+                  <Link to={'/companies/' + ticket.company.id} className="text-sm text-gray-900 hover:text-primary truncate">
+                    {ticket.company.name}
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* Timestamps */}
+            <div className="text-xs text-gray-500 space-y-1">
+              <p>Created: {format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</p>
+              <p>Updated: {format(new Date(ticket.updatedAt), 'MMM d, yyyy h:mm a')}</p>
+            </div>
+          </div>
+
+        {/* Checklist Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
+          <button
+            onClick={() => setShowChecklist(!showChecklist)}
+            className="w-full flex items-center justify-between"
+          >
+            <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <CheckSquare size={16} />
+              Checklist
+              {checklistItems.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  ({checklistItems.filter(i => i.completed).length}/{checklistItems.length})
+                </span>
+              )}
+            </h3>
+            {showChecklist ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+
+          {showChecklist && (
+            <div className="mt-3 space-y-2">
+              {/* Progress bar */}
+              {checklistItems.length > 0 && (
+                <div className="mb-3">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all"
+                      style={{
+                        width: `${(checklistItems.filter(i => i.completed).length / checklistItems.length) * 100}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Checklist items */}
+              {checklistItems.map((item) => (
+                <div key={item.id} className="flex items-start gap-2 group">
+                  <button
+                    onClick={() => updateChecklistMutation.mutate({
+                      itemId: item.id,
+                      data: { completed: !item.completed }
+                    })}
+                    className="mt-0.5 text-gray-400 hover:text-primary"
+                  >
+                    {item.completed ? (
+                      <CheckSquare size={16} className="text-green-500" />
+                    ) : (
+                      <Square size={16} />
+                    )}
+                  </button>
+                  <span className={`flex-1 text-sm ${item.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                    {item.text}
+                  </span>
+                  <button
+                    onClick={() => deleteChecklistMutation.mutate(item.id)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add new item */}
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="text"
+                  value={newChecklistItem}
+                  onChange={(e) => setNewChecklistItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newChecklistItem.trim()) {
+                      addChecklistMutation.mutate({ text: newChecklistItem.trim() });
+                    }
+                  }}
+                  placeholder="Add item..."
+                  className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                />
+                <button
+                  onClick={() => {
+                    if (newChecklistItem.trim()) {
+                      addChecklistMutation.mutate({ text: newChecklistItem.trim() });
+                    }
+                  }}
+                  disabled={!newChecklistItem.trim()}
+                  className="p-1 text-primary hover:bg-primary/10 rounded disabled:opacity-50"
+                >
+                  <Plus size={16} />
+                </button>
               </div>
             </div>
           )}
-
-          {/* Timestamps */}
-          <div className="text-xs text-gray-500 space-y-1">
-            <p>Created: {format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</p>
-            <p>Updated: {format(new Date(ticket.updatedAt), 'MMM d, yyyy h:mm a')}</p>
-          </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
