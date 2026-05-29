@@ -141,17 +141,20 @@ export default function AppLayout() {
 
       {/* Main content area */}
       <div
-        className={`transition-all duration-300 ${
+        className={`transition-all duration-300 min-h-screen flex flex-col ${
           isMobile ? 'ml-0' : sidebarCollapsed ? 'ml-16' : 'ml-60'
         }`}
       >
-        <Topbar
-          title={getPageTitle()}
-          onMenuClick={isMobile ? () => setMobileDrawerOpen(true) : undefined}
-          isMobile={isMobile}
-        />
+        {/* Sticky header */}
+        <div className="sticky top-0 z-30">
+          <Topbar
+            title={getPageTitle()}
+            onMenuClick={isMobile ? () => setMobileDrawerOpen(true) : undefined}
+            isMobile={isMobile}
+          />
+        </div>
 
-        <main className={`p-4 md:p-6 ${isMobile ? 'pb-24' : ''}`}>
+        <main className={`flex-1 p-4 md:p-6 ${isMobile ? 'pb-24' : ''}`}>
           <Outlet />
         </main>
       </div>
