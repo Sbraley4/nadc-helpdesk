@@ -13,6 +13,7 @@
 | 6 | Email & Notifications | ✅ Complete | 2026-05-20 |
 | 7 | SLA, Automations & Dashboard | ✅ Complete | 2026-05-23 |
 | 8 | Client Portal & Knowledge Base | ✅ Complete | 2026-05-24 |
+| 9 | Production Deployment & Account Setup | ✅ Complete | 2026-05-31 |
 
 ---
 
@@ -1090,10 +1091,165 @@ curl http://localhost:3001/api/sla-policies \
 
 ---
 
+## Phase 9 — Production Deployment & Account Setup ✅
+
+**Completed:** 2026-05-31
+
+### Tasks
+- [x] Deployed application to Ubuntu server (10.0.0.240)
+- [x] Set up Cloudflare Tunnel for public access at tickets.myofficeemail.com
+- [x] Configured Nginx as reverse proxy (frontend + /api + /socket.io)
+- [x] Set up PM2 for Node.js process management with auto-restart
+- [x] Switched from SMTP to Microsoft Graph API for email sending
+- [x] Registered Azure AD application with Mail.Send permissions
+- [x] Created 3 admin accounts (Sam Braley, Chris Lowrance, Peter Braley)
+- [x] Implemented account setup flow with secure email links
+- [x] Added password reset fields to User model
+- [x] Created SetupPasswordPage for users to create their own passwords
+- [x] Fixed production API URL configuration (VITE_API_URL)
+- [x] Removed demo credentials from login page
+
+### Infrastructure Setup
+
+**Ubuntu Server (10.0.0.240):**
+- PostgreSQL database: `nadc_helpdesk`
+- Node.js application managed by PM2
+- Nginx reverse proxy on port 80
+- Cloudflare Tunnel for HTTPS access
+
+**Cloudflare Tunnel:**
+- Tunnel ID: 5d0a97cb-b6bb-4b8e-b2db-14b55dd9dae1
+- Hostname: tickets.myofficeemail.com
+- Auto-starts via systemd service
+
+**Nginx Configuration:**
+```nginx
+server {
+    listen 80;
+    server_name localhost;
+    root /home/nadc/nadc-helpdesk/client/dist;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /socket.io {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+    }
+}
+```
+
+### Microsoft Graph API Email
+
+Switched from SMTP to Microsoft Graph API due to Security Defaults blocking SMTP AUTH in Microsoft 365.
+
+**Azure AD App Registration:**
+- Tenant ID: f884abbe-4f8e-4d99-9cb7-24e0165df0ad
+- Client ID: 8b39cf51-da34-4547-8538-b39e48b48b94
+- Permissions: Mail.Send (Application)
+- Sender: tickets@nadc.com (shared mailbox)
+
+**Environment Variables:**
+```
+AZURE_TENANT_ID=...
+AZURE_CLIENT_ID=...
+AZURE_CLIENT_SECRET=...
+GRAPH_MAIL_FROM=tickets@nadc.com
+```
+
+### Prisma Schema Updates
+
+**User model additions:**
+```prisma
+passwordResetToken   String?      @unique
+passwordResetExpires DateTime?
+mustChangePassword   Boolean      @default(false)
+```
+
+### Backend Files Created/Updated
+
+**Controllers:**
+- `/server/controllers/authController.js` - Added verifySetupToken, setupPassword
+
+**Routes:**
+- `/server/routes/auth.js` - Added verify-setup-token and setup-password endpoints
+
+**Scripts:**
+- `/server/scripts/setup-admins.js` - Creates 3 admin accounts
+- `/server/scripts/send-welcome-emails.js` - Sends setup links via Graph API
+
+**Services:**
+- `/server/services/emailService.js` - Rewrote for Microsoft Graph API
+
+### Frontend Files Created/Updated
+
+**Pages:**
+- `/client/src/pages/auth/SetupPasswordPage.jsx` - Account setup with password strength indicators
+- `/client/src/pages/auth/LoginPage.jsx` - Removed demo credentials
+
+**Configuration:**
+- `/client/.env.production` - VITE_API_URL= (empty for relative URLs)
+
+### API Endpoints (Phase 9)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /api/auth/verify-setup-token/:token | - | Verify setup token is valid |
+| POST | /api/auth/setup-password | - | Set password using setup token |
+
+### Account Setup Flow
+
+1. Admin runs `send-welcome-emails.js` script
+2. Script generates secure 64-character token per user
+3. Token saved to database with 7-day expiry
+4. Email sent with "Set Up Your Password" button
+5. User clicks link → SetupPasswordPage loads
+6. Frontend verifies token via API
+7. User creates password (8+ chars, upper, lower, number)
+8. Password saved, token cleared, user can log in
+
+### Deployment Commands
+
+```bash
+# On Ubuntu server
+cd ~/nadc-helpdesk
+git pull origin main
+
+# Server updates
+cd server
+npx prisma generate
+npx prisma db push
+pm2 restart all
+
+# Frontend updates
+cd ../client
+npm run build
+
+# Send welcome emails
+cd ../server
+node scripts/send-welcome-emails.js
+```
+
+---
+
 ## Changelog
 
 | Date | Phase | Changes |
 |------|-------|---------|
+| 2026-05-31 | 9 | Production Deployment complete - Ubuntu server setup, Cloudflare Tunnel, Nginx proxy, PM2 process management, Microsoft Graph API email, admin accounts with secure setup flow, password reset fields, SetupPasswordPage, production API URL fix |
 | 2026-05-19 | 1 | Initial scaffold complete - folder structure, Vite/React client, Express server, Prisma schema with 21 models, docker-compose, environment config |
 | 2026-05-19 | 2 | Auth & Agents complete - JWT auth with login/refresh/logout/me, requireAuth & requireRole middleware, Agent CRUD with soft delete, Groups CRUD, input validation, global error handler, seed script with admin/agents/groups/tags/SLA/business hours |
 | 2026-05-19 | 3 | Core Ticket Engine complete - Full ticket CRUD with pagination/filters/sorting, activity logging, merge tickets, watchers, related tickets, tag CRUD, custom fields CRUD, SLA policy CRUD, SLA checker cron job (15 min), business hours calculator, saved views (static), sample tickets seeded (5 tickets, 2 contacts, 2 companies) |
