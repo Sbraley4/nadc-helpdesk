@@ -94,17 +94,20 @@ enum SatisfactionRatingValue {
 
 // User (agents and admins)
 model User {
-  id           String       @id @default(cuid())
-  name         String
-  email        String       @unique
-  password     String
-  role         Role         @default(AGENT)
-  avatar       String?
-  signature    String?
-  availability Availability @default(OFFLINE)
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id                   String       @id @default(cuid())
+  name                 String
+  email                String       @unique
+  password             String
+  role                 Role         @default(AGENT)
+  avatar               String?
+  signature            String?
+  availability         Availability @default(OFFLINE)
+  isActive             Boolean      @default(true)
+  passwordResetToken   String?      @unique
+  passwordResetExpires DateTime?
+  mustChangePassword   Boolean      @default(false)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
 
   // Relations
   assignedTickets    Ticket[]              @relation("AssignedTickets")

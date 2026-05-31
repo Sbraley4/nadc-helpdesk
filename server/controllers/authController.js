@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -146,9 +147,97 @@ const me = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/auth/verify-setup-token/:token
+ * Verify that a setup token is valid and not expired
+ */
+const verifySetupToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { passwordResetToken: token },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        passwordResetExpires: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired setup link' });
+    }
+
+    if (user.passwordResetExpires && new Date() > user.passwordResetExpires) {
+      return res.status(400).json({ error: 'Setup link has expired' });
+    }
+
+    res.json({
+      valid: true,
+      user: {
+        name: user.name,
+        email: user.email,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/setup-password
+ * Set password using setup token
+ */
+const setupPassword = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { passwordResetToken: token },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired setup link' });
+    }
+
+    if (user.passwordResetExpires && new Date() > user.passwordResetExpires) {
+      return res.status(400).json({ error: 'Setup link has expired' });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Update user with new password and clear reset token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+        mustChangePassword: false,
+      },
+    });
+
+    res.json({ message: 'Password set successfully. You can now log in.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   login,
   refresh,
   logout,
   me,
+  verifySetupToken,
+  setupPassword,
 };

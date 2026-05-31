@@ -8,6 +8,7 @@ import AppLayout from './components/layout/AppLayout';
 
 // Pages
 import LoginPage from './pages/auth/LoginPage';
+import SetupPasswordPage from './pages/auth/SetupPasswordPage';
 import TicketListPage from './pages/tickets/TicketListPage';
 import NewTicketPage from './pages/tickets/NewTicketPage';
 import TicketDetailPage from './pages/tickets/TicketDetailPage';
@@ -95,6 +96,7 @@ function App() {
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/setup-password/:token" element={<SetupPasswordPage />} />
 
       {/* Protected routes */}
       <Route

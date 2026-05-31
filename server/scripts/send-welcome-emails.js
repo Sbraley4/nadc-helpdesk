@@ -1,7 +1,6 @@
 require('dotenv').config();
 
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { ClientSecretCredential } = require('@azure/identity');
 const { Client } = require('@microsoft/microsoft-graph-client');
@@ -9,14 +8,9 @@ const { TokenCredentialAuthenticationProvider } = require('@microsoft/microsoft-
 
 const prisma = new PrismaClient();
 
-// Generate a random password
-function generatePassword() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
+// Generate a secure setup token
+function generateSetupToken() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
 // Initialize Graph client
@@ -33,13 +27,14 @@ function getGraphClient() {
   return Client.initWithMiddleware({ authProvider });
 }
 
-// Send welcome email
-async function sendWelcomeEmail(graphClient, user, tempPassword) {
+// Send welcome email with setup link
+async function sendWelcomeEmail(graphClient, user, setupToken) {
   const fromAddress = process.env.GRAPH_MAIL_FROM || 'tickets@nadc.com';
-  const loginUrl = process.env.CLIENT_URL || 'https://tickets.myofficeemail.com';
+  const baseUrl = process.env.CLIENT_URL || 'https://tickets.myofficeemail.com';
+  const setupUrl = `${baseUrl}/setup-password/${setupToken}`;
 
   const message = {
-    subject: 'Welcome to NADC Helpdesk - Your Login Credentials',
+    subject: 'Welcome to NADC Helpdesk - Set Up Your Account',
     body: {
       contentType: 'HTML',
       content: `
@@ -53,24 +48,22 @@ async function sendWelcomeEmail(graphClient, user, tempPassword) {
 
             <p style="color: #374151; font-size: 16px; line-height: 1.6;">
               Your account has been created for the NADC Helpdesk ticket system.
-              Here are your login credentials:
+              Click the button below to set up your password and activate your account.
             </p>
 
             <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0;"><strong>Login URL:</strong> <a href="${loginUrl}" style="color: #2563eb;">${loginUrl}</a></p>
-              <p style="margin: 0 0 10px 0;"><strong>Email:</strong> ${user.email}</p>
-              <p style="margin: 0;"><strong>Temporary Password:</strong> <code style="background: #f3f4f6; padding: 2px 8px; border-radius: 4px;">${tempPassword}</code></p>
+              <p style="margin: 0;"><strong>Email:</strong> ${user.email}</p>
             </div>
-
-            <p style="color: #dc2626; font-size: 14px;">
-              <strong>Important:</strong> Please change your password after your first login for security purposes.
-            </p>
 
             <div style="margin-top: 30px; text-align: center;">
-              <a href="${loginUrl}" style="background: #1B2A4A; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                Login Now
+              <a href="${setupUrl}" style="background: #1B2A4A; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
+                Set Up Your Password
               </a>
             </div>
+
+            <p style="color: #6b7280; font-size: 14px; margin-top: 20px; text-align: center;">
+              This link will expire in 7 days.
+            </p>
 
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
 
@@ -120,21 +113,26 @@ async function main() {
       continue;
     }
 
-    // Generate new password
-    const tempPassword = generatePassword();
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // Generate setup token (expires in 7 days)
+    const setupToken = generateSetupToken();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Update password in database
+    // Update user with setup token
     await prisma.user.update({
       where: { email },
-      data: { password: hashedPassword },
+      data: {
+        passwordResetToken: setupToken,
+        passwordResetExpires: expiresAt,
+        mustChangePassword: true,
+      },
     });
 
-    console.log(`Updated password for ${user.name} (${email})`);
+    console.log(`Generated setup token for ${user.name} (${email})`);
 
-    // Send welcome email
+    // Send welcome email with setup link
     try {
-      await sendWelcomeEmail(graphClient, user, tempPassword);
+      await sendWelcomeEmail(graphClient, user, setupToken);
       console.log(`  ✓ Welcome email sent to ${email}`);
     } catch (error) {
       console.error(`  ✗ Failed to send email to ${email}:`, error.message);
