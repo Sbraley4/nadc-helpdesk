@@ -56,7 +56,7 @@ export default function SetupPasswordPage() {
   useEffect(() => {
     async function verifyToken() {
       try {
-        const response = await api.get(`/auth/verify-setup-token/${token}`);
+        const response = await api.get(`/api/auth/verify-setup-token/${token}`);
         if (response.data.valid) {
           setIsValid(true);
           setUserName(response.data.user.name);
@@ -80,7 +80,7 @@ export default function SetupPasswordPage() {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      await api.post('/auth/setup-password', {
+      await api.post('/api/auth/setup-password', {
         token,
         password: data.password,
       });
