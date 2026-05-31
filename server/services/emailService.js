@@ -1,7 +1,9 @@
-const nodemailer = require('nodemailer');
 const fs = require('fs').promises;
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
+const { ClientSecretCredential } = require('@azure/identity');
+const { Client } = require('@microsoft/microsoft-graph-client');
+const { TokenCredentialAuthenticationProvider } = require('@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials');
 
 const prisma = new PrismaClient();
 
@@ -9,39 +11,39 @@ const prisma = new PrismaClient();
 const settingsCache = new Map();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-let transporter = null;
+let graphClient = null;
 let emailServiceReady = false;
 
 /**
- * Initialize the email transporter
+ * Initialize the Microsoft Graph client
  */
 async function initializeTransporter() {
-  const host = await getConfigValue('SMTP_HOST');
-  const port = await getConfigValue('SMTP_PORT');
-  const user = await getConfigValue('SMTP_USER');
-  const pass = await getConfigValue('SMTP_PASS');
-  const secure = await getConfigValue('SMTP_SECURE');
+  const tenantId = process.env.AZURE_TENANT_ID;
+  const clientId = process.env.AZURE_CLIENT_ID;
+  const clientSecret = process.env.AZURE_CLIENT_SECRET;
 
-  if (!host || !port) {
-    console.warn('[Email Service] SMTP not configured - emails will be logged to console');
+  if (!tenantId || !clientId || !clientSecret) {
+    console.warn('[Email Service] Microsoft Graph API not configured - emails will be logged to console');
     return false;
   }
 
   try {
-    transporter = nodemailer.createTransport({
-      host,
-      port: parseInt(port, 10),
-      secure: secure === 'true',
-      auth: user && pass ? { user, pass } : undefined,
+    // Create credential using client secret
+    const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+
+    // Create auth provider
+    const authProvider = new TokenCredentialAuthenticationProvider(credential, {
+      scopes: ['https://graph.microsoft.com/.default'],
     });
 
-    // Verify connection
-    await transporter.verify();
-    console.log('[Email Service] Email service ready');
+    // Create Graph client
+    graphClient = Client.initWithMiddleware({ authProvider });
+
+    console.log('[Email Service] Microsoft Graph API ready');
     emailServiceReady = true;
     return true;
   } catch (error) {
-    console.error('[Email Service] Email service unavailable:', error.message);
+    console.error('[Email Service] Microsoft Graph API unavailable:', error.message);
     emailServiceReady = false;
     return false;
   }
@@ -90,7 +92,7 @@ function clearSettingsCache() {
 }
 
 /**
- * Send an email
+ * Send an email using Microsoft Graph API
  */
 async function sendEmail({ to, subject, html, text, attachments = [] }) {
   if (!to) {
@@ -98,21 +100,13 @@ async function sendEmail({ to, subject, html, text, attachments = [] }) {
     return { success: false, error: 'No recipient email' };
   }
 
-  const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
-  const fromAddress = (await getConfigValue('SMTP_FROM')) || process.env.SMTP_FROM || 'noreply@helpdesk.local';
+  const companyName = (await getAppSetting('company_name')) || 'NADC Tickets';
+  const fromAddress = process.env.GRAPH_MAIL_FROM || process.env.SMTP_FROM || 'tickets@nadc.com';
 
-  const mailOptions = {
-    from: `"${companyName}" <${fromAddress}>`,
-    to,
-    subject,
-    html,
-    text: text || (html ? html.replace(/<[^>]*>/g, '') : ''), // Strip HTML for text version
-    attachments,
-  };
-
-  // If SMTP not configured, log to console
-  if (!emailServiceReady || !transporter) {
+  // If Graph API not configured, log to console
+  if (!emailServiceReady || !graphClient) {
     console.log('[Email Service] STUB MODE - Would send email:');
+    console.log(`  From: "${companyName}" <${fromAddress}>`);
     console.log(`  To: ${to}`);
     console.log(`  Subject: ${subject}`);
     console.log(`  Body preview: ${(text || html || '').substring(0, 200)}...`);
@@ -120,9 +114,42 @@ async function sendEmail({ to, subject, html, text, attachments = [] }) {
   }
 
   try {
-    const result = await transporter.sendMail(mailOptions);
+    // Build the email message for Graph API
+    const message = {
+      subject,
+      body: {
+        contentType: html ? 'HTML' : 'Text',
+        content: html || text,
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: to,
+          },
+        },
+      ],
+    };
+
+    // Add attachments if any
+    if (attachments && attachments.length > 0) {
+      message.attachments = attachments.map((att) => ({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: att.filename,
+        contentType: att.contentType || 'application/octet-stream',
+        contentBytes: att.content.toString('base64'),
+      }));
+    }
+
+    // Send email using Graph API
+    await graphClient
+      .api(`/users/${fromAddress}/sendMail`)
+      .post({
+        message,
+        saveToSentItems: false,
+      });
+
     console.log(`[Email Service] Email sent to ${to}: ${subject}`);
-    return { success: true, messageId: result.messageId };
+    return { success: true, messageId: `graph-${Date.now()}` };
   } catch (error) {
     console.error(`[Email Service] Failed to send email to ${to}:`, error.message);
     // Don't throw - email failures should never crash the app
@@ -176,10 +203,11 @@ async function sendTestEmail(toEmail) {
       <div style="font-family: Arial, sans-serif; padding: 20px;">
         <h2 style="color: #1B2A4A;">Test Email</h2>
         <p>If you received this, your email configuration is working correctly.</p>
+        <p>Emails are now being sent via <strong>Microsoft Graph API</strong>.</p>
         <p style="color: #666; font-size: 12px; margin-top: 20px;">Sent from NADC Helpdesk</p>
       </div>
     `,
-    text: 'If you received this, your email configuration is working correctly.',
+    text: 'If you received this, your email configuration is working correctly. Emails are now being sent via Microsoft Graph API.',
   });
 }
 
@@ -195,7 +223,7 @@ function isReady() {
  */
 async function reinitialize() {
   clearSettingsCache();
-  transporter = null;
+  graphClient = null;
   emailServiceReady = false;
   return await initializeTransporter();
 }
