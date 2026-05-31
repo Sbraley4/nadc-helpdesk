@@ -150,7 +150,7 @@ async function getWorkloadSummary(req, res, next) {
           prisma.ticket.findMany({
             where: {
               assigneeId: agent.id,
-              status: { in: ['OPEN', 'PENDING', 'IN_PROGRESS'] },
+              status: { in: ['OPEN', 'PENDING'] },
             },
             select: {
               id: true,
@@ -200,7 +200,7 @@ async function getWorkloadSummary(req, res, next) {
     const unassignedTickets = await prisma.ticket.findMany({
       where: {
         assigneeId: null,
-        status: { in: ['OPEN', 'PENDING', 'IN_PROGRESS'] },
+        status: { in: ['OPEN', 'PENDING'] },
       },
       select: {
         id: true,

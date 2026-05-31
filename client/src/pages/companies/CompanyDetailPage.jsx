@@ -117,6 +117,7 @@ export default function CompanyDetailPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
+                        <span className="font-bold text-primary">#{ticket.ticketNumber}</span>
                         <span className="text-sm font-medium text-gray-900">{ticket.subject}</span>
                         <Badge variant={statusConfig[ticket.status]?.variant} size="sm">
                           {statusConfig[ticket.status]?.label}
@@ -127,7 +128,7 @@ export default function CompanyDetailPage() {
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      {ticket.contact?.name}
+                      {ticket.requester?.name}
                     </p>
                   </Link>
                 ))}

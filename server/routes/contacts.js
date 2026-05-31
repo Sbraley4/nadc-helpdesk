@@ -9,6 +9,8 @@ const {
   updateContact,
   deleteContact,
   searchContacts,
+  getPortalStatus,
+  revokePortalAccess,
 } = require('../controllers/contactController');
 
 // All routes require authentication
@@ -31,5 +33,11 @@ router.put('/:id', updateContact);
 
 // DELETE /api/contacts/:id - Delete contact (ADMIN only)
 router.delete('/:id', requireRole('ADMIN'), deleteContact);
+
+// GET /api/contacts/:id/portal-status - Get portal access status
+router.get('/:id/portal-status', getPortalStatus);
+
+// DELETE /api/contacts/:id/portal-access - Revoke portal access (ADMIN only)
+router.delete('/:id/portal-access', requireRole('ADMIN'), revokePortalAccess);
 
 module.exports = router;

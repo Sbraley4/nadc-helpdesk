@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus } from 'lucide-react';
-import { calendar, agents, tickets as ticketsApi, contacts, companies } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal } from '../components/shared';
+import { calendar, agents, tickets as ticketsApi } from '../api';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead } from '../components/shared';
 import toast from 'react-hot-toast';
 
 const priorityColors = {
@@ -33,8 +33,6 @@ export default function CalendarPage() {
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [newTicketDate, setNewTicketDate] = useState(null);
   const [newTicketTime, setNewTicketTime] = useState('09:00');
-  const [contactsList, setContactsList] = useState([]);
-  const [companiesList, setCompaniesList] = useState([]);
   const [saving, setSaving] = useState(false);
   const [newTicketForm, setNewTicketForm] = useState({
     subject: '',
@@ -74,20 +72,16 @@ export default function CalendarPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [ticketsData, agentsData, contactsData, companiesData] = await Promise.all([
+        const [ticketsData, agentsData] = await Promise.all([
           calendar.getCalendarTickets({
             start: dateRange.start.toISOString(),
             end: dateRange.end.toISOString(),
             agentId: selectedAgent || undefined,
           }),
           agents.getAgents(),
-          contacts.getContacts({ limit: 100 }),
-          companies.getCompanies({ limit: 100 }),
         ]);
         setTickets(ticketsData.tickets || []);
         setAgentsList(agentsData.agents || []);
-        setContactsList(contactsData.contacts || []);
-        setCompaniesList(companiesData.companies || []);
       } catch (error) {
         console.error('Failed to fetch calendar data:', error);
       } finally {
@@ -316,25 +310,27 @@ export default function CalendarPage() {
   );
 
   const renderWeekView = () => (
-    <div className="grid grid-cols-7 gap-2">
-      {weekDays.map((date, idx) => {
-        const dayTickets = ticketsByDate[date.toDateString()] || [];
-        return (
-          <div key={idx} className="min-h-[300px]">
-            <div
-              className={`text-center p-2 rounded-t-lg ${
-                isToday(date) ? 'bg-primary text-white' : 'bg-gray-100'
-              }`}
-            >
-              <div className="text-xs">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-              <div className="text-lg font-semibold">{date.getDate()}</div>
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+      <div className="grid grid-cols-7 gap-1 md:gap-2 min-w-[640px] md:min-w-0">
+        {weekDays.map((date, idx) => {
+          const dayTickets = ticketsByDate[date.toDateString()] || [];
+          return (
+            <div key={idx} className="min-h-[200px] md:min-h-[300px]">
+              <div
+                className={`text-center p-1.5 md:p-2 rounded-t-lg ${
+                  isToday(date) ? 'bg-primary text-white' : 'bg-gray-100'
+                }`}
+              >
+                <div className="text-xs">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div className="text-base md:text-lg font-semibold">{date.getDate()}</div>
+              </div>
+              <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-1.5 md:p-2 space-y-1 min-h-[160px] md:min-h-[250px]">
+                {dayTickets.map(renderTicketPill)}
+              </div>
             </div>
-            <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-2 space-y-1 min-h-[250px]">
-              {dayTickets.map(renderTicketPill)}
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 
@@ -404,37 +400,41 @@ export default function CalendarPage() {
   return (
     <div className="space-y-4">
       {/* Header Controls */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate_date(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <button
-            onClick={goToToday}
-            className="px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors"
-          >
-            Today
-          </button>
-          <button
-            onClick={() => navigate_date(1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ChevronRight size={20} />
-          </button>
-          <h2 className="text-lg font-semibold text-gray-900 ml-2">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
+        {/* Navigation */}
+        <div className="flex items-center justify-between md:justify-start gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => navigate_date(-1)}
+              className="p-2.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={goToToday}
+              className="px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors touch-manipulation min-h-[44px]"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => navigate_date(1)}
+              className="p-2.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900 md:ml-2 truncate">
             {formatDateHeader()}
           </h2>
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Filters and View Toggle */}
+        <div className="flex items-center gap-2 md:gap-3">
           {/* Agent Filter */}
           <select
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            className="text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="flex-1 md:flex-none text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px] bg-white"
           >
             <option value="">All Technicians</option>
             {agentsList.map((agent) => (
@@ -448,7 +448,7 @@ export default function CalendarPage() {
           <div className="flex bg-gray-100 rounded-lg p-1">
             <button
               onClick={() => setView('month')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
                 view === 'month' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -457,7 +457,7 @@ export default function CalendarPage() {
             </button>
             <button
               onClick={() => setView('week')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
                 view === 'week' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -466,7 +466,7 @@ export default function CalendarPage() {
             </button>
             <button
               onClick={() => setView('day')}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
                 view === 'day' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
               }`}
             >
@@ -499,14 +499,14 @@ export default function CalendarPage() {
       >
         <form onSubmit={handleCreateTicket} className="space-y-4">
           {/* Date and Time */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
                 type="date"
                 value={newTicketDate ? newTicketDate.toISOString().split('T')[0] : ''}
                 onChange={(e) => setNewTicketDate(new Date(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
             </div>
             <div>
@@ -515,7 +515,7 @@ export default function CalendarPage() {
                 type="time"
                 value={newTicketTime}
                 onChange={(e) => setNewTicketTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
             </div>
           </div>
@@ -530,37 +530,22 @@ export default function CalendarPage() {
           />
 
           {/* Contact and Company */}
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label={<>Contact <span className="text-red-500">*</span></>}
-              value={newTicketForm.contactId}
-              onChange={(e) => {
-                const contact = contactsList.find(c => c.id === e.target.value);
-                setNewTicketForm(prev => ({
-                  ...prev,
-                  contactId: e.target.value,
-                  companyId: contact?.company?.id || prev.companyId,
-                }));
-              }}
-              options={[
-                { value: '', label: 'Select contact' },
-                ...contactsList.map(c => ({ value: c.id, label: `${c.name} (${c.email})` })),
-              ]}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <ContactTypeahead
+              label="Contact"
               required
+              value={newTicketForm.contactId}
+              onChange={(id) => setNewTicketForm(prev => ({ ...prev, contactId: id }))}
             />
-            <Select
+            <CompanyTypeahead
               label="Company"
               value={newTicketForm.companyId}
-              onChange={(e) => setNewTicketForm(prev => ({ ...prev, companyId: e.target.value }))}
-              options={[
-                { value: '', label: 'Select company' },
-                ...companiesList.map(c => ({ value: c.id, label: c.name })),
-              ]}
+              onChange={(id) => setNewTicketForm(prev => ({ ...prev, companyId: id }))}
             />
           </div>
 
           {/* Priority and Assignee */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Select
               label="Priority"
               value={newTicketForm.priority}
@@ -589,15 +574,15 @@ export default function CalendarPage() {
             value={newTicketForm.description}
             onChange={(e) => setNewTicketForm(prev => ({ ...prev, description: e.target.value }))}
             placeholder="Detailed description of the issue"
-            rows={4}
+            rows={3}
           />
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={() => setShowNewTicketModal(false)}>
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
+            <Button type="button" variant="outline" onClick={() => setShowNewTicketModal(false)} className="w-full sm:w-auto">
               Cancel
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving} className="w-full sm:w-auto">
               {saving ? <Spinner size="sm" /> : 'Create Ticket'}
             </Button>
           </div>

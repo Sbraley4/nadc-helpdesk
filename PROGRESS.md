@@ -12,7 +12,7 @@
 | 5b | Extended Features & Mobile-First UI | ✅ Complete | 2026-05-20 |
 | 6 | Email & Notifications | ✅ Complete | 2026-05-20 |
 | 7 | SLA, Automations & Dashboard | ✅ Complete | 2026-05-23 |
-| 8 | Client Portal & Knowledge Base | ⏳ Pending | - |
+| 8 | Client Portal & Knowledge Base | ✅ Complete | 2026-05-24 |
 
 ---
 
@@ -900,16 +900,193 @@ curl http://localhost:3001/api/sla-policies \
 
 ---
 
-## Phase 8 — Client Portal & Knowledge Base
+## Phase 8 — Client Portal & Knowledge Base ✅
 
-**Status:** ⏳ Pending
+**Completed:** 2026-05-24
 
 ### Tasks
-- [ ] Knowledge base categories
-- [ ] Knowledge base articles
-- [ ] Client portal authentication
-- [ ] Client portal ticket submission
-- [ ] Client portal ticket tracking
+- [x] Knowledge base categories CRUD (name, slug, description, order)
+- [x] Knowledge base articles CRUD (title, slug, body, published, category)
+- [x] KB search endpoint
+- [x] Agent-side KB management page
+- [x] Client portal authentication (separate JWT with _portal suffix)
+- [x] Portal login/logout with 8h access + 30d refresh tokens
+- [x] Portal forgot password and reset password flow
+- [x] Portal ticket listing (contact sees only their tickets)
+- [x] Portal ticket detail (public replies only, no internal notes)
+- [x] Portal new ticket submission
+- [x] Portal reply submission
+- [x] Portal KB browsing (categories, articles, search)
+- [x] Portal account page (view profile, change password)
+- [x] Welcome email template for portal activation
+- [x] Agent contact detail page portal access controls
+
+### Prisma Schema Updates
+- **Contact model additions:**
+  - `portalPassword` - Hashed portal password (nullable)
+  - `portalLastLoginAt` - Last portal login timestamp (nullable)
+- **TicketReply model additions:**
+  - `portalContactId` - For replies from portal contacts (nullable)
+  - Relation to Contact for portal replies
+
+### Backend Files Created
+
+**Middleware:**
+- `/server/middleware/portalAuth.js` - Portal JWT verification (requirePortalAuth)
+  - Separate JWT secret (JWT_SECRET + "_portal")
+  - Token type validation (portal vs portal_refresh)
+  - Contact attachment to request
+
+**Controllers:**
+- `/server/controllers/portalAuthController.js` - Portal authentication
+  - portalLogin: Login with email/password, returns tokens + contact
+  - portalRefresh: Refresh access token using refresh token
+  - portalMe: Get current portal contact
+  - portalSetPassword: Agent sets portal password for contact
+  - portalChangePassword: Contact changes own password
+  - portalForgotPassword: Request password reset email
+  - portalResetPassword: Reset password with token
+- `/server/controllers/portalTicketController.js` - Portal ticket operations
+  - getPortalTickets: List contact's tickets (with pagination)
+  - getPortalTicket: Get single ticket (must belong to contact)
+  - createPortalTicket: Create ticket as portal contact
+  - getPortalReplies: Get public replies only (no internal notes)
+  - addPortalReply: Add reply as portal contact
+- `/server/controllers/kbController.js` - Knowledge base management
+  - Category CRUD (getCategories, createCategory, updateCategory, deleteCategory)
+  - Article CRUD (getArticles, getArticle, createArticle, updateArticle, deleteArticle)
+  - searchArticles: Full-text search across articles
+- `/server/controllers/contactController.js` - Portal status additions
+  - getPortalStatus: Check if contact has portal access
+  - revokePortalAccess: Admin revokes portal access
+
+**Routes:**
+- `/server/routes/portalAuth.js` - Portal auth endpoints
+- `/server/routes/portalTickets.js` - Portal ticket endpoints
+- `/server/routes/kb.js` - Knowledge base endpoints
+- `/server/routes/contacts.js` - Added portal status routes
+
+**Email Templates:**
+- `/server/email-templates/portal-welcome.html` - Welcome email with credentials
+
+### API Endpoints (Phase 8)
+
+**Portal Authentication:**
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | /api/portal/auth/login | - | Portal login |
+| POST | /api/portal/auth/refresh | - | Refresh portal token |
+| POST | /api/portal/auth/forgot-password | - | Request password reset |
+| POST | /api/portal/auth/reset-password | - | Reset password with token |
+| GET | /api/portal/auth/me | Portal | Get current contact |
+| POST | /api/portal/auth/change-password | Portal | Change password |
+| POST | /api/portal/auth/set-password | Agent | Set contact's portal password |
+
+**Portal Tickets:**
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /api/portal/tickets | Portal | List contact's tickets |
+| GET | /api/portal/tickets/:id | Portal | Get ticket (must be requester) |
+| POST | /api/portal/tickets | Portal | Create new ticket |
+| GET | /api/portal/tickets/:id/replies | Portal | Get public replies |
+| POST | /api/portal/tickets/:id/replies | Portal | Add reply |
+
+**Knowledge Base:**
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /api/kb/categories | - | List published categories |
+| GET | /api/kb/categories/:slug | - | Get category with articles |
+| POST | /api/kb/categories | Agent | Create category |
+| PUT | /api/kb/categories/:id | Agent | Update category |
+| DELETE | /api/kb/categories/:id | Agent | Delete category |
+| GET | /api/kb/articles | - | List published articles |
+| GET | /api/kb/articles/:slug | - | Get single article |
+| POST | /api/kb/articles | Agent | Create article |
+| PUT | /api/kb/articles/:id | Agent | Update article |
+| DELETE | /api/kb/articles/:id | Agent | Delete article |
+| GET | /api/kb/search | - | Search articles |
+
+**Contact Portal Status:**
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | /api/contacts/:id/portal-status | Agent | Get portal access status |
+| DELETE | /api/contacts/:id/portal-access | Admin | Revoke portal access |
+
+### Frontend Files Created
+
+**API Layer:**
+- `/client/src/api/portalClient.js` - Separate Axios instance for portal
+  - Portal-specific token storage (portal_accessToken, portal_refreshToken)
+  - Auto token refresh interceptor
+- `/client/src/api/portal.js` - Portal API functions
+  - portalAuth: login, refresh, getMe, changePassword, forgotPassword, resetPassword
+  - portalTickets: getTickets, getTicket, createTicket, getReplies, addReply
+  - portalKB: getCategories, getCategory, getArticles, getArticle, searchArticles
+- `/client/src/api/index.js` - Added agent-side KB and contact portal APIs
+
+**State Management:**
+- `/client/src/store/portalAuthStore.js` - Zustand store for portal auth
+  - Separate from agent auth store
+  - Contact instead of user
+  - Portal-specific token management
+
+**Portal Pages:**
+- `/client/src/pages/portal/PortalLayout.jsx` - Top navigation layout (no sidebar)
+- `/client/src/pages/portal/PortalLoginPage.jsx` - Portal login form
+- `/client/src/pages/portal/PortalForgotPasswordPage.jsx` - Forgot password form
+- `/client/src/pages/portal/PortalResetPasswordPage.jsx` - Reset password form
+- `/client/src/pages/portal/PortalTicketsPage.jsx` - List contact's tickets
+- `/client/src/pages/portal/PortalTicketDetailPage.jsx` - Ticket detail with replies
+- `/client/src/pages/portal/PortalNewTicketPage.jsx` - New ticket form
+- `/client/src/pages/portal/PortalKBPage.jsx` - Knowledge base browser
+- `/client/src/pages/portal/PortalAccountPage.jsx` - Account settings
+- `/client/src/pages/portal/index.js` - Barrel exports
+
+**Agent KB Page:**
+- `/client/src/pages/kb/KnowledgeBasePage.jsx` - KB management for agents
+  - Category list with create/edit/delete
+  - Article list with search and filters
+  - Rich text article editor
+  - Insert KB article into ticket reply
+- `/client/src/pages/kb/index.js` - Barrel exports
+
+**Updated Files:**
+- `/client/src/App.jsx` - Added portal and KB routes
+- `/client/src/pages/contacts/ContactDetailPage.jsx` - Portal access controls
+- `/client/src/pages/tickets/TicketDetailPage.jsx` - KB article insertion button
+
+### Portal Routes
+
+**Public Routes:**
+- `/portal/login` - Portal login page
+- `/portal/forgot-password` - Forgot password page
+- `/portal/reset-password` - Reset password page (with token param)
+
+**Protected Portal Routes:**
+- `/portal` → redirects to `/portal/tickets`
+- `/portal/tickets` - Ticket list
+- `/portal/tickets/new` - New ticket form
+- `/portal/tickets/:id` - Ticket detail
+- `/portal/kb` - Knowledge base home
+- `/portal/kb/:categorySlug` - Category view
+- `/portal/kb/:categorySlug/:articleSlug` - Article view
+- `/portal/account` - Account settings
+
+**Agent Routes:**
+- `/kb` - Knowledge base management
+
+### Security Features
+- Separate JWT tokens for portal (JWT_SECRET + "_portal")
+- 8-hour access token expiry, 30-day refresh token
+- Token type validation (portal vs portal_refresh vs agent)
+- Portal contacts can only see their own tickets
+- Internal notes hidden from portal users
+- Password reset tokens expire in 1 hour
+
+### Seed Data (Updated)
+- **KB Categories:** 4 (Getting Started, Microsoft 365, Network & Wi-Fi, VoIP & Phones)
+- **KB Articles:** 5 sample articles with full content
+- **Portal Access:** John Smith (john@acmecorp.com / Portal1234!)
 
 ---
 
@@ -924,3 +1101,4 @@ curl http://localhost:3001/api/sla-policies \
 | 2026-05-19 | 5 | Contacts, Companies & Frontend UI complete - Contact and Company CRUD with search/pagination/deletion protection, full React frontend with Zustand auth, React Query data fetching, protected routes, responsive layout (Sidebar/Topbar), shared UI components, all ticket/contact/company pages, 404 page |
 | 2026-05-20 | 5b | Extended Features & Mobile-First UI complete - Time/Materials tracking, Devices/Assets management, Ticket templates with recurring schedules, Checklist items, Resolution summaries, Satisfaction surveys with Google review integration, App settings, Calendar views, Workload board, Mobile-first UI with drawer sidebar, bottom navigation, FAB, and bottom sheets |
 | 2026-05-23 | 7 | SLA, Automations & Dashboard complete - Settings cache utility, Business hours CRUD, Dashboard with stats/trends/charts, Reports (4 types + CSV export), Automation engine with conditions/actions, Time-based automation job, Global search, Settings page updates (business hours, email templates, reset), Automations page with builder UI |
+| 2026-05-24 | 8 | Client Portal & Knowledge Base complete - KB categories and articles CRUD with search, Portal authentication (separate JWT), Portal ticket management (list/create/reply), Portal KB browsing, Portal account page with password change, Forgot/reset password flow, Welcome email template, Agent-side KB management page, Contact portal access controls |

@@ -49,26 +49,29 @@ export default function Modal({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 transition-opacity"
+        className="fixed inset-0 bg-black/50 transition-opacity animate-fadeIn"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
 
-      {/* Modal container */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      {/* Modal container - full screen on mobile, centered on desktop */}
+      <div className="flex min-h-full items-end md:items-center justify-center p-0 md:p-4">
         <div
-          className={`relative bg-white rounded-lg shadow-xl w-full ${sizes[size]} transform transition-all`}
+          className={`relative bg-white shadow-xl w-full ${sizes[size]} transform transition-all rounded-t-2xl md:rounded-lg max-h-[90vh] md:max-h-[85vh] flex flex-col animate-slideUp md:animate-fadeIn`}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Mobile drag handle */}
+          <div className="md:hidden w-12 h-1.5 bg-gray-300 rounded-full mx-auto mt-3 mb-1" />
+
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex-shrink-0">
               {title && (
-                <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+                <h3 className="text-base md:text-lg font-semibold text-gray-900">{title}</h3>
               )}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-gray-500 transition-colors"
+                  className="p-2 -mr-2 text-gray-400 hover:text-gray-500 transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-gray-100"
                 >
                   <X size={20} />
                 </button>
@@ -76,12 +79,12 @@ export default function Modal({
             </div>
           )}
 
-          {/* Body */}
-          <div className="px-6 py-4">{children}</div>
+          {/* Body - scrollable */}
+          <div className="px-4 md:px-6 py-4 overflow-y-auto flex-1 overscroll-contain">{children}</div>
 
           {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div className="px-4 md:px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg flex-shrink-0 safe-bottom">
               {footer}
             </div>
           )}

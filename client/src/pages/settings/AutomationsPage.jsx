@@ -13,6 +13,7 @@ import {
   CheckCircle,
   ArrowRight,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { automations, agents, tags as tagsApi } from '../../api';
 import { Button, Spinner, Modal, Input, Select, Badge, ConfirmDialog } from '../../components/shared';
 
@@ -104,6 +105,11 @@ export default function AutomationsPage() {
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      if (error.response?.status === 403) {
+        toast.error('You do not have permission to access automations');
+      } else {
+        toast.error('Failed to load automations');
+      }
     } finally {
       setLoading(false);
     }
@@ -141,28 +147,52 @@ export default function AutomationsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!form.name.trim()) {
+      toast.error('Automation name is required');
+      return;
+    }
+
+    // Filter conditions and actions with values
+    const validConditions = form.conditions.filter(c => c.value);
+    const validActions = form.actions.filter(a => a.value);
+
+    if (validConditions.length === 0) {
+      toast.error('At least one condition with a value is required');
+      return;
+    }
+
+    if (validActions.length === 0) {
+      toast.error('At least one action with a value is required');
+      return;
+    }
+
     setSaving(true);
 
     try {
       const payload = {
-        name: form.name,
+        name: form.name.trim(),
         trigger: form.trigger,
-        conditions: form.conditions.filter(c => c.value),
-        actions: form.actions.filter(a => a.value),
+        conditions: validConditions,
+        actions: validActions,
         runOrder: parseInt(form.runOrder) || 0,
         isActive: form.isActive,
       };
 
       if (editingAutomation) {
         await automations.updateAutomation(editingAutomation.id, payload);
+        toast.success('Automation updated successfully');
       } else {
         await automations.createAutomation(payload);
+        toast.success('Automation created successfully');
       }
 
       setShowModal(false);
       fetchData();
     } catch (error) {
       console.error('Failed to save automation:', error);
+      toast.error(error.response?.data?.error || 'Failed to save automation');
     } finally {
       setSaving(false);
     }
@@ -174,8 +204,10 @@ export default function AutomationsPage() {
       setAutomationsList(prev =>
         prev.map(a => a.id === automation.id ? { ...a, isActive: !a.isActive } : a)
       );
+      toast.success(`Automation ${automation.isActive ? 'disabled' : 'enabled'}`);
     } catch (error) {
       console.error('Failed to toggle automation:', error);
+      toast.error('Failed to toggle automation');
     }
   };
 
@@ -186,8 +218,10 @@ export default function AutomationsPage() {
       await automations.deleteAutomation(deleteConfirm.id);
       setDeleteConfirm(null);
       fetchData();
+      toast.success('Automation deleted');
     } catch (error) {
       console.error('Failed to delete automation:', error);
+      toast.error('Failed to delete automation');
     }
   };
 
@@ -435,16 +469,16 @@ export default function AutomationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Automation Rules</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">Automation Rules</h2>
+          <p className="text-sm text-gray-500 mt-0.5 md:mt-1">
             Automate ticket handling with conditional rules
           </p>
         </div>
-        <Button onClick={openCreateModal}>
+        <Button onClick={openCreateModal} className="w-full sm:w-auto">
           <Plus size={18} className="mr-1" />
           New Automation
         </Button>
@@ -556,8 +590,8 @@ export default function AutomationsPage() {
         title={editingAutomation ? 'Edit Automation' : 'Create Automation'}
         size="lg"
       >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Input
               label="Automation Name"
               value={form.name}
@@ -573,7 +607,7 @@ export default function AutomationsPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Input
               type="number"
               label="Run Order"
@@ -582,13 +616,13 @@ export default function AutomationsPage() {
               placeholder="0"
               min={0}
             />
-            <div className="flex items-center pt-6">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="flex items-center sm:pt-6">
+              <label className="flex items-center gap-2 cursor-pointer min-h-[44px]">
                 <input
                   type="checkbox"
                   checked={form.isActive}
                   onChange={(e) => setForm(prev => ({ ...prev, isActive: e.target.checked }))}
-                  className="rounded border-gray-300 text-primary focus:ring-primary"
+                  className="rounded border-gray-300 text-primary focus:ring-primary w-5 h-5"
                 />
                 <span className="text-sm font-medium text-gray-700">Active</span>
               </label>
@@ -609,38 +643,42 @@ export default function AutomationsPage() {
 
             <div className="space-y-3">
               {form.conditions.map((condition, index) => (
-                <div key={index} className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg">
-                  <select
-                    value={condition.field}
-                    onChange={(e) => updateCondition(index, 'field', e.target.value)}
-                    className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    {CONDITION_FIELDS.map(field => (
-                      <option key={field.value} value={field.value}>{field.label}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={condition.operator}
-                    onChange={(e) => updateCondition(index, 'operator', e.target.value)}
-                    className="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    {OPERATORS.map(op => (
-                      <option key={op.value} value={op.value}>{op.label}</option>
-                    ))}
-                  </select>
-
-                  {renderConditionValueInput(condition, index)}
-
-                  {form.conditions.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeCondition(index)}
-                      className="p-2 text-gray-400 hover:text-red-500"
+                <div key={index} className="flex flex-col sm:flex-row sm:items-start gap-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <select
+                      value={condition.field}
+                      onChange={(e) => updateCondition(index, 'field', e.target.value)}
+                      className="flex-1 sm:flex-none sm:w-36 px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
                     >
-                      <X size={16} />
-                    </button>
-                  )}
+                      {CONDITION_FIELDS.map(field => (
+                        <option key={field.value} value={field.value}>{field.label}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={condition.operator}
+                      onChange={(e) => updateCondition(index, 'operator', e.target.value)}
+                      className="flex-1 sm:flex-none sm:w-32 px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px]"
+                    >
+                      {OPERATORS.map(op => (
+                        <option key={op.value} value={op.value}>{op.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex gap-2 flex-1">
+                    {renderConditionValueInput(condition, index)}
+
+                    {form.conditions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeCondition(index)}
+                        className="p-2 text-gray-400 hover:text-red-500 touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

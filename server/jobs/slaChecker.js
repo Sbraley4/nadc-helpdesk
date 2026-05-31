@@ -106,7 +106,7 @@ async function checkSLA() {
 
         // Send to all ADMIN users
         const admins = await prisma.user.findMany({
-          where: { role: 'ADMIN', deletedAt: null },
+          where: { role: 'ADMIN', isActive: true },
           select: { id: true, name: true, email: true },
         });
 

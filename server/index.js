@@ -11,11 +11,22 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 
+// CORS origins for development (allows localhost and local network)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://10.0.0.13:5173',
+  'http://172.18.80.1:5173',
+  'http://172.24.144.1:5173',
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
@@ -23,7 +34,14 @@ const io = new Server(server, {
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in dev mode
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to the Support Portal</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #F8F9FA;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F8F9FA;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #1B2A4A; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 32px;">
+              <h2 style="margin: 0 0 16px 0; color: #1B2A4A; font-size: 20px;">Welcome to the Support Portal</h2>
+
+              <p style="margin: 0 0 16px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hi {{contact_name}},
+              </p>
+
+              <p style="margin: 0 0 16px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Your portal account has been activated! You can now access the NADC customer portal to:
+              </p>
+
+              <ul style="margin: 0 0 24px 0; padding-left: 20px; color: #374151; font-size: 16px; line-height: 1.8;">
+                <li>Submit new support requests</li>
+                <li>Track the status of your tickets</li>
+                <li>View replies from our support team</li>
+                <li>Browse our Knowledge Base articles</li>
+              </ul>
+
+              <p style="margin: 0 0 8px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                <strong>Your login credentials:</strong>
+              </p>
+
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 0 24px 0; background-color: #F3F4F6; border-radius: 6px; width: 100%;">
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <p style="margin: 0 0 8px 0; color: #374151; font-size: 14px;">
+                      <strong>Email:</strong> {{contact_email}}
+                    </p>
+                    <p style="margin: 0; color: #374151; font-size: 14px;">
+                      <strong>Temporary Password:</strong> <code style="background-color: #E5E7EB; padding: 2px 6px; border-radius: 4px; font-family: monospace;">{{temp_password}}</code>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 24px 0; color: #EF4444; font-size: 14px; line-height: 1.6;">
+                <strong>Important:</strong> Please change your password after your first login for security.
+              </p>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: #1B2A4A;">
+                    <a href="{{portal_url}}" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">Access Portal</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 24px 0 0 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                If you have any questions, feel free to reply to this email or submit a support ticket through the portal.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F8F9FA; padding: 24px 32px; border-radius: 0 0 8px 8px; border-top: 1px solid #E5E7EB;">
+              <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 14px;">
+                {{company_name}} Support Team
+              </p>
+              <p style="margin: 0; color: #9CA3AF; font-size: 12px;">
+                This is an automated message. Please do not share your login credentials with others.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

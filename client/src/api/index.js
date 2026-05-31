@@ -43,6 +43,9 @@ export const contacts = {
   updateContact: (id, data) => client.put('/api/contacts/' + id, data).then((r) => r.data),
   deleteContact: (id) => client.delete('/api/contacts/' + id).then((r) => r.data),
   searchContacts: (q) => client.get('/api/contacts/search', { params: { q } }).then((r) => r.data),
+  getPortalStatus: (id) => client.get('/api/contacts/' + id + '/portal-status').then((r) => r.data),
+  setPortalPassword: (data) => client.post('/api/portal/auth/set-password', data).then((r) => r.data),
+  revokePortalAccess: (id) => client.delete('/api/contacts/' + id + '/portal-access').then((r) => r.data),
 };
 
 export const companies = {
@@ -191,4 +194,23 @@ export const businessHours = {
 
 export const search = {
   globalSearch: (q) => client.get('/api/search', { params: { q } }).then((r) => r.data),
+};
+
+// Phase 8 APIs
+
+export const kb = {
+  // Categories
+  getCategories: () => client.get('/api/kb/categories').then((r) => r.data),
+  getCategory: (slug) => client.get('/api/kb/categories/' + slug).then((r) => r.data),
+  createCategory: (data) => client.post('/api/kb/categories', data).then((r) => r.data),
+  updateCategory: (id, data) => client.put('/api/kb/categories/' + id, data).then((r) => r.data),
+  deleteCategory: (id) => client.delete('/api/kb/categories/' + id).then((r) => r.data),
+  // Articles
+  getArticles: (params) => client.get('/api/kb/articles', { params }).then((r) => r.data),
+  getArticle: (slug) => client.get('/api/kb/articles/' + slug).then((r) => r.data),
+  createArticle: (data) => client.post('/api/kb/articles', data).then((r) => r.data),
+  updateArticle: (id, data) => client.put('/api/kb/articles/' + id, data).then((r) => r.data),
+  deleteArticle: (id) => client.delete('/api/kb/articles/' + id).then((r) => r.data),
+  // Search
+  searchArticles: (q, limit) => client.get('/api/kb/search', { params: { q, limit } }).then((r) => r.data),
 };

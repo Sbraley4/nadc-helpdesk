@@ -49,7 +49,7 @@ const getAgents = async (req, res, next) => {
       groups: agent.groups.map((ug) => ug.group),
     }));
 
-    res.json(transformedAgents);
+    res.json({ agents: transformedAgents });
   } catch (error) {
     next(error);
   }

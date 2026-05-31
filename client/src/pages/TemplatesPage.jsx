@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Copy, FileText, CheckSquare, RotateCcw, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { templates, agents, tags as tagsApi } from '../api';
 import { Button, Spinner, Modal, Input, Textarea, Select, Badge, ConfirmDialog } from '../components/shared';
 
@@ -113,13 +114,28 @@ export default function TemplatesPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!form.name.trim()) {
+      toast.error('Template name is required');
+      return;
+    }
+    if (!form.subject.trim()) {
+      toast.error('Subject is required');
+      return;
+    }
+    if (!form.body.trim()) {
+      toast.error('Ticket body/description is required');
+      return;
+    }
+
     setSaving(true);
 
     try {
       const payload = {
-        name: form.name,
-        subject: form.subject,
-        description: form.body || form.description || '', // Map body to description
+        name: form.name.trim(),
+        subject: form.subject.trim(),
+        description: form.body.trim(), // Backend expects 'description'
         priority: form.priority,
         assigneeId: form.assigneeId || null,
         tags: form.tagIds, // Backend expects 'tags' as array
@@ -133,14 +149,17 @@ export default function TemplatesPage() {
 
       if (editingTemplate) {
         await templates.updateTemplate(editingTemplate.id, payload);
+        toast.success('Template updated successfully');
       } else {
         await templates.createTemplate(payload);
+        toast.success('Template created successfully');
       }
 
       setShowModal(false);
       fetchData();
     } catch (error) {
       console.error('Failed to save template:', error);
+      toast.error(error.response?.data?.error || 'Failed to save template');
     } finally {
       setSaving(false);
     }
@@ -190,16 +209,16 @@ export default function TemplatesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Ticket Templates</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">Ticket Templates</h2>
+          <p className="text-sm text-gray-500 mt-0.5 md:mt-1">
             Create reusable templates for common ticket types
           </p>
         </div>
-        <Button onClick={openCreateModal}>
+        <Button onClick={openCreateModal} className="w-full sm:w-auto">
           <Plus size={18} className="mr-1" />
           New Template
         </Button>
@@ -337,9 +356,10 @@ export default function TemplatesPage() {
             onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))}
             placeholder="Default content for the ticket description"
             rows={4}
+            required
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Select
               label="Priority"
               value={form.priority}
@@ -446,7 +466,7 @@ export default function TemplatesPage() {
             </label>
 
             {form.isRecurring && (
-              <div className="mt-3 grid grid-cols-2 gap-4 pl-6">
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 pl-0 sm:pl-6">
                 <Select
                   label="Frequency"
                   value={form.recurringFrequency}

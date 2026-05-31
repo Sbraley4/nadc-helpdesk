@@ -9,27 +9,32 @@ const Input = forwardRef(
       leftIcon,
       rightIcon,
       className = '',
+      size = 'default', // 'default' | 'lg'
       ...props
     },
     ref
   ) => {
+    const sizeClasses = size === 'lg'
+      ? 'px-4 py-3 text-base min-h-[48px]'
+      : 'px-3 py-2.5 text-base md:text-sm min-h-[44px]';
+
     return (
       <div className={className}>
         {label && (
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
         <div className="relative">
           {leftIcon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
               {leftIcon}
             </div>
           )}
           <input
             ref={ref}
-            className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary ${
+            className={`w-full ${sizeClasses} border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary touch-manipulation ${
               error
                 ? 'border-red-300 focus:ring-red-100 focus:border-red-500'
                 : 'border-gray-300'
@@ -44,9 +49,9 @@ const Input = forwardRef(
             </div>
           )}
         </div>
-        {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+        {error && <p className="mt-1.5 text-sm text-red-600">{error}</p>}
         {helperText && !error && (
-          <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+          <p className="mt-1.5 text-sm text-gray-500">{helperText}</p>
         )}
       </div>
     );

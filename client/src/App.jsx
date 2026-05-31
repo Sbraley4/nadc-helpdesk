@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
+import usePortalAuthStore from './store/portalAuthStore';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
@@ -27,7 +28,21 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import AutomationsPage from './pages/settings/AutomationsPage';
 
-// Protected Route wrapper
+// Phase 8 Pages
+import { KnowledgeBasePage } from './pages/kb';
+import {
+  PortalLayout,
+  PortalLoginPage,
+  PortalForgotPasswordPage,
+  PortalResetPasswordPage,
+  PortalTicketsPage,
+  PortalTicketDetailPage,
+  PortalNewTicketPage,
+  PortalKBPage,
+  PortalAccountPage,
+} from './pages/portal';
+
+// Protected Route wrapper (Agent/Admin)
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuthStore();
 
@@ -41,6 +56,29 @@ function ProtectedRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+// Protected Portal Route wrapper (Contact Portal)
+function ProtectedPortalRoute({ children }) {
+  const { isAuthenticated, isLoading, loadContact } = usePortalAuthStore();
+
+  useEffect(() => {
+    loadContact();
+  }, [loadContact]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#1B2A4A]"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/portal/login" replace />;
   }
 
   return children;
@@ -87,8 +125,30 @@ function App() {
         {/* Phase 7 routes */}
         <Route path="reports" element={<ReportsPage />} />
         <Route path="automations" element={<AutomationsPage />} />
-        {/* Placeholder routes for future phases */}
-        <Route path="kb" element={<div className="p-6"><h1 className="text-2xl font-bold">Knowledge Base</h1><p className="text-gray-500 mt-2">Coming in Phase 8</p></div>} />
+        {/* Phase 8 routes */}
+        <Route path="kb" element={<KnowledgeBasePage />} />
+      </Route>
+
+      {/* Portal routes */}
+      <Route path="/portal/login" element={<PortalLoginPage />} />
+      <Route path="/portal/forgot-password" element={<PortalForgotPasswordPage />} />
+      <Route path="/portal/reset-password" element={<PortalResetPasswordPage />} />
+      <Route
+        path="/portal"
+        element={
+          <ProtectedPortalRoute>
+            <PortalLayout />
+          </ProtectedPortalRoute>
+        }
+      >
+        <Route index element={<Navigate to="/portal/tickets" replace />} />
+        <Route path="tickets" element={<PortalTicketsPage />} />
+        <Route path="tickets/new" element={<PortalNewTicketPage />} />
+        <Route path="tickets/:id" element={<PortalTicketDetailPage />} />
+        <Route path="kb" element={<PortalKBPage />} />
+        <Route path="kb/:categorySlug" element={<PortalKBPage />} />
+        <Route path="kb/:categorySlug/:articleSlug" element={<PortalKBPage />} />
+        <Route path="account" element={<PortalAccountPage />} />
       </Route>
 
       {/* 404 */}

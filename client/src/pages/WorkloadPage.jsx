@@ -186,16 +186,14 @@ export default function WorkloadPage() {
       }
     });
 
-    // Add unassigned tickets column
+    // Always add unassigned tickets column
     const unassignedWorkload = workloadData.find((w) => !w.agentId);
-    if (unassignedWorkload) {
-      map.set('unassigned', {
-        agent: { id: 'unassigned', name: 'Unassigned', availability: null },
-        tickets: unassignedWorkload.tickets || [],
-        totalHours: 0,
-        ticketCount: unassignedWorkload.ticketCount || 0,
-      });
-    }
+    map.set('unassigned', {
+      agent: { id: 'unassigned', name: 'Unassigned', availability: null },
+      tickets: unassignedWorkload?.tickets || [],
+      totalHours: 0,
+      ticketCount: unassignedWorkload?.ticketCount || 0,
+    });
 
     return Array.from(map.values());
   }, [agentsList, workloadData]);
@@ -216,20 +214,20 @@ export default function WorkloadPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900">Workload Board</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">Workload Board</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
             {formatDate(start)} - {formatDate(end)}
           </p>
         </div>
 
-        <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="flex bg-gray-100 rounded-lg p-1 self-start md:self-auto">
           <button
             onClick={() => setDateRange('today')}
-            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors touch-manipulation min-h-[40px] ${
               dateRange === 'today' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -237,29 +235,29 @@ export default function WorkloadPage() {
           </button>
           <button
             onClick={() => setDateRange('week')}
-            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors touch-manipulation min-h-[40px] ${
               dateRange === 'week' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            This Week
+            Week
           </button>
           <button
             onClick={() => setDateRange('month')}
-            className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+            className={`px-3 py-2 text-sm rounded-md transition-colors touch-manipulation min-h-[40px] ${
               dateRange === 'month' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
           >
-            This Month
+            Month
           </button>
         </div>
       </div>
 
       {/* Workload Columns */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0 scroll-snap-x">
         {agentWorkloads.map(({ agent, tickets, totalHours, ticketCount }) => (
           <div
             key={agent.id}
-            className={`flex-shrink-0 w-72 bg-gray-50 rounded-lg transition-colors ${
+            className={`flex-shrink-0 w-64 md:w-72 bg-gray-50 rounded-lg transition-colors scroll-snap-start ${
               dragOverAgent === agent.id ? 'ring-2 ring-primary bg-primary/5' : ''
             }`}
             onDragOver={(e) => handleDragOver(e, agent.id)}
@@ -340,7 +338,7 @@ export default function WorkloadPage() {
                       } ${draggingTicket?.ticket.id === ticket.id ? 'opacity-50' : ''}`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="text-xs text-gray-500">#{ticket.id}</span>
+                        <span className="text-xs font-bold text-primary">#{ticket.ticketNumber}</span>
                         <span
                           className={`w-2 h-2 rounded-full ${statusColors[ticket.status]}`}
                           title={ticket.status}

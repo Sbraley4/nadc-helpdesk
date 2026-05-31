@@ -93,6 +93,7 @@ async function getContact(req, res, next) {
             status: true,
             priority: true,
             createdAt: true,
+            updatedAt: true,
           },
         },
       },
@@ -102,7 +103,7 @@ async function getContact(req, res, next) {
       return res.status(404).json({ error: 'Contact not found' });
     }
 
-    res.json(contact);
+    res.json({ contact });
   } catch (error) {
     next(error);
   }
@@ -326,6 +327,71 @@ async function searchContacts(req, res, next) {
   }
 }
 
+/**
+ * Get portal access status for a contact
+ * GET /api/contacts/:id/portal-status
+ */
+async function getPortalStatus(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const contact = await prisma.contact.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        portalPassword: true,
+        portalLastLoginAt: true,
+      },
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    res.json({
+      contactId: contact.id,
+      contactName: contact.name,
+      contactEmail: contact.email,
+      hasPortalAccess: !!contact.portalPassword,
+      lastLoginAt: contact.portalLastLoginAt,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Revoke portal access for a contact
+ * DELETE /api/contacts/:id/portal-access
+ */
+async function revokePortalAccess(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    const contact = await prisma.contact.findUnique({
+      where: { id },
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    await prisma.contact.update({
+      where: { id },
+      data: {
+        portalPassword: null,
+        portalLastLoginAt: null,
+      },
+    });
+
+    res.json({ message: 'Portal access revoked' });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   listContacts,
   getContact,
@@ -333,4 +399,6 @@ module.exports = {
   updateContact,
   deleteContact,
   searchContacts,
+  getPortalStatus,
+  revokePortalAccess,
 };

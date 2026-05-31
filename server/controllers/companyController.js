@@ -107,6 +107,10 @@ async function getCompany(req, res, next) {
             status: true,
             priority: true,
             createdAt: true,
+            updatedAt: true,
+            requester: {
+              select: { id: true, name: true },
+            },
           },
         },
         _count: {
@@ -122,7 +126,7 @@ async function getCompany(req, res, next) {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    res.json(company);
+    res.json({ company });
   } catch (error) {
     next(error);
   }

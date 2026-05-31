@@ -10,6 +10,9 @@ export default function ContactListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', email: '', phone: '', companyId: '' });
+  const [showInlineCompanyForm, setShowInlineCompanyForm] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyDomain, setNewCompanyDomain] = useState('');
   const queryClient = useQueryClient();
 
   const filters = {
@@ -55,6 +58,33 @@ export default function ContactListPage() {
       toast.error(error.response?.data?.error || 'Failed to create contact');
     },
   });
+
+  const createCompanyMutation = useMutation({
+    mutationFn: companies.createCompany,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['companies-list'] });
+      // Auto-select the newly created company
+      setCreateForm({ ...createForm, companyId: data.company?.id || data.id });
+      setShowInlineCompanyForm(false);
+      setNewCompanyName('');
+      setNewCompanyDomain('');
+      toast.success('Company created and selected');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to create company');
+    },
+  });
+
+  const handleCreateCompanyInline = () => {
+    if (!newCompanyName.trim()) {
+      toast.error('Company name is required');
+      return;
+    }
+    createCompanyMutation.mutate({
+      name: newCompanyName.trim(),
+      domain: newCompanyDomain.trim() || undefined,
+    });
+  };
 
   const handleCreateSubmit = (e) => {
     e.preventDefault();
@@ -183,12 +213,64 @@ export default function ContactListPage() {
             onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
             placeholder="Enter phone number"
           />
-          <Select
-            label="Company"
-            options={companyOptions}
-            value={createForm.companyId}
-            onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })}
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+            {!showInlineCompanyForm ? (
+              <>
+                <Select
+                  options={companyOptions}
+                  value={createForm.companyId}
+                  onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowInlineCompanyForm(true)}
+                  className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <Plus size={14} />
+                  Create new company
+                </button>
+              </>
+            ) : (
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                <Input
+                  label="Company Name"
+                  required
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  placeholder="Enter company name"
+                />
+                <Input
+                  label="Domain"
+                  value={newCompanyDomain}
+                  onChange={(e) => setNewCompanyDomain(e.target.value)}
+                  placeholder="e.g., example.com"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleCreateCompanyInline}
+                    isLoading={createCompanyMutation.isPending}
+                  >
+                    Create Company
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowInlineCompanyForm(false);
+                      setNewCompanyName('');
+                      setNewCompanyDomain('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
               Cancel

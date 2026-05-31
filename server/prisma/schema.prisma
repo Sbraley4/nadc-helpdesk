@@ -131,6 +131,7 @@ model Contact {
   email                  String                   @unique
   phone                  String?
   portalPassword         String?
+  portalLastLoginAt      DateTime?
   notes                  String?
   companyId              String?
   lastReviewRequestedAt  DateTime?
@@ -143,6 +144,7 @@ model Contact {
   company             Company?             @relation(fields: [companyId], references: [id])
   tickets             Ticket[]
   satisfactionRatings SatisfactionRating[]
+  portalReplies       TicketReply[]
 }
 
 // Company
@@ -214,18 +216,20 @@ model Ticket {
 
 // TicketReply
 model TicketReply {
-  id         String   @id @default(cuid())
-  body       String   @db.Text
-  isInternal Boolean  @default(false)
-  authorId   String
-  ticketId   String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String   @id @default(cuid())
+  body            String   @db.Text
+  isInternal      Boolean  @default(false)
+  authorId        String?
+  portalContactId String?
+  ticketId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
-  author      User               @relation(fields: [authorId], references: [id])
-  ticket      Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  attachments TicketAttachment[]
+  author        User?              @relation(fields: [authorId], references: [id])
+  portalContact Contact?           @relation(fields: [portalContactId], references: [id])
+  ticket        Ticket             @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  attachments   TicketAttachment[]
 }
 
 // TicketActivity (audit log)

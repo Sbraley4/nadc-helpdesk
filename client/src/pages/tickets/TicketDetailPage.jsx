@@ -1373,7 +1373,7 @@ export default function TicketDetailPage() {
                   onChange={(e) => setNewChecklistItem(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && newChecklistItem.trim()) {
-                      addChecklistMutation.mutate({ text: newChecklistItem.trim() });
+                      addChecklistMutation.mutate({ label: newChecklistItem.trim() });
                     }
                   }}
                   placeholder="Add item..."
@@ -1382,7 +1382,7 @@ export default function TicketDetailPage() {
                 <button
                   onClick={() => {
                     if (newChecklistItem.trim()) {
-                      addChecklistMutation.mutate({ text: newChecklistItem.trim() });
+                      addChecklistMutation.mutate({ label: newChecklistItem.trim() });
                     }
                   }}
                   disabled={!newChecklistItem.trim()}

@@ -33,22 +33,28 @@ import {
 } from '../components/shared';
 
 const deviceTypeIcons = {
-  COMPUTER: Monitor,
+  DESKTOP: Monitor,
   LAPTOP: Laptop,
-  PRINTER: Printer,
   SERVER: Server,
+  PRINTER: Printer,
+  ROUTER: Router,
+  SWITCH: Router,
+  FIREWALL: Router,
   PHONE: Smartphone,
-  NETWORK: Router,
+  TABLET: Smartphone,
   OTHER: HardDrive,
 };
 
 const deviceTypeOptions = [
-  { value: 'COMPUTER', label: 'Computer' },
+  { value: 'DESKTOP', label: 'Desktop' },
   { value: 'LAPTOP', label: 'Laptop' },
-  { value: 'PRINTER', label: 'Printer' },
   { value: 'SERVER', label: 'Server' },
+  { value: 'PRINTER', label: 'Printer' },
+  { value: 'ROUTER', label: 'Router' },
+  { value: 'SWITCH', label: 'Switch' },
+  { value: 'FIREWALL', label: 'Firewall' },
   { value: 'PHONE', label: 'Phone' },
-  { value: 'NETWORK', label: 'Network' },
+  { value: 'TABLET', label: 'Tablet' },
   { value: 'OTHER', label: 'Other' },
 ];
 
@@ -71,15 +77,14 @@ export default function DevicesPage() {
 
   const [form, setForm] = useState({
     name: '',
-    type: 'COMPUTER',
+    type: 'DESKTOP',
     serialNumber: '',
-    manufacturer: '',
+    make: '',
     model: '',
-    purchaseDate: '',
-    warrantyExpiry: '',
+    operatingSystem: '',
+    ipAddress: '',
     notes: '',
     companyId: '',
-    contactId: '',
   });
 
   useEffect(() => {
@@ -128,8 +133,8 @@ export default function DevicesPage() {
 
   const fetchDeviceDetails = async (deviceId) => {
     try {
-      const device = await devices.getDevice(deviceId);
-      setSelectedDevice(device);
+      const data = await devices.getDevice(deviceId);
+      setSelectedDevice(data.device);
     } catch (error) {
       console.error('Failed to fetch device details:', error);
       navigate('/devices');
@@ -139,15 +144,14 @@ export default function DevicesPage() {
   const resetForm = () => {
     setForm({
       name: '',
-      type: 'COMPUTER',
+      type: 'DESKTOP',
       serialNumber: '',
-      manufacturer: '',
+      make: '',
       model: '',
-      purchaseDate: '',
-      warrantyExpiry: '',
+      operatingSystem: '',
+      ipAddress: '',
       notes: '',
       companyId: '',
-      contactId: '',
     });
   };
 
@@ -163,13 +167,12 @@ export default function DevicesPage() {
       name: device.name,
       type: device.type,
       serialNumber: device.serialNumber || '',
-      manufacturer: device.manufacturer || '',
+      make: device.make || '',
       model: device.model || '',
-      purchaseDate: device.purchaseDate ? device.purchaseDate.split('T')[0] : '',
-      warrantyExpiry: device.warrantyExpiry ? device.warrantyExpiry.split('T')[0] : '',
+      operatingSystem: device.operatingSystem || '',
+      ipAddress: device.ipAddress || '',
       notes: device.notes || '',
       companyId: device.companyId || '',
-      contactId: device.contactId || '',
     });
     setShowModal(true);
   };
@@ -180,11 +183,15 @@ export default function DevicesPage() {
 
     try {
       const payload = {
-        ...form,
-        purchaseDate: form.purchaseDate || null,
-        warrantyExpiry: form.warrantyExpiry || null,
+        name: form.name,
+        type: form.type,
+        serialNumber: form.serialNumber || null,
+        make: form.make || null,
+        model: form.model || null,
+        operatingSystem: form.operatingSystem || null,
+        ipAddress: form.ipAddress || null,
+        notes: form.notes || null,
         companyId: form.companyId || null,
-        contactId: form.contactId || null,
       };
 
       if (editingDevice) {
@@ -241,29 +248,30 @@ export default function DevicesPage() {
   // Detail View
   if (selectedDevice) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
+      <div className="space-y-4 md:space-y-6">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4">
           <button
             onClick={() => navigate('/devices')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
           >
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xl font-semibold text-gray-900">{selectedDevice.name}</h2>
-          <div className="flex-1" />
-          <Button variant="outline" size="sm" onClick={() => openEditModal(selectedDevice)}>
-            <Edit2 size={16} className="mr-1" />
-            Edit
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-red-600 hover:bg-red-50"
-            onClick={() => setDeleteConfirm(selectedDevice)}
-          >
-            <Trash2 size={16} className="mr-1" />
-            Delete
-          </Button>
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900 flex-1 min-w-0 truncate">{selectedDevice.name}</h2>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => openEditModal(selectedDevice)}>
+              <Edit2 size={16} className="mr-1" />
+              <span className="hidden sm:inline">Edit</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 hover:bg-red-50"
+              onClick={() => setDeleteConfirm(selectedDevice)}
+            >
+              <Trash2 size={16} className="sm:mr-1" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">
@@ -282,10 +290,10 @@ export default function DevicesPage() {
             </div>
 
             <dl className="space-y-4">
-              {selectedDevice.manufacturer && (
+              {selectedDevice.make && (
                 <div>
-                  <dt className="text-sm text-gray-500">Manufacturer</dt>
-                  <dd className="font-medium">{selectedDevice.manufacturer}</dd>
+                  <dt className="text-sm text-gray-500">Make</dt>
+                  <dd className="font-medium">{selectedDevice.make}</dd>
                 </div>
               )}
               {selectedDevice.model && (
@@ -294,26 +302,16 @@ export default function DevicesPage() {
                   <dd className="font-medium">{selectedDevice.model}</dd>
                 </div>
               )}
-              {selectedDevice.purchaseDate && (
+              {selectedDevice.operatingSystem && (
                 <div>
-                  <dt className="text-sm text-gray-500">Purchase Date</dt>
-                  <dd className="font-medium">
-                    {new Date(selectedDevice.purchaseDate).toLocaleDateString()}
-                  </dd>
+                  <dt className="text-sm text-gray-500">Operating System</dt>
+                  <dd className="font-medium">{selectedDevice.operatingSystem}</dd>
                 </div>
               )}
-              {selectedDevice.warrantyExpiry && (
+              {selectedDevice.ipAddress && (
                 <div>
-                  <dt className="text-sm text-gray-500">Warranty Expiry</dt>
-                  <dd className="font-medium flex items-center gap-2">
-                    {new Date(selectedDevice.warrantyExpiry).toLocaleDateString()}
-                    {isWarrantyExpired(selectedDevice.warrantyExpiry) && (
-                      <Badge variant="danger">Expired</Badge>
-                    )}
-                    {isWarrantyExpiringSoon(selectedDevice.warrantyExpiry) && (
-                      <Badge variant="warning">Expiring Soon</Badge>
-                    )}
-                  </dd>
+                  <dt className="text-sm text-gray-500">IP Address</dt>
+                  <dd className="font-medium">{selectedDevice.ipAddress}</dd>
                 </div>
               )}
               {selectedDevice.notes && (
@@ -373,7 +371,7 @@ export default function DevicesPage() {
                     className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors text-left"
                   >
                     <div>
-                      <span className="font-medium">#{ticketDevice.ticket?.id}</span>
+                      <span className="font-bold text-primary">#{ticketDevice.ticket?.ticketNumber}</span>
                       <span className="ml-2 text-gray-600">{ticketDevice.ticket?.subject}</span>
                     </div>
                     <Badge variant={ticketDevice.ticket?.status?.toLowerCase()}>
@@ -493,9 +491,9 @@ export default function DevicesPage() {
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">{device.name}</p>
-                            {device.manufacturer && device.model && (
+                            {device.make && device.model && (
                               <p className="text-sm text-gray-500">
-                                {device.manufacturer} {device.model}
+                                {device.make} {device.model}
                               </p>
                             )}
                           </div>
@@ -580,7 +578,7 @@ export default function DevicesPage() {
             required
           />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Select
               label="Type"
               value={form.type}
@@ -596,11 +594,11 @@ export default function DevicesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Input
-              label="Manufacturer"
-              value={form.manufacturer}
-              onChange={(e) => setForm((prev) => ({ ...prev, manufacturer: e.target.value }))}
+              label="Make"
+              value={form.make}
+              onChange={(e) => setForm((prev) => ({ ...prev, make: e.target.value }))}
               placeholder="e.g., Dell, HP"
             />
 
@@ -612,43 +610,32 @@ export default function DevicesPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <Input
-              type="date"
-              label="Purchase Date"
-              value={form.purchaseDate}
-              onChange={(e) => setForm((prev) => ({ ...prev, purchaseDate: e.target.value }))}
+              label="Operating System"
+              value={form.operatingSystem}
+              onChange={(e) => setForm((prev) => ({ ...prev, operatingSystem: e.target.value }))}
+              placeholder="e.g., Windows 11 Pro"
             />
 
             <Input
-              type="date"
-              label="Warranty Expiry"
-              value={form.warrantyExpiry}
-              onChange={(e) => setForm((prev) => ({ ...prev, warrantyExpiry: e.target.value }))}
+              label="IP Address"
+              value={form.ipAddress}
+              onChange={(e) => setForm((prev) => ({ ...prev, ipAddress: e.target.value }))}
+              placeholder="e.g., 192.168.1.100"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Company"
-              value={form.companyId}
-              onChange={(e) => setForm((prev) => ({ ...prev, companyId: e.target.value }))}
-              options={[
-                { value: '', label: 'None' },
-                ...companiesList.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-            />
-
-            <Select
-              label="Contact"
-              value={form.contactId}
-              onChange={(e) => setForm((prev) => ({ ...prev, contactId: e.target.value }))}
-              options={[
-                { value: '', label: 'None' },
-                ...contactsList.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-            />
-          </div>
+          <Select
+            label={<>Company <span className="text-red-500">*</span></>}
+            value={form.companyId}
+            onChange={(e) => setForm((prev) => ({ ...prev, companyId: e.target.value }))}
+            options={[
+              { value: '', label: 'Select a company' },
+              ...companiesList.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+            required
+          />
 
           <Textarea
             label="Notes"

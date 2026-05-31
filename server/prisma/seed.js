@@ -7,6 +7,10 @@ async function main() {
   console.log('Starting seed...');
 
   // Clear existing data in correct order (respecting foreign keys)
+  // Phase 8 tables
+  await prisma.kBArticle.deleteMany();
+  await prisma.kBCategory.deleteMany();
+
   // Phase 5b tables
   await prisma.satisfactionRating.deleteMany();
   await prisma.timeEntry.deleteMany();
@@ -594,6 +598,303 @@ Apologies for any inconvenience.
     },
   });
   console.log('Created automation rule:', rule3.name);
+
+  // Phase 8: Knowledge Base Categories
+  const kbGettingStarted = await prisma.kBCategory.create({
+    data: {
+      name: 'Getting Started',
+      slug: 'getting-started',
+      description: 'Basic guides to help you get started with our support system',
+      order: 1,
+    },
+  });
+
+  const kbMicrosoft365 = await prisma.kBCategory.create({
+    data: {
+      name: 'Microsoft 365',
+      slug: 'microsoft-365',
+      description: 'Guides and troubleshooting for Microsoft 365 applications',
+      order: 2,
+    },
+  });
+
+  const kbNetworkWifi = await prisma.kBCategory.create({
+    data: {
+      name: 'Network & Wi-Fi',
+      slug: 'network-wifi',
+      description: 'Network connectivity and Wi-Fi troubleshooting guides',
+      order: 3,
+    },
+  });
+
+  const kbVoipPhones = await prisma.kBCategory.create({
+    data: {
+      name: 'VoIP & Phones',
+      slug: 'voip-phones',
+      description: 'Voice over IP and phone system documentation',
+      order: 4,
+    },
+  });
+  console.log('Created 4 KB categories');
+
+  // Phase 8: Knowledge Base Articles
+  await prisma.kBArticle.create({
+    data: {
+      title: 'How to Submit a Support Ticket',
+      slug: 'how-to-submit-support-ticket',
+      body: `# How to Submit a Support Ticket
+
+Follow these steps to submit a support ticket through our portal:
+
+## Step 1: Log In
+Log into the client portal using your email and password.
+
+## Step 2: Navigate to Tickets
+Click on "My Tickets" in the navigation menu.
+
+## Step 3: Create New Ticket
+Click the "New Ticket" button in the top right corner.
+
+## Step 4: Fill Out the Form
+- **Subject**: Provide a brief summary of your issue
+- **Description**: Describe your problem in detail
+- **Priority**: Select the appropriate urgency level
+
+## Step 5: Submit
+Click "Submit Ticket" to create your request. You'll receive a confirmation email with your ticket number.
+
+---
+Need help? Contact us at support@nadc.com`,
+      categoryId: kbGettingStarted.id,
+      authorId: admin.id,
+      isPublished: true,
+      
+    },
+  });
+
+  await prisma.kBArticle.create({
+    data: {
+      title: 'Setting Up Email on Your iPhone',
+      slug: 'setting-up-email-iphone',
+      body: `# Setting Up Email on Your iPhone
+
+This guide will help you configure Microsoft 365 email on your iPhone.
+
+## Prerequisites
+- Your Microsoft 365 email address
+- Your password
+- iPhone running iOS 14 or later
+
+## Steps
+
+### 1. Open Settings
+Go to **Settings > Mail > Accounts > Add Account**
+
+### 2. Select Microsoft Exchange
+Choose "Microsoft Exchange" from the list of email providers.
+
+### 3. Enter Your Credentials
+- **Email**: Enter your full email address
+- **Description**: Give your account a name (e.g., "Work Email")
+
+### 4. Sign In
+You'll be redirected to Microsoft's sign-in page. Enter your password and complete any multi-factor authentication.
+
+### 5. Choose What to Sync
+Select which items to sync:
+- Mail
+- Contacts
+- Calendars
+- Reminders
+
+### 6. Save
+Tap "Save" to complete the setup.
+
+## Troubleshooting
+If email isn't syncing:
+1. Check your internet connection
+2. Verify your password is correct
+3. Remove and re-add the account
+
+---
+Still having issues? Submit a support ticket.`,
+      categoryId: kbMicrosoft365.id,
+      authorId: admin.id,
+      isPublished: true,
+      
+    },
+  });
+
+  await prisma.kBArticle.create({
+    data: {
+      title: 'Troubleshooting Wi-Fi Connection Issues',
+      slug: 'troubleshooting-wifi-issues',
+      body: `# Troubleshooting Wi-Fi Connection Issues
+
+Having trouble connecting to Wi-Fi? Follow these steps to diagnose and fix common issues.
+
+## Quick Fixes
+
+### 1. Restart Your Device
+Turn your device off and back on. This resolves most temporary connectivity issues.
+
+### 2. Forget and Reconnect
+1. Go to your Wi-Fi settings
+2. Find your network and select "Forget"
+3. Reconnect by entering the password again
+
+### 3. Restart the Router
+If multiple devices are affected:
+1. Unplug the router power cable
+2. Wait 30 seconds
+3. Plug it back in
+4. Wait 2-3 minutes for full restart
+
+## Advanced Troubleshooting
+
+### Check for Interference
+- Move closer to the router
+- Reduce obstacles between your device and router
+- Check for interfering devices (microwaves, cordless phones)
+
+### Verify Network Settings
+Make sure you're connecting to the correct network (5GHz vs 2.4GHz).
+
+### Check for Outages
+Contact your IT department to verify there are no network maintenance or outages.
+
+---
+If issues persist, please submit a support ticket with details about your device and location.`,
+      categoryId: kbNetworkWifi.id,
+      authorId: admin.id,
+      isPublished: true,
+      
+    },
+  });
+
+  await prisma.kBArticle.create({
+    data: {
+      title: 'Using Your VoIP Phone System',
+      slug: 'using-voip-phone-system',
+      body: `# Using Your VoIP Phone System
+
+Learn how to use the basic features of your VoIP phone.
+
+## Making Calls
+
+### Internal Calls
+- Dial the extension number directly (e.g., 1001)
+- Press the green call button
+
+### External Calls
+- Dial 9 + the full phone number
+- Include area code for local calls
+
+### International Calls
+- Dial 9 + 011 + country code + number
+
+## Receiving Calls
+Simply pick up the handset or press the flashing line button.
+
+## Common Features
+
+### Transfer a Call
+1. Press the **Transfer** button
+2. Dial the extension
+3. Press **Transfer** again to complete
+
+### Put a Call on Hold
+Press the **Hold** button. Press it again to resume.
+
+### Voicemail
+1. Press the **Messages** button
+2. Enter your PIN when prompted
+3. Follow the voice prompts
+
+### Conference Call
+1. While on a call, press **Conference**
+2. Dial the third party
+3. Press **Conference** again to connect all parties
+
+## Troubleshooting
+If your phone displays "No Service":
+1. Check the network cable connection
+2. Restart the phone
+3. Contact IT support
+
+---
+For additional assistance, contact your IT department.`,
+      categoryId: kbVoipPhones.id,
+      authorId: admin.id,
+      isPublished: true,
+      
+    },
+  });
+
+  await prisma.kBArticle.create({
+    data: {
+      title: 'Password Reset Guide',
+      slug: 'password-reset-guide',
+      body: `# Password Reset Guide
+
+Learn how to reset your password for various systems.
+
+## Microsoft 365 Password
+
+### Self-Service Reset
+1. Go to [portal.office.com](https://portal.office.com)
+2. Click "Can't access your account?"
+3. Select "Work or school account"
+4. Enter your email address
+5. Complete the CAPTCHA
+6. Follow the verification steps (phone or email)
+7. Create a new password
+
+### Through IT Support
+If self-service reset isn't available:
+1. Submit a support ticket requesting a password reset
+2. An IT admin will generate a temporary password
+3. You'll receive an email with reset instructions
+
+## Windows Login Password
+Contact IT support directly. For security reasons, Windows passwords must be reset by an administrator.
+
+## VPN Password
+VPN uses your Microsoft 365 credentials. Reset your Microsoft password following the steps above.
+
+## Password Requirements
+All passwords must meet these requirements:
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character (!@#$%^&*)
+
+## Security Tips
+- Never share your password
+- Use a unique password for work accounts
+- Enable multi-factor authentication when available
+- Change your password immediately if you suspect compromise
+
+---
+Questions about passwords? Contact IT support.`,
+      categoryId: kbGettingStarted.id,
+      authorId: admin.id,
+      isPublished: true,
+      
+    },
+  });
+  console.log('Created 5 KB articles');
+
+  // Phase 8: Set portal access for test contact
+  const hashedPortalPassword = await bcrypt.hash('Portal1234!', 10);
+  await prisma.contact.update({
+    where: { id: johnSmith.id },
+    data: {
+      portalPassword: hashedPortalPassword,
+    },
+  });
+  console.log('Enabled portal access for John Smith (john@acmecorp.com / Portal1234!)');
 
   console.log('');
   console.log('='.repeat(50));

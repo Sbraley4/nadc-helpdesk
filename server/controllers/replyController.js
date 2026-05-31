@@ -70,8 +70,20 @@ async function getReplies(req, res, next) {
 async function createReply(req, res, next) {
   try {
     const { ticketId } = req.params;
-    const { body, isInternal } = req.body;
+    const { body, isInternal, notifyAgentIds } = req.body;
     const files = req.files || [];
+
+    // Parse notifyAgentIds if it's a JSON string
+    let agentIdsToNotify = [];
+    if (notifyAgentIds) {
+      try {
+        agentIdsToNotify = typeof notifyAgentIds === 'string'
+          ? JSON.parse(notifyAgentIds)
+          : notifyAgentIds;
+      } catch (e) {
+        agentIdsToNotify = [];
+      }
+    }
 
     // Validate body
     if (!body || body.trim() === '') {
@@ -179,6 +191,24 @@ async function createReply(req, res, next) {
             userId: req.user.id,
           },
         });
+
+        // Create notifications for notified agents
+        if (agentIdsToNotify && agentIdsToNotify.length > 0) {
+          for (const agentId of agentIdsToNotify) {
+            // Don't notify the author
+            if (agentId === req.user.id) continue;
+
+            await tx.notification.create({
+              data: {
+                userId: agentId,
+                type: 'note_mention',
+                title: 'You were mentioned in a note',
+                message: `${req.user.name} mentioned you in a note on ticket #${ticket.ticketNumber}`,
+                relatedTicketId: ticketId,
+              },
+            });
+          }
+        }
       }
 
       return { reply, attachments };
@@ -226,6 +256,18 @@ async function createReply(req, res, next) {
         reply: replyWithUrls,
       });
       console.log(`[Socket.io] Emitted ticket:reply to room ticket:${ticketId}`);
+
+      // Emit notification events for notified agents
+      if (isInternalNote && agentIdsToNotify && agentIdsToNotify.length > 0) {
+        for (const agentId of agentIdsToNotify) {
+          if (agentId === req.user.id) continue;
+          io.to(`user:${agentId}`).emit('notification:new', {
+            type: 'note_mention',
+            title: 'You were mentioned in a note',
+            ticketId,
+          });
+        }
+      }
     }
 
     // Send email to requester for public replies

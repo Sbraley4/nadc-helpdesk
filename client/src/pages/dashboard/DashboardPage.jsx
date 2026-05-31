@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -32,17 +32,17 @@ function StatCard({ icon: Icon, label, value, subtext, color = 'blue', onClick }
 
   return (
     <div
-      className={`bg-white rounded-lg shadow p-4 ${onClick ? 'cursor-pointer hover:shadow-md' : ''}`}
+      className={`bg-white rounded-lg shadow p-3 md:p-4 touch-manipulation ${onClick ? 'cursor-pointer hover:shadow-md active:bg-gray-50 transition-all' : ''}`}
       onClick={onClick}
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
-          {subtext && <p className="text-xs text-gray-400 mt-1">{subtext}</p>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs md:text-sm text-gray-500 truncate">{label}</p>
+          <p className="text-xl md:text-2xl font-bold mt-0.5 md:mt-1">{value}</p>
+          {subtext && <p className="text-xs text-gray-400 mt-0.5 md:mt-1 truncate">{subtext}</p>}
         </div>
-        <div className={`p-2 rounded-lg ${colorClasses[color]}`}>
-          <Icon className="w-5 h-5" />
+        <div className={`p-2 rounded-lg flex-shrink-0 ${colorClasses[color]}`}>
+          <Icon className="w-4 h-4 md:w-5 md:h-5" />
         </div>
       </div>
     </div>
@@ -64,6 +64,7 @@ function SkeletonCard() {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [trendPeriod, setTrendPeriod] = useState('30d');
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -112,16 +113,14 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold">Dashboard</h1>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard icon={Ticket} label="Open Tickets" value={stats.ticketCounts?.open || 0}
-          subtext={stats.ticketCounts?.overdue > 0 ? `${stats.ticketCounts.overdue} overdue` : null} color="blue" />
+          subtext={stats.ticketCounts?.overdue > 0 ? `${stats.ticketCounts.overdue} overdue` : null} color="blue"
+          onClick={() => navigate('/tickets?status=OPEN')} />
         <StatCard icon={Clock} label="Avg Response Time" value={stats.avgResponseTime?.formatted || '—'}
           subtext="last 30 days" color="green" />
         <StatCard icon={CheckCircle} label="Avg Resolution Time" value={stats.avgResolutionTime?.formatted || '—'}
           subtext="last 30 days" color="purple" />
-        <StatCard icon={ThumbsUp} label="Satisfaction Rate"
-          value={stats.satisfactionSummary?.positivePercent != null ? `${stats.satisfactionSummary.positivePercent}%` : '—'}
-          subtext={`${stats.satisfactionSummary?.total || 0} ratings`} color="amber" />
       </div>
 
       {/* Charts Row */}
@@ -202,11 +201,15 @@ export default function DashboardPage() {
               </thead>
               <tbody>
                 {(stats.agentWorkload || []).map((agent) => (
-                  <tr key={agent.agentId} className="border-t hover:bg-gray-50">
+                  <tr
+                    key={agent.agentId}
+                    className="border-t hover:bg-gray-50 cursor-pointer"
+                    onClick={() => navigate(`/tickets?assigneeId=${agent.agentId}`)}
+                  >
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <Avatar name={agent.agentName} size="sm" />
-                        <span>{agent.agentName}</span>
+                        <span className="font-medium text-primary hover:underline">{agent.agentName}</span>
                       </div>
                     </td>
                     <td className="text-center p-3"><Badge variant="info">{agent.open}</Badge></td>
@@ -229,15 +232,20 @@ export default function DashboardPage() {
           </div>
           <div className="divide-y max-h-80 overflow-y-auto">
             {(stats.recentActivity || []).map((activity) => (
-              <div key={activity.id} className="p-4 flex items-start gap-3">
+              <div
+                key={activity.id}
+                className="p-4 flex items-start gap-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                onClick={() => navigate(`/tickets/${activity.ticketId}`)}
+              >
                 <Avatar name={activity.user?.name || 'System'} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm">{activity.description}</p>
-                  <Link to={`/tickets/${activity.ticketId}`} className="text-xs text-primary hover:underline">
-                    #{activity.ticketNumber}: {activity.ticketSubject}
-                  </Link>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg font-bold text-primary">#{activity.ticketNumber}</span>
+                    <span className="text-sm text-gray-700 truncate">{activity.ticketSubject}</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{activity.description}</p>
                 </div>
-                <span className="text-xs text-gray-400">{new Date(activity.createdAt).toLocaleString()}</span>
+                <span className="text-xs text-gray-400 whitespace-nowrap">{new Date(activity.createdAt).toLocaleString()}</span>
               </div>
             ))}
           </div>

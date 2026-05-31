@@ -4,10 +4,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Upload, X, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, contacts, agents, templates } from '../../api';
-import { Button, Input, Select, Textarea, CenteredSpinner } from '../../components/shared';
+import { tickets, agents, templates } from '../../api';
+import { Button, Input, Select, Textarea, ContactTypeahead } from '../../components/shared';
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
@@ -28,8 +28,6 @@ export default function NewTicketPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [contactSearch, setContactSearch] = useState('');
-  const [showContactDropdown, setShowContactDropdown] = useState(false);
   const [dueDate, setDueDate] = useState(searchParams.get('dueDate') || '');
   const [dueTime, setDueTime] = useState('09:00');
   const templateId = searchParams.get('templateId');
@@ -64,25 +62,12 @@ export default function NewTicketPage() {
     }
   }, [templateData, setValue]);
 
-  const selectedContactId = watch('contactId');
-  // Search contacts
-  const { data: contactResults } = useQuery({
-    queryKey: ['contacts-search', contactSearch],
-    queryFn: () => contacts.searchContacts(contactSearch),
-    enabled: contactSearch.length >= 2,
-  });
+  const contactId = watch('contactId');
 
   // Get agents for assignment
   const { data: agentsData } = useQuery({
     queryKey: ['agents'],
     queryFn: agents.getAgents,
-  });
-
-  // Get selected contact details
-  const { data: selectedContact } = useQuery({
-    queryKey: ['contact', selectedContactId],
-    queryFn: () => contacts.getContact(selectedContactId),
-    enabled: !!selectedContactId,
   });
 
   const createMutation = useMutation({
@@ -115,9 +100,6 @@ export default function NewTicketPage() {
     });
   };
 
-  // Extract contact from response (API returns {contact: ...})
-  const contact = selectedContact?.contact || selectedContact;
-
   const agentOptions = [
     { value: '', label: 'Unassigned' },
     ...(agentsData?.agents || []).map((agent) => ({
@@ -125,13 +107,14 @@ export default function NewTicketPage() {
       label: agent.name,
     })),
   ];
+
   return (
     <div className="max-w-3xl mx-auto">
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+      <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center">
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold text-gray-900">New Ticket</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">New Ticket</h1>
       </div>
 
       {templateData && (
@@ -140,65 +123,21 @@ export default function NewTicketPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="space-y-6">
-          {/* Contact selection */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Contact <span className="text-red-500">*</span>
-            </label>
-            {contact?.id ? (
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <div>
-                  <p className="font-medium text-gray-900">{contact.name}</p>
-                  <p className="text-sm text-gray-500">{contact.email}</p>
-                  {contact.company && (
-                    <p className="text-sm text-gray-500">{contact.company.name}</p>
-                  )}
-                </div>
-                <button type="button" onClick={() => setValue('contactId', '')} className="text-gray-400 hover:text-gray-600">
-                  <X size={18} />
-                </button>
-              </div>
-            ) : (
-              <div className="relative">
-                <Input
-                  placeholder="Search contacts..."
-                  value={contactSearch}
-                  onChange={(e) => {
-                    setContactSearch(e.target.value);
-                    setShowContactDropdown(true);
-                  }}
-                  onFocus={() => setShowContactDropdown(true)}
-                />
-                {showContactDropdown && contactResults?.contacts?.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-60 overflow-auto">
-                    {contactResults.contacts.map((contact) => (
-                      <button
-                        key={contact.id}
-                        type="button"
-                        onClick={() => {
-                          setValue('contactId', contact.id);
-                          setContactSearch('');
-                          setShowContactDropdown(false);
-                        }}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-50"
-                      >
-                        <p className="font-medium text-gray-900">{contact.name}</p>
-                        <p className="text-sm text-gray-500">{contact.email}</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {errors.contactId && <p className="mt-1 text-sm text-red-600">{errors.contactId.message}</p>}
-          </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
+        <div className="space-y-4 md:space-y-6">
+          {/* Contact selection using typeahead */}
+          <ContactTypeahead
+            label="Contact"
+            required
+            value={contactId}
+            onChange={(id) => setValue('contactId', id)}
+            error={errors.contactId?.message}
+          />
 
           <Input label="Subject" required {...register('subject')} error={errors.subject?.message} />
-          <Textarea label="Description" required rows={6} {...register('description')} error={errors.description?.message} />
+          <Textarea label="Description" required rows={4} {...register('description')} error={errors.description?.message} />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Controller
               name="priority"
               control={control}
@@ -217,19 +156,19 @@ export default function NewTicketPage() {
           </div>
 
           {/* Schedule on Calendar */}
-          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-200">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
               <Calendar size={16} />
               Schedule on Calendar
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Due Date</label>
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
                 />
               </div>
               <div>
@@ -238,7 +177,7 @@ export default function NewTicketPage() {
                   type="time"
                   value={dueTime}
                   onChange={(e) => setDueTime(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
                 />
               </div>
             </div>
@@ -250,9 +189,9 @@ export default function NewTicketPage() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
-          <Button type="button" variant="secondary" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button type="submit" isLoading={createMutation.isPending}>Create Ticket</Button>
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 mt-6 md:mt-8 pt-4 md:pt-6 border-t border-gray-200">
+          <Button type="button" variant="secondary" onClick={() => navigate(-1)} className="w-full sm:w-auto">Cancel</Button>
+          <Button type="submit" isLoading={createMutation.isPending} className="w-full sm:w-auto">Create Ticket</Button>
         </div>
       </form>
     </div>
