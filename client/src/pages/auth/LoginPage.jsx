@@ -107,15 +107,6 @@ export default function LoginPage() {
           >
             Sign in
           </Button>
-
-          {/* Demo credentials hint */}
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800 font-medium">Demo Credentials:</p>
-            <p className="text-sm text-blue-700 mt-1">
-              Email: sam@nadc.com<br />
-              Password: Admin1234!
-            </p>
-          </div>
         </form>
       </div>
     </div>
