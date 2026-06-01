@@ -94,23 +94,34 @@ async function sendWelcomeEmail(graphClient, user, setupToken) {
 async function main() {
   console.log('Sending welcome emails to admin users...\n');
 
-  // Get the 3 admin users
-  const adminEmails = [
-    'sbraley@nadc.com',
-    'clowrance@nadc.com',
-    'pbraley@nadc.com',
+  // Admin users to create/update
+  const adminUsers = [
+    { email: 'sbraley@nadc.com', name: 'Sam Braley' },
+    { email: 'clowrance@nadc.com', name: 'Chris Lowrance' },
+    { email: 'pbraley@nadc.com', name: 'Paul Braley' },
   ];
 
   const graphClient = getGraphClient();
 
-  for (const email of adminEmails) {
-    const user = await prisma.user.findUnique({
+  for (const adminData of adminUsers) {
+    const { email, name } = adminData;
+
+    // Find or create user
+    let user = await prisma.user.findUnique({
       where: { email },
     });
 
     if (!user) {
-      console.log(`User ${email} not found, skipping...`);
-      continue;
+      console.log(`Creating user ${name} (${email})...`);
+      user = await prisma.user.create({
+        data: {
+          email,
+          name,
+          password: 'PLACEHOLDER_MUST_RESET',
+          role: 'ADMIN',
+          mustChangePassword: true,
+        },
+      });
     }
 
     // Generate setup token (expires in 7 days)
