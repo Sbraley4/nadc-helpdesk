@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead } from '../components/shared';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents } from '../components/shared';
 import toast from 'react-hot-toast';
 
 const priorityColors = {
@@ -82,7 +82,7 @@ export default function CalendarPage() {
     description: '',
     startTime: '',
     endTime: '',
-    assigneeId: '',
+    assigneeIds: [],
   });
 
   // Get date range based on current view
@@ -271,8 +271,9 @@ export default function CalendarPage() {
   };
 
   const renderEventPill = (event) => {
-    // Use agent color or custom event color, fallback to purple for events
-    const eventColor = event.color || event.assignee?.color || '#8B5CF6';
+    // Use first agent's color or custom event color, fallback to purple for events
+    const eventColor = event.color || event.assignees?.[0]?.color || '#8B5CF6';
+    const assigneeNames = event.assignees?.map(a => a.name).join(', ') || '';
 
     return (
       <button
@@ -280,7 +281,7 @@ export default function CalendarPage() {
         onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
         className="w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity bg-purple-50 text-purple-800"
         style={{ borderLeftColor: eventColor }}
-        title={`${event.title}${event.assignee ? ` - ${event.assignee.name}` : ''}`}
+        title={`${event.title}${assigneeNames ? ` - ${assigneeNames}` : ''}`}
       >
         <CalendarDays size={10} className="inline mr-1" />
         {event.title}
@@ -344,7 +345,7 @@ export default function CalendarPage() {
       description: '',
       startTime: formatDateTimeLocal(startDateTime),
       endTime: formatDateTimeLocal(endDateTime),
-      assigneeId: '',
+      assigneeIds: [],
     });
     setShowEventModal(true);
   };
@@ -357,7 +358,7 @@ export default function CalendarPage() {
       description: event.description || '',
       startTime: formatDateTimeLocal(new Date(event.startTime)),
       endTime: event.endTime ? formatDateTimeLocal(new Date(event.endTime)) : '',
-      assigneeId: event.assigneeId || '',
+      assigneeIds: event.assignees?.map(a => a.id) || [],
     });
     setShowEventModal(true);
   };
@@ -425,8 +426,7 @@ export default function CalendarPage() {
         description: eventForm.description || null,
         startTime: new Date(eventForm.startTime).toISOString(),
         endTime: eventForm.endTime ? new Date(eventForm.endTime).toISOString() : null,
-        assigneeId: eventForm.assigneeId || null,
-        // If an agent is assigned, use their color; otherwise null
+        assigneeIds: eventForm.assigneeIds,
         color: null,
       };
 
@@ -582,7 +582,7 @@ export default function CalendarPage() {
             <div className="relative p-2 space-y-2 pointer-events-none">
               {/* Calendar Events */}
               {dayEvents.map((event) => {
-                const eventColor = event.color || event.assignee?.color || '#8B5CF6';
+                const eventColor = event.color || event.assignees?.[0]?.color || '#8B5CF6';
                 return (
                   <button
                     key={`event-${event.id}`}
@@ -597,14 +597,18 @@ export default function CalendarPage() {
                     {event.description && (
                       <div className="text-xs text-purple-600 truncate mt-1">{event.description}</div>
                     )}
-                    {event.assignee && (
-                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
+                    {event.assignees?.length > 0 && (
+                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75 flex-wrap">
                         <User size={12} />
-                        <span
-                          className="w-2 h-2 rounded-full mr-1"
-                          style={{ backgroundColor: event.assignee.color || '#9CA3AF' }}
-                        />
-                        {event.assignee.name}
+                        {event.assignees.map((assignee, idx) => (
+                          <span key={assignee.id} className="flex items-center">
+                            <span
+                              className="w-2 h-2 rounded-full mr-1"
+                              style={{ backgroundColor: assignee.color || '#9CA3AF' }}
+                            />
+                            {assignee.name}{idx < event.assignees.length - 1 ? ',' : ''}
+                          </span>
+                        ))}
                       </div>
                     )}
                     <div className="text-xs text-purple-500 mt-1">
@@ -939,15 +943,13 @@ export default function CalendarPage() {
             </div>
           </div>
 
-          {/* Assignee */}
-          <Select
-            label="Assign to Agent"
-            value={eventForm.assigneeId}
-            onChange={(e) => setEventForm(prev => ({ ...prev, assigneeId: e.target.value }))}
-            options={[
-              { value: '', label: 'Unassigned' },
-              ...agentsList.map(a => ({ value: a.id, label: a.name })),
-            ]}
+          {/* Assignees */}
+          <MultiSelectAgents
+            label="Assign to Agents"
+            agents={agentsList}
+            selectedIds={eventForm.assigneeIds}
+            onChange={(ids) => setEventForm(prev => ({ ...prev, assigneeIds: ids }))}
+            placeholder="Select agents..."
           />
 
           {/* Description */}

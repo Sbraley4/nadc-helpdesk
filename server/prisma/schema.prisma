@@ -112,22 +112,23 @@ model User {
   updatedAt            DateTime     @updatedAt
 
   // Relations
-  assignedTickets    Ticket[]              @relation("AssignedTickets")
-  groups             UserGroup[]
-  notifications      Notification[]
-  replies            TicketReply[]
-  activities         TicketActivity[]
-  cannedResponses    CannedResponse[]
-  kbArticles         KBArticle[]
-  uploadedFiles      TicketAttachment[]
-  watchedTickets     TicketWatcher[]
-  assignedCompanies  Company[]             @relation("AssignedAgent")
-  timeEntries        TimeEntry[]
-  materialEntries    MaterialEntry[]
-  checkedItems       TicketChecklistItem[]
-  createdTemplates   TicketTemplate[]      @relation("TemplateCreator")
-  assignedTemplates  TicketTemplate[]      @relation("TemplateAssignee")
-  calendarEvents     CalendarEvent[]
+  assignedTickets       Ticket[]              @relation("AssignedTickets")
+  additionalTickets     TicketAssignee[]
+  groups                UserGroup[]
+  notifications         Notification[]
+  replies               TicketReply[]
+  activities            TicketActivity[]
+  cannedResponses       CannedResponse[]
+  kbArticles            KBArticle[]
+  uploadedFiles         TicketAttachment[]
+  watchedTickets        TicketWatcher[]
+  assignedCompanies     Company[]             @relation("AssignedAgent")
+  timeEntries           TimeEntry[]
+  materialEntries       MaterialEntry[]
+  checkedItems          TicketChecklistItem[]
+  createdTemplates      TicketTemplate[]      @relation("TemplateCreator")
+  assignedTemplates     TicketTemplate[]      @relation("TemplateAssignee")
+  calendarEventAssignments CalendarEventAssignee[]
 }
 
 // Contact (ticket requesters / clients)
@@ -197,27 +198,28 @@ model Ticket {
   updatedAt                 DateTime     @updatedAt
 
   // Relations
-  requester          Contact              @relation(fields: [requesterId], references: [id])
-  company            Company?             @relation(fields: [companyId], references: [id])
-  assignee           User?                @relation("AssignedTickets", fields: [assigneeId], references: [id])
-  group              Group?               @relation(fields: [groupId], references: [id])
-  slaPolicy          SLAPolicy?           @relation(fields: [slaPolicyId], references: [id])
-  mergedInto         Ticket?              @relation("MergedTickets", fields: [mergedIntoId], references: [id])
-  mergedTickets      Ticket[]             @relation("MergedTickets")
-  replies            TicketReply[]
-  attachments        TicketAttachment[]
-  tags               TicketTag[]
-  activities         TicketActivity[]
-  watchers           TicketWatcher[]
-  relatedTickets     RelatedTicket[]      @relation("TicketRelations")
-  relatedTo          RelatedTicket[]      @relation("RelatedTo")
-  customFields       CustomFieldValue[]
-  notifications      Notification[]
-  timeEntries        TimeEntry[]
-  materialEntries    MaterialEntry[]
-  checklistItems     TicketChecklistItem[]
-  devices            TicketDevice[]
-  satisfactionRating SatisfactionRating?
+  requester           Contact              @relation(fields: [requesterId], references: [id])
+  company             Company?             @relation(fields: [companyId], references: [id])
+  assignee            User?                @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  additionalAssignees TicketAssignee[]
+  group               Group?               @relation(fields: [groupId], references: [id])
+  slaPolicy           SLAPolicy?           @relation(fields: [slaPolicyId], references: [id])
+  mergedInto          Ticket?              @relation("MergedTickets", fields: [mergedIntoId], references: [id])
+  mergedTickets       Ticket[]             @relation("MergedTickets")
+  replies             TicketReply[]
+  attachments         TicketAttachment[]
+  tags                TicketTag[]
+  activities          TicketActivity[]
+  watchers            TicketWatcher[]
+  relatedTickets      RelatedTicket[]      @relation("TicketRelations")
+  relatedTo           RelatedTicket[]      @relation("RelatedTo")
+  customFields        CustomFieldValue[]
+  notifications       Notification[]
+  timeEntries         TimeEntry[]
+  materialEntries     MaterialEntry[]
+  checklistItems      TicketChecklistItem[]
+  devices             TicketDevice[]
+  satisfactionRating  SatisfactionRating?
 }
 
 // TicketReply
@@ -646,10 +648,31 @@ model CalendarEvent {
   endTime     DateTime?
   allDay      Boolean   @default(false)
   color       String?   // Custom color (hex) or null for agent color
-  assigneeId  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  assignee User? @relation(fields: [assigneeId], references: [id])
+  assignees CalendarEventAssignee[]
+}
+
+// CalendarEventAssignee - join table for multi-agent calendar events
+model CalendarEventAssignee {
+  eventId String
+  userId  String
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+}
+
+// TicketAssignee - additional assignees for tickets (beyond primary assignee)
+model TicketAssignee {
+  ticketId String
+  userId   String
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, userId])
 }

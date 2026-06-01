@@ -9,6 +9,7 @@ export { default as EmptyState } from './EmptyState';
 export { default as FAB } from './FAB';
 export { default as Input } from './Input';
 export { default as Modal } from './Modal';
+export { default as MultiSelectAgents } from './MultiSelectAgents';
 export { default as Pagination } from './Pagination';
 export { default as SearchInput } from './SearchInput';
 export { default as Select } from './Select';

@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents, templates, contacts, companies } from '../../api';
-import { Button, Input, Select, Textarea, ContactTypeahead } from '../../components/shared';
+import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents } from '../../components/shared';
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
@@ -30,6 +30,7 @@ export default function NewTicketPage() {
   const queryClient = useQueryClient();
   const [dueDate, setDueDate] = useState(searchParams.get('dueDate') || '');
   const [dueTime, setDueTime] = useState('09:00');
+  const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
   const templateId = searchParams.get('templateId');
 
   // New client modal state
@@ -143,6 +144,7 @@ export default function NewTicketPage() {
       requesterId: data.contactId, // Backend expects requesterId, not contactId
       priority: data.priority,
       assigneeId: data.assigneeId || undefined,
+      additionalAssigneeIds: additionalAssigneeIds.length > 0 ? additionalAssigneeIds : undefined,
       dueDate: dueDateValue,
     });
   };
@@ -202,6 +204,15 @@ export default function NewTicketPage() {
               )}
             />
           </div>
+
+          {/* Additional Assignees */}
+          <MultiSelectAgents
+            label="Additional Assignees"
+            agents={agentsData?.agents || []}
+            selectedIds={additionalAssigneeIds}
+            onChange={setAdditionalAssigneeIds}
+            placeholder="Add more agents..."
+          />
 
           {/* Schedule on Calendar */}
           <div className="p-3 md:p-4 bg-gray-50 rounded-lg border border-gray-200">

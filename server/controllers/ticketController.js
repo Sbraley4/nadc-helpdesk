@@ -18,7 +18,14 @@ const ticketInclude = {
     select: { id: true, name: true, domain: true },
   },
   assignee: {
-    select: { id: true, name: true, email: true, avatar: true },
+    select: { id: true, name: true, email: true, avatar: true, color: true },
+  },
+  additionalAssignees: {
+    include: {
+      user: {
+        select: { id: true, name: true, email: true, avatar: true, color: true },
+      },
+    },
   },
   group: {
     select: { id: true, name: true },
@@ -67,6 +74,7 @@ function transformTicket(ticket) {
   return {
     ...ticket,
     tags: ticket.tags?.map((tt) => tt.tag) || [],
+    additionalAssignees: ticket.additionalAssignees?.map((ta) => ta.user) || [],
     customFields: ticket.customFields?.map((cfv) => ({
       fieldId: cfv.fieldId,
       fieldKey: cfv.field.fieldKey,
@@ -291,6 +299,7 @@ const createTicket = async (req, res, next) => {
       requesterId,
       companyId,
       assigneeId,
+      additionalAssigneeIds = [],
       groupId,
       tagIds = [],
       dueDate,
@@ -346,6 +355,16 @@ const createTicket = async (req, res, next) => {
           data: tagIds.map((tagId) => ({
             ticketId: newTicket.id,
             tagId,
+          })),
+        });
+      }
+
+      // Create additional assignee associations
+      if (additionalAssigneeIds.length > 0) {
+        await tx.ticketAssignee.createMany({
+          data: additionalAssigneeIds.map((userId) => ({
+            ticketId: newTicket.id,
+            userId,
           })),
         });
       }
@@ -424,6 +443,7 @@ const updateTicket = async (req, res, next) => {
       priority,
       type,
       assigneeId,
+      additionalAssigneeIds,
       groupId,
       companyId,
       dueDate,
@@ -595,6 +615,24 @@ const updateTicket = async (req, res, next) => {
         }
       }
 
+      // Handle additional assignees updates
+      if (additionalAssigneeIds !== undefined) {
+        // Delete existing additional assignees
+        await tx.ticketAssignee.deleteMany({
+          where: { ticketId: id },
+        });
+
+        // Create new additional assignee associations
+        if (additionalAssigneeIds.length > 0) {
+          await tx.ticketAssignee.createMany({
+            data: additionalAssigneeIds.map((userId) => ({
+              ticketId: id,
+              userId,
+            })),
+          });
+        }
+      }
+
       // Create activity records
       for (const activity of activities) {
         await tx.ticketActivity.create({
@@ -680,6 +718,7 @@ const deleteTicket = async (req, res, next) => {
       await tx.ticketReply.deleteMany({ where: { ticketId: id } });
       await tx.ticketTag.deleteMany({ where: { ticketId: id } });
       await tx.ticketWatcher.deleteMany({ where: { ticketId: id } });
+      await tx.ticketAssignee.deleteMany({ where: { ticketId: id } });
       await tx.relatedTicket.deleteMany({
         where: { OR: [{ ticketId: id }, { relatedTicketId: id }] },
       });

@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input } from '../../components/shared';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
@@ -1481,6 +1481,17 @@ export default function TicketDetailPage() {
                 options={agentOptions}
                 value={ticket.assigneeId || ''}
                 onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
+              />
+            </div>
+
+            {/* Additional Assignees */}
+            <div>
+              <MultiSelectAgents
+                label="Additional Assignees"
+                agents={agentsData?.agents || []}
+                selectedIds={ticket.additionalAssignees?.map(a => a.id) || []}
+                onChange={(ids) => updateMutation.mutate({ additionalAssigneeIds: ids })}
+                placeholder="Add more agents..."
               />
             </div>
 
