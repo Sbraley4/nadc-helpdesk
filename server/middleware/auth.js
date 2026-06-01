@@ -29,4 +29,23 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-module.exports = { requireAuth };
+// Alias for requireAuth (some routes use 'authenticate')
+const authenticate = requireAuth;
+
+/**
+ * Middleware to check if user has required role.
+ * Must be used after requireAuth/authenticate.
+ */
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+    next();
+  };
+};
+
+module.exports = { requireAuth, authenticate, authorize };
