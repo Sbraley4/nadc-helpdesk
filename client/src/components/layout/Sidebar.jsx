@@ -17,6 +17,7 @@ import {
   ChevronRight,
   X,
   Zap,
+  Upload,
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import Avatar from '../shared/Avatar';
@@ -35,6 +36,7 @@ const navItems = [
   { icon: BookOpen, label: 'Knowledge Base', path: '/kb' },
   { icon: ThumbsUp, label: 'Satisfaction', path: '/satisfaction' },
   { icon: Settings, label: 'Settings', path: '/settings' },
+  { icon: Upload, label: 'Import Data', path: '/admin/import', adminOnly: true },
 ];
 
 const availabilityColors = {
@@ -85,7 +87,9 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
         <ul className="space-y-1 px-2">
-          {navItems.map((item) => (
+          {navItems
+            .filter((item) => !item.adminOnly || user?.role === 'ADMIN')
+            .map((item) => (
             <li key={item.path}>
               <NavLink
                 to={item.path}

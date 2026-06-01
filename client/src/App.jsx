@@ -29,6 +29,9 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import ReportsPage from './pages/reports/ReportsPage';
 import AutomationsPage from './pages/settings/AutomationsPage';
 
+// Admin Pages
+import ImportPage from './pages/admin/ImportPage';
+
 // Phase 8 Pages
 import { KnowledgeBasePage } from './pages/kb';
 import {
@@ -127,6 +130,8 @@ function App() {
         {/* Phase 7 routes */}
         <Route path="reports" element={<ReportsPage />} />
         <Route path="automations" element={<AutomationsPage />} />
+        {/* Admin routes */}
+        <Route path="admin/import" element={<ImportPage />} />
         {/* Phase 8 routes */}
         <Route path="kb" element={<KnowledgeBasePage />} />
       </Route>

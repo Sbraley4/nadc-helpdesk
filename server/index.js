@@ -153,6 +153,10 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/automations', automationRoutes);
 app.use('/api/search', searchRoutes);
 
+// Import routes (admin only - Freshdesk migration)
+const importRoutes = require('./routes/import');
+app.use('/api/import', importRoutes);
+
 // ============================================================================
 // Route imports - Phase 8 (Client Portal & Knowledge Base)
 // ============================================================================
