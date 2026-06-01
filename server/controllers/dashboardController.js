@@ -97,12 +97,12 @@ async function getTicketCounts(todayStart) {
       prisma.ticket.count(),
       prisma.ticket.count({ where: { status: 'OPEN' } }),
       prisma.ticket.count({ where: { status: 'PENDING' } }),
-      prisma.ticket.count({ where: { status: 'RESOLVED' } }),
+      prisma.ticket.count({ where: { status: 'INVOICED' } }),
       prisma.ticket.count({ where: { status: 'CLOSED' } }),
       prisma.ticket.count({
         where: {
           dueDate: { lt: now },
-          status: { notIn: ['CLOSED', 'RESOLVED'] },
+          status: { notIn: ['CLOSED', 'INVOICED', 'POSTED'] },
         },
       }),
       prisma.ticket.count({ where: { slaBreached: true } }),
@@ -171,7 +171,7 @@ async function getTicketsByPriority() {
 }
 
 async function getTicketsByStatus() {
-  const statuses = ['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'];
+  const statuses = ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'];
   const counts = await Promise.all(
     statuses.map(async (status) => ({
       status,

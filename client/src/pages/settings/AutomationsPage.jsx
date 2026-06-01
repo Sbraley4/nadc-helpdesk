@@ -25,7 +25,7 @@ const TRIGGERS = [
 ];
 
 const CONDITION_FIELDS = [
-  { value: 'status', label: 'Status', type: 'select', options: ['NEW', 'OPEN', 'PENDING', 'RESOLVED', 'CLOSED'] },
+  { value: 'status', label: 'Status', type: 'select', options: ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'] },
   { value: 'priority', label: 'Priority', type: 'select', options: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
   { value: 'type', label: 'Type', type: 'select', options: ['QUESTION', 'INCIDENT', 'PROBLEM', 'TASK'] },
   { value: 'assigneeId', label: 'Assignee', type: 'agent' },
@@ -46,7 +46,7 @@ const OPERATORS = [
 ];
 
 const ACTION_TYPES = [
-  { value: 'set_status', label: 'Set Status', valueType: 'select', options: ['NEW', 'OPEN', 'PENDING', 'RESOLVED', 'CLOSED'] },
+  { value: 'set_status', label: 'Set Status', valueType: 'select', options: ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'] },
   { value: 'set_priority', label: 'Set Priority', valueType: 'select', options: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] },
   { value: 'assign_agent', label: 'Assign to Agent', valueType: 'agent' },
   { value: 'assign_group', label: 'Assign to Group', valueType: 'group' },

@@ -11,6 +11,7 @@ const userSelect = {
   role: true,
   avatar: true,
   signature: true,
+  color: true,
   availability: true,
   isActive: true,
   createdAt: true,
@@ -97,7 +98,7 @@ const getAgent = async (req, res, next) => {
  */
 const createAgent = async (req, res, next) => {
   try {
-    const { name, email, password, role, signature } = req.body;
+    const { name, email, password, role, signature, color } = req.body;
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -119,6 +120,7 @@ const createAgent = async (req, res, next) => {
         password: hashedPassword,
         role: role || 'AGENT',
         signature,
+        color,
       },
       select: userSelect,
     });
@@ -136,7 +138,7 @@ const createAgent = async (req, res, next) => {
 const updateAgent = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, email, role, avatar, signature, availability, isActive } = req.body;
+    const { name, email, role, avatar, signature, color, availability, isActive } = req.body;
 
     // Check if agent exists
     const existingAgent = await prisma.user.findUnique({
@@ -169,6 +171,7 @@ const updateAgent = async (req, res, next) => {
     if (role !== undefined) updateData.role = role;
     if (avatar !== undefined) updateData.avatar = avatar;
     if (signature !== undefined) updateData.signature = signature;
+    if (color !== undefined) updateData.color = color;
     if (availability !== undefined) updateData.availability = availability;
     if (isActive !== undefined) updateData.isActive = isActive;
 

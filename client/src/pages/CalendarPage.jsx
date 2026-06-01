@@ -12,12 +12,31 @@ const priorityColors = {
   URGENT: 'bg-red-100 text-red-700 border-red-300',
 };
 
+// Status colors for calendar backgrounds (lighter versions)
 const statusColors = {
+  OPEN: 'bg-yellow-100',
+  PENDING: 'bg-gray-100',
+  INVOICED: 'bg-green-100',
+  POSTED: 'bg-pink-100',
+  CLOSED: 'bg-gray-200',
+};
+
+// Status dot colors (solid)
+const statusDotColors = {
   OPEN: 'bg-yellow-500',
-  IN_PROGRESS: 'bg-blue-500',
-  PENDING: 'bg-purple-500',
-  RESOLVED: 'bg-green-500',
-  CLOSED: 'bg-gray-500',
+  PENDING: 'bg-gray-500',
+  INVOICED: 'bg-green-500',
+  POSTED: 'bg-pink-500',
+  CLOSED: 'bg-gray-700',
+};
+
+// Status text colors
+const statusTextColors = {
+  OPEN: 'text-yellow-800',
+  PENDING: 'text-gray-700',
+  INVOICED: 'text-green-800',
+  POSTED: 'text-pink-800',
+  CLOSED: 'text-gray-600',
 };
 
 export default function CalendarPage() {
@@ -189,18 +208,27 @@ export default function CalendarPage() {
     return date.toDateString() === today.toDateString();
   };
 
-  const renderTicketPill = (ticket) => (
-    <button
-      key={ticket.id}
-      onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-      className={`w-full text-left text-xs p-1 rounded border truncate mb-0.5 hover:opacity-80 transition-opacity ${
-        priorityColors[ticket.priority]
-      }`}
-    >
-      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${statusColors[ticket.status]}`} />
-      <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
-    </button>
-  );
+  const renderTicketPill = (ticket) => {
+    // Agent color for left border (default to gray if no assignee)
+    const agentColor = ticket.assignee?.color || '#9CA3AF';
+    // Status color for background
+    const statusBg = statusColors[ticket.status] || 'bg-gray-100';
+    const statusText = statusTextColors[ticket.status] || 'text-gray-700';
+    const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+
+    return (
+      <button
+        key={ticket.id}
+        onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
+        className={`w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity ${statusBg} ${statusText}`}
+        style={{ borderLeftColor: agentColor }}
+        title={`${ticket.subject}${ticket.assignee ? ` - ${ticket.assignee.name}` : ''}`}
+      >
+        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${statusDot}`} />
+        <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
+      </button>
+    );
+  };
 
   // Navigate to day view when clicking a day in month view
   const handleDayClick = (date) => {
@@ -366,25 +394,37 @@ export default function CalendarPage() {
             </div>
             {/* Tickets */}
             <div className="relative p-2 space-y-2 pointer-events-none">
-              {dayTickets.map((ticket) => (
-                <button
-                  key={ticket.id}
-                  onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-                  className={`w-full text-left p-2 rounded border pointer-events-auto ${priorityColors[ticket.priority]} hover:opacity-80 transition-opacity`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${statusColors[ticket.status]}`} />
-                    <span className="font-bold text-sm text-primary">#{ticket.ticketNumber}</span>
-                  </div>
-                  <div className="text-sm truncate">{ticket.subject}</div>
-                  {ticket.assignee && (
-                    <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
-                      <User size={12} />
-                      {ticket.assignee.name}
+              {dayTickets.map((ticket) => {
+                const agentColor = ticket.assignee?.color || '#9CA3AF';
+                const statusBg = statusColors[ticket.status] || 'bg-gray-100';
+                const statusText = statusTextColors[ticket.status] || 'text-gray-700';
+                const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+
+                return (
+                  <button
+                    key={ticket.id}
+                    onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
+                    className={`w-full text-left p-2 rounded border-l-4 pointer-events-auto ${statusBg} ${statusText} hover:opacity-80 transition-opacity`}
+                    style={{ borderLeftColor: agentColor }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+                      <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
                     </div>
-                  )}
-                </button>
-              ))}
+                    <div className="text-sm truncate">{ticket.subject}</div>
+                    {ticket.assignee && (
+                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
+                        <User size={12} />
+                        <span
+                          className="w-2 h-2 rounded-full mr-1"
+                          style={{ backgroundColor: agentColor }}
+                        />
+                        {ticket.assignee.name}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
               {dayTickets.length === 0 && (
                 <div className="text-center py-8 text-gray-500 pointer-events-auto">
                   Click a time slot to create a new ticket
@@ -443,6 +483,19 @@ export default function CalendarPage() {
               </option>
             ))}
           </select>
+
+          {/* Agent Color Legend */}
+          <div className="hidden md:flex items-center gap-3 text-xs">
+            {agentsList.filter(a => a.color).map((agent) => (
+              <div key={agent.id} className="flex items-center gap-1">
+                <span
+                  className="w-3 h-3 rounded-sm border border-gray-300"
+                  style={{ backgroundColor: agent.color }}
+                />
+                <span className="text-gray-600">{agent.name.split(' ')[0]}</span>
+              </div>
+            ))}
+          </div>
 
           {/* View Toggle */}
           <div className="flex bg-gray-100 rounded-lg p-1">
@@ -504,8 +557,12 @@ export default function CalendarPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
                 type="date"
-                value={newTicketDate ? newTicketDate.toISOString().split('T')[0] : ''}
-                onChange={(e) => setNewTicketDate(new Date(e.target.value))}
+                value={newTicketDate ? `${newTicketDate.getFullYear()}-${String(newTicketDate.getMonth() + 1).padStart(2, '0')}-${String(newTicketDate.getDate()).padStart(2, '0')}` : ''}
+                onChange={(e) => {
+                  // Parse date as local time to avoid timezone offset issues
+                  const [year, month, day] = e.target.value.split('-').map(Number);
+                  setNewTicketDate(new Date(year, month - 1, day));
+                }}
                 className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
             </div>

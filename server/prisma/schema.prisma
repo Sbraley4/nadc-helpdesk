@@ -30,7 +30,8 @@ enum Availability {
 enum TicketStatus {
   OPEN
   PENDING
-  RESOLVED
+  INVOICED
+  POSTED
   CLOSED
 }
 
@@ -101,6 +102,7 @@ model User {
   role                 Role         @default(AGENT)
   avatar               String?
   signature            String?
+  color                String?      // Agent color for calendar display (hex code)
   availability         Availability @default(OFFLINE)
   isActive             Boolean      @default(true)
   passwordResetToken   String?      @unique

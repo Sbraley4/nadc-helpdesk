@@ -12,7 +12,8 @@ import { useTicketSocket } from '../../hooks/useSocket';
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
   PENDING: { label: 'Pending', variant: 'pending' },
-  RESOLVED: { label: 'Resolved', variant: 'resolved' },
+  INVOICED: { label: 'Invoiced', variant: 'invoiced' },
+  POSTED: { label: 'Posted', variant: 'posted' },
   CLOSED: { label: 'Closed', variant: 'closed' },
 };
 
@@ -26,7 +27,8 @@ const priorityConfig = {
 const statusOptions = [
   { value: 'OPEN', label: 'Open' },
   { value: 'PENDING', label: 'Pending' },
-  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'INVOICED', label: 'Invoiced' },
+  { value: 'POSTED', label: 'Posted' },
   { value: 'CLOSED', label: 'Closed' },
 ];
 
@@ -81,6 +83,15 @@ export default function TicketDetailPage() {
 
   // Mobile sidebar state
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+
+  // Ticket action menu state
+  const [showTicketMenu, setShowTicketMenu] = useState(false);
+  const [showEditTicketModal, setShowEditTicketModal] = useState(false);
+  const [editSubject, setEditSubject] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardToAgentId, setForwardToAgentId] = useState('');
+  const [forwardNote, setForwardNote] = useState('');
 
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
@@ -566,6 +577,76 @@ export default function TicketDetailPage() {
     }
   };
 
+  // Delete ticket mutation
+  const deleteMutation = useMutation({
+    mutationFn: () => tickets.deleteTicket(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tickets']);
+      toast.success('Ticket deleted');
+      navigate('/tickets');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to delete ticket');
+    },
+  });
+
+  // Handle delete ticket
+  const handleDeleteTicket = () => {
+    if (confirm('Are you sure you want to delete this ticket? This action cannot be undone.')) {
+      deleteMutation.mutate();
+    }
+  };
+
+  // Handle edit ticket
+  const handleOpenEditModal = () => {
+    setEditSubject(ticket?.subject || '');
+    setEditDescription(ticket?.description?.replace(/<[^>]*>/g, '') || '');
+    setShowEditTicketModal(true);
+    setShowTicketMenu(false);
+  };
+
+  const handleSaveTicketEdit = () => {
+    updateMutation.mutate({
+      subject: editSubject,
+      description: editDescription,
+    }, {
+      onSuccess: () => {
+        setShowEditTicketModal(false);
+        toast.success('Ticket updated');
+      }
+    });
+  };
+
+  // Handle forward ticket
+  const handleForwardTicket = () => {
+    if (!forwardToAgentId) return;
+
+    // Update assignee and add a note about forwarding
+    updateMutation.mutate({ assigneeId: forwardToAgentId }, {
+      onSuccess: () => {
+        // Add an internal note about the forward
+        if (forwardNote.trim()) {
+          const formData = new FormData();
+          formData.append('body', `Ticket forwarded to ${agentsData?.agents?.find(a => a.id === forwardToAgentId)?.name || 'agent'}: ${forwardNote}`);
+          formData.append('isInternal', true);
+          replyMutation.mutate(formData);
+        }
+        setShowForwardModal(false);
+        setForwardToAgentId('');
+        setForwardNote('');
+        toast.success('Ticket forwarded');
+      }
+    });
+  };
+
+  // Handle start thread (scroll to reply area and set internal note mode)
+  const handleStartThread = () => {
+    setIsInternalNote(true);
+    setShowTicketMenu(false);
+    // Scroll to reply area
+    document.querySelector('textarea')?.focus();
+  };
+
   const agentOptions = [
     { value: '', label: 'Unassigned' },
     ...(agentsData?.agents || []).map((agent) => ({
@@ -602,6 +683,52 @@ export default function TicketDetailPage() {
               <h1 className="text-lg md:text-xl font-bold text-gray-900 truncate">{ticket.subject}</h1>
               <span className="text-sm text-gray-500">#{ticket.ticketNumber}</span>
             </div>
+          </div>
+          {/* Ticket action buttons */}
+          <div className="relative">
+            <button
+              onClick={() => setShowTicketMenu(!showTicketMenu)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
+              title="Ticket Actions"
+            >
+              <MoreVertical size={20} />
+            </button>
+            {showTicketMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowTicketMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                  <button
+                    onClick={handleOpenEditModal}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Pencil size={16} />
+                    Edit Ticket
+                  </button>
+                  <button
+                    onClick={handleStartThread}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <MessageSquare size={16} />
+                    Start a Thread
+                  </button>
+                  <button
+                    onClick={() => { setShowForwardModal(true); setShowTicketMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Forward size={16} />
+                    Forward Ticket
+                  </button>
+                  <hr className="my-1" />
+                  <button
+                    onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    <Trash2 size={16} />
+                    Delete Ticket
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           {/* Mobile sidebar toggle */}
           <button
@@ -1208,6 +1335,96 @@ export default function TicketDetailPage() {
           </div>
         </div>
       )}
+      {/* Edit Ticket Modal */}
+      {showEditTicketModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Edit Ticket</h3>
+              <button onClick={() => setShowEditTicketModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <Input
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  placeholder="Ticket subject"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <Textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Ticket description"
+                  rows={6}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowEditTicketModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveTicketEdit}
+                  isLoading={updateMutation.isPending}
+                  disabled={!editSubject.trim()}
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forward Ticket Modal */}
+      {showForwardModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Forward Ticket</h3>
+              <button onClick={() => { setShowForwardModal(false); setForwardToAgentId(''); setForwardNote(''); }} className="p-1 hover:bg-gray-100 rounded">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Forward to Agent</label>
+                <Select
+                  options={agentOptions.filter(a => a.value)}
+                  value={forwardToAgentId}
+                  onChange={(e) => setForwardToAgentId(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note (optional)</label>
+                <Textarea
+                  value={forwardNote}
+                  onChange={(e) => setForwardNote(e.target.value)}
+                  placeholder="Add a note about why you're forwarding this ticket..."
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => { setShowForwardModal(false); setForwardToAgentId(''); setForwardNote(''); }}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleForwardTicket}
+                  disabled={!forwardToAgentId}
+                  isLoading={updateMutation.isPending}
+                >
+                  Forward
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Sidebar Overlay */}
       {showMobileSidebar && (
         <div
@@ -1293,6 +1510,22 @@ export default function TicketDetailPage() {
                     {ticket.company.name}
                   </Link>
                 </div>
+              </div>
+            )}
+
+            {/* Scheduled Date/Time */}
+            {ticket.dueDate && (
+              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                <h3 className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                  <Clock size={14} className="text-primary" />
+                  Scheduled
+                </h3>
+                <p className="text-sm font-medium text-gray-900">
+                  {format(new Date(ticket.dueDate), 'EEEE, MMMM d, yyyy')}
+                </p>
+                <p className="text-sm text-gray-600">
+                  at {format(new Date(ticket.dueDate), 'h:mm a')}
+                </p>
               </div>
             )}
 

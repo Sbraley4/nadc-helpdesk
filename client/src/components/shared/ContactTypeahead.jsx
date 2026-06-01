@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { X, User, Building2, Search } from 'lucide-react';
+import { X, User, Building2, Search, Plus } from 'lucide-react';
 import { contacts } from '../../api';
 
 export default function ContactTypeahead({
@@ -12,6 +12,7 @@ export default function ContactTypeahead({
   placeholder = 'Search contacts...',
   disabled,
   className = '',
+  onCreateNew,
 }) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -138,28 +139,55 @@ export default function ContactTypeahead({
               {isLoading ? (
                 <div className="p-4 text-center text-sm text-gray-500">Searching...</div>
               ) : contactList.length > 0 ? (
-                contactList.map((contact) => (
-                  <button
-                    key={contact.id}
-                    type="button"
-                    onClick={() => handleSelect(contact)}
-                    className="w-full text-left px-4 py-3 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-3 touch-manipulation min-h-[56px]"
-                  >
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                      <User size={14} className="text-gray-500" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-gray-900 truncate">{contact.name}</p>
-                      <p className="text-sm text-gray-500 truncate">{contact.email}</p>
-                      {contact.company && (
-                        <p className="text-xs text-gray-400 truncate">{contact.company.name}</p>
-                      )}
-                    </div>
-                  </button>
-                ))
+                <>
+                  {contactList.map((contact) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      onClick={() => handleSelect(contact)}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 active:bg-gray-100 flex items-center gap-3 touch-manipulation min-h-[56px]"
+                    >
+                      <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                        <User size={14} className="text-gray-500" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 truncate">{contact.name}</p>
+                        <p className="text-sm text-gray-500 truncate">{contact.email}</p>
+                        {contact.company && (
+                          <p className="text-xs text-gray-400 truncate">{contact.company.name}</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                  {onCreateNew && (
+                    <button
+                      type="button"
+                      onClick={() => { setIsOpen(false); onCreateNew(); }}
+                      className="w-full text-left px-4 py-3 hover:bg-primary/5 active:bg-primary/10 flex items-center gap-3 touch-manipulation min-h-[56px] border-t border-gray-100"
+                    >
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <Plus size={14} className="text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-primary">+ New Client</p>
+                        <p className="text-sm text-gray-500">Create a new contact</p>
+                      </div>
+                    </button>
+                  )}
+                </>
               ) : (
-                <div className="p-4 text-center text-sm text-gray-500">
-                  No contacts found for "{search}"
+                <div className="p-4 text-center">
+                  <p className="text-sm text-gray-500 mb-3">No contacts found for "{search}"</p>
+                  {onCreateNew && (
+                    <button
+                      type="button"
+                      onClick={() => { setIsOpen(false); onCreateNew(); }}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors"
+                    >
+                      <Plus size={16} />
+                      New Client
+                    </button>
+                  )}
                 </div>
               )}
             </div>

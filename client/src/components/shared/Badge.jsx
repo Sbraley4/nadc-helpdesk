@@ -1,9 +1,12 @@
 const variants = {
   // Status badges
   open: 'bg-blue-100 text-blue-800',
-  pending: 'bg-yellow-100 text-yellow-800',
+  pending: 'bg-gray-200 text-gray-700',
+  invoiced: 'bg-green-100 text-green-800',
+  posted: 'bg-pink-100 text-pink-800',
+  closed: 'bg-gray-100 text-gray-600',
+  // Legacy (keep for backward compatibility)
   resolved: 'bg-green-100 text-green-800',
-  closed: 'bg-gray-100 text-gray-800',
 
   // Priority badges
   low: 'bg-gray-100 text-gray-700',

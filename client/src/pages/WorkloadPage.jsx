@@ -14,10 +14,10 @@ const priorityColors = {
 
 const statusColors = {
   OPEN: 'bg-yellow-500',
-  IN_PROGRESS: 'bg-blue-500',
-  PENDING: 'bg-purple-500',
-  RESOLVED: 'bg-green-500',
-  CLOSED: 'bg-gray-500',
+  PENDING: 'bg-gray-500',
+  INVOICED: 'bg-green-500',
+  POSTED: 'bg-pink-500',
+  CLOSED: 'bg-gray-700',
 };
 
 const availabilityColors = {

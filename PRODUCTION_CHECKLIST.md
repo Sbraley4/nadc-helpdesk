@@ -120,6 +120,21 @@ server {
     location /uploads {
         alias /var/www/nadc-helpdesk/server/uploads;
     }
+
+    # PWA: Service Worker (no-cache, correct scope)
+    location = /sw.js {
+        root /var/www/nadc-helpdesk/client/dist;
+        add_header Service-Worker-Allowed /;
+        add_header Cache-Control "no-cache";
+        default_type application/javascript;
+    }
+
+    # PWA: Manifest file
+    location = /manifest.json {
+        root /var/www/nadc-helpdesk/client/dist;
+        add_header Content-Type application/manifest+json;
+        add_header Cache-Control "public, max-age=86400";
+    }
 }
 ```
 

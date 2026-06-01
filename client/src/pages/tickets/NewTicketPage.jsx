@@ -4,9 +4,9 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, agents, templates } from '../../api';
+import { tickets, agents, templates, contacts, companies } from '../../api';
 import { Button, Input, Select, Textarea, ContactTypeahead } from '../../components/shared';
 
 const ticketSchema = z.object({
@@ -31,6 +31,13 @@ export default function NewTicketPage() {
   const [dueDate, setDueDate] = useState(searchParams.get('dueDate') || '');
   const [dueTime, setDueTime] = useState('09:00');
   const templateId = searchParams.get('templateId');
+
+  // New client modal state
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientEmail, setNewClientEmail] = useState('');
+  const [newClientPhone, setNewClientPhone] = useState('');
+  const [newClientCompanyId, setNewClientCompanyId] = useState('');
 
   const { register, handleSubmit, control, setValue, watch, formState: { errors } } = useForm({
     resolver: zodResolver(ticketSchema),
@@ -69,6 +76,46 @@ export default function NewTicketPage() {
     queryKey: ['agents'],
     queryFn: agents.getAgents,
   });
+
+  // Get companies for new client modal
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companies.getCompanies({ limit: 500 }),
+  });
+
+  // Create contact mutation
+  const createContactMutation = useMutation({
+    mutationFn: contacts.createContact,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['contacts']);
+      queryClient.invalidateQueries(['contacts-search']);
+      // Auto-populate the contact selector with the new contact
+      const newContact = data.contact || data;
+      setValue('contactId', newContact.id);
+      setShowNewClientModal(false);
+      setNewClientName('');
+      setNewClientEmail('');
+      setNewClientPhone('');
+      setNewClientCompanyId('');
+      toast.success('Client created successfully');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create client');
+    },
+  });
+
+  const handleCreateNewClient = () => {
+    if (!newClientName.trim() || !newClientEmail.trim()) {
+      toast.error('Name and email are required');
+      return;
+    }
+    createContactMutation.mutate({
+      name: newClientName,
+      email: newClientEmail,
+      phone: newClientPhone || undefined,
+      companyId: newClientCompanyId || undefined,
+    });
+  };
 
   const createMutation = useMutation({
     mutationFn: tickets.createTicket,
@@ -132,6 +179,7 @@ export default function NewTicketPage() {
             value={contactId}
             onChange={(id) => setValue('contactId', id)}
             error={errors.contactId?.message}
+            onCreateNew={() => setShowNewClientModal(true)}
           />
 
           <Input label="Subject" required {...register('subject')} error={errors.subject?.message} />
@@ -183,7 +231,11 @@ export default function NewTicketPage() {
             </div>
             {dueDate && (
               <p className="text-xs text-gray-500 mt-2">
-                This ticket will appear on the calendar for {new Date(dueDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                This ticket will appear on the calendar for {(() => {
+                  // Parse date as local time to avoid timezone offset issues
+                  const [year, month, day] = dueDate.split('-').map(Number);
+                  return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                })()}
               </p>
             )}
           </div>
@@ -194,6 +246,92 @@ export default function NewTicketPage() {
           <Button type="submit" isLoading={createMutation.isPending} className="w-full sm:w-auto">Create Ticket</Button>
         </div>
       </form>
+
+      {/* New Client Modal */}
+      {showNewClientModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">New Client</h3>
+              <button
+                onClick={() => {
+                  setShowNewClientModal(false);
+                  setNewClientName('');
+                  setNewClientEmail('');
+                  setNewClientPhone('');
+                  setNewClientCompanyId('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+                <Input
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  placeholder="Client name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                <Input
+                  type="email"
+                  value={newClientEmail}
+                  onChange={(e) => setNewClientEmail(e.target.value)}
+                  placeholder="client@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <Input
+                  type="tel"
+                  value={newClientPhone}
+                  onChange={(e) => setNewClientPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                <Select
+                  value={newClientCompanyId}
+                  onChange={(e) => setNewClientCompanyId(e.target.value)}
+                  options={[
+                    { value: '', label: 'No company' },
+                    ...(companiesData?.companies || []).map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                    })),
+                  ]}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewClientModal(false);
+                    setNewClientName('');
+                    setNewClientEmail('');
+                    setNewClientPhone('');
+                    setNewClientCompanyId('');
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateNewClient}
+                  isLoading={createContactMutation.isPending}
+                  disabled={!newClientName.trim() || !newClientEmail.trim()}
+                >
+                  Create Client
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

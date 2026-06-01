@@ -33,7 +33,7 @@ async function getCalendarTickets(req, res, next) {
       where: ticketWhere,
       include: {
         assignee: {
-          select: { id: true, name: true, avatar: true },
+          select: { id: true, name: true, avatar: true, color: true },
         },
         requester: {
           select: { id: true, name: true },
