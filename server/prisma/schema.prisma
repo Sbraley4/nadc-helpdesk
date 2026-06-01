@@ -127,6 +127,7 @@ model User {
   checkedItems       TicketChecklistItem[]
   createdTemplates   TicketTemplate[]      @relation("TemplateCreator")
   assignedTemplates  TicketTemplate[]      @relation("TemplateAssignee")
+  calendarEvents     CalendarEvent[]
 }
 
 // Contact (ticket requesters / clients)
@@ -634,4 +635,21 @@ model AppSetting {
   value       String
   description String?
   updatedAt   DateTime @updatedAt
+}
+
+// CalendarEvent - non-ticket calendar events
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime?
+  allDay      Boolean   @default(false)
+  color       String?   // Custom color (hex) or null for agent color
+  assigneeId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  assignee User? @relation(fields: [assigneeId], references: [id])
 }

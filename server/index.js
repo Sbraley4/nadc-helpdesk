@@ -117,6 +117,7 @@ const checklistRoutes = require('./routes/checklist');
 const satisfactionRoutes = require('./routes/satisfaction');
 const settingsRoutes = require('./routes/settings');
 const calendarRoutes = require('./routes/calendar');
+const calendarEventsRoutes = require('./routes/calendarEvents');
 
 // Ticket sub-routes (must use mergeParams)
 app.use('/api/tickets/:ticketId/time', timeEntryRoutes);
@@ -130,6 +131,7 @@ app.use('/api/templates', templateRoutes);
 app.use('/api/satisfaction', satisfactionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/calendar-events', calendarEventsRoutes);
 
 // ============================================================================
 // Route imports - Phase 6

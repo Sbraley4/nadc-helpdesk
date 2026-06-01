@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus } from 'lucide-react';
-import { calendar, agents, tickets as ticketsApi } from '../api';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
+import { calendar, calendarEvents, agents, tickets as ticketsApi } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead } from '../components/shared';
 import toast from 'react-hot-toast';
 
@@ -39,14 +39,26 @@ const statusTextColors = {
   CLOSED: 'text-gray-600',
 };
 
+// Default agent colors
+const defaultAgentColors = {
+  unassigned: '#9CA3AF',
+};
+
 export default function CalendarPage() {
   const navigate = useNavigate();
   const [view, setView] = useState('month'); // month, week, day
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
+  const [events, setEvents] = useState([]);
   const [agentsList, setAgentsList] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Choice popup state (when clicking a time slot)
+  const [showChoicePopup, setShowChoicePopup] = useState(false);
+  const [choicePopupPosition, setChoicePopupPosition] = useState({ x: 0, y: 0 });
+  const [selectedSlotDate, setSelectedSlotDate] = useState(null);
+  const [selectedSlotTime, setSelectedSlotTime] = useState('09:00');
 
   // New ticket modal state
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -59,6 +71,17 @@ export default function CalendarPage() {
     priority: 'MEDIUM',
     contactId: '',
     companyId: '',
+    assigneeId: '',
+  });
+
+  // Calendar event modal state
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    description: '',
+    startTime: '',
+    endTime: '',
     assigneeId: '',
   });
 
@@ -87,28 +110,34 @@ export default function CalendarPage() {
     return { start, end };
   }, [currentDate, view]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [ticketsData, agentsData] = await Promise.all([
-          calendar.getCalendarTickets({
-            start: dateRange.start.toISOString(),
-            end: dateRange.end.toISOString(),
-            agentId: selectedAgent || undefined,
-          }),
-          agents.getAgents(),
-        ]);
-        setTickets(ticketsData.tickets || []);
-        setAgentsList(agentsData.agents || []);
-      } catch (error) {
-        console.error('Failed to fetch calendar data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchCalendarData = async () => {
+    setLoading(true);
+    try {
+      const [ticketsData, eventsData, agentsData] = await Promise.all([
+        calendar.getCalendarTickets({
+          start: dateRange.start.toISOString(),
+          end: dateRange.end.toISOString(),
+          agentId: selectedAgent || undefined,
+        }),
+        calendarEvents.getEvents({
+          startDate: dateRange.start.toISOString(),
+          endDate: dateRange.end.toISOString(),
+          assigneeId: selectedAgent || undefined,
+        }),
+        agents.getAgents(),
+      ]);
+      setTickets(ticketsData.tickets || []);
+      setEvents(eventsData || []);
+      setAgentsList(agentsData.agents || []);
+    } catch (error) {
+      console.error('Failed to fetch calendar data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchCalendarData();
   }, [dateRange.start, dateRange.end, selectedAgent]);
 
   const navigate_date = (direction) => {
@@ -151,6 +180,17 @@ export default function CalendarPage() {
     });
     return grouped;
   }, [tickets]);
+
+  // Group events by date
+  const eventsByDate = useMemo(() => {
+    const grouped = {};
+    events.forEach((event) => {
+      const dateKey = new Date(event.startTime).toDateString();
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(event);
+    });
+    return grouped;
+  }, [events]);
 
   // Generate calendar days for month view
   const calendarDays = useMemo(() => {
@@ -218,7 +258,7 @@ export default function CalendarPage() {
 
     return (
       <button
-        key={ticket.id}
+        key={`ticket-${ticket.id}`}
         onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
         className={`w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity ${statusBg} ${statusText}`}
         style={{ borderLeftColor: agentColor }}
@@ -230,17 +270,50 @@ export default function CalendarPage() {
     );
   };
 
+  const renderEventPill = (event) => {
+    // Use agent color or custom event color, fallback to purple for events
+    const eventColor = event.color || event.assignee?.color || '#8B5CF6';
+
+    return (
+      <button
+        key={`event-${event.id}`}
+        onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+        className="w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity bg-purple-50 text-purple-800"
+        style={{ borderLeftColor: eventColor }}
+        title={`${event.title}${event.assignee ? ` - ${event.assignee.name}` : ''}`}
+      >
+        <CalendarDays size={10} className="inline mr-1" />
+        {event.title}
+      </button>
+    );
+  };
+
   // Navigate to day view when clicking a day in month view
   const handleDayClick = (date) => {
     setCurrentDate(date);
     setView('day');
   };
 
-  // Open new ticket modal when clicking a time slot in day/week view
-  const handleTimeSlotClick = (date, hour) => {
+  // Show choice popup when clicking a time slot in day/week view
+  const handleTimeSlotClick = (e, date, hour) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
     const time = `${hour.toString().padStart(2, '0')}:00`;
-    setNewTicketDate(date);
-    setNewTicketTime(time);
+
+    setSelectedSlotDate(date);
+    setSelectedSlotTime(time);
+    setChoicePopupPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    });
+    setShowChoicePopup(true);
+  };
+
+  // Handle choosing "New Ticket" from popup
+  const handleChooseNewTicket = () => {
+    setShowChoicePopup(false);
+    setNewTicketDate(selectedSlotDate);
+    setNewTicketTime(selectedSlotTime);
     setNewTicketForm({
       subject: '',
       description: '',
@@ -250,6 +323,53 @@ export default function CalendarPage() {
       assigneeId: '',
     });
     setShowNewTicketModal(true);
+  };
+
+  // Handle choosing "Calendar Event" from popup
+  const handleChooseNewEvent = () => {
+    setShowChoicePopup(false);
+    setEditingEvent(null);
+
+    // Create datetime string for the selected slot
+    const startDateTime = new Date(selectedSlotDate);
+    const [hours, minutes] = selectedSlotTime.split(':');
+    startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    // Default end time is 1 hour later
+    const endDateTime = new Date(startDateTime);
+    endDateTime.setHours(endDateTime.getHours() + 1);
+
+    setEventForm({
+      title: '',
+      description: '',
+      startTime: formatDateTimeLocal(startDateTime),
+      endTime: formatDateTimeLocal(endDateTime),
+      assigneeId: '',
+    });
+    setShowEventModal(true);
+  };
+
+  // Handle clicking on an existing event
+  const handleEventClick = (event) => {
+    setEditingEvent(event);
+    setEventForm({
+      title: event.title,
+      description: event.description || '',
+      startTime: formatDateTimeLocal(new Date(event.startTime)),
+      endTime: event.endTime ? formatDateTimeLocal(new Date(event.endTime)) : '',
+      assigneeId: event.assigneeId || '',
+    });
+    setShowEventModal(true);
+  };
+
+  // Format date for datetime-local input
+  const formatDateTimeLocal = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const mins = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${mins}`;
   };
 
   // Create ticket from modal
@@ -280,12 +400,7 @@ export default function CalendarPage() {
       toast.success('Ticket created successfully');
       setShowNewTicketModal(false);
       // Refresh calendar data
-      const ticketsData = await calendar.getCalendarTickets({
-        start: dateRange.start.toISOString(),
-        end: dateRange.end.toISOString(),
-        agentId: selectedAgent || undefined,
-      });
-      setTickets(ticketsData.tickets || []);
+      await fetchCalendarData();
       // Navigate to the new ticket
       navigate(`/tickets/${result.id}`);
     } catch (error) {
@@ -296,6 +411,71 @@ export default function CalendarPage() {
     }
   };
 
+  // Save calendar event (create or update)
+  const handleSaveEvent = async (e) => {
+    e.preventDefault();
+    if (!eventForm.title || !eventForm.startTime) {
+      toast.error('Title and start time are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const eventData = {
+        title: eventForm.title,
+        description: eventForm.description || null,
+        startTime: new Date(eventForm.startTime).toISOString(),
+        endTime: eventForm.endTime ? new Date(eventForm.endTime).toISOString() : null,
+        assigneeId: eventForm.assigneeId || null,
+        // If an agent is assigned, use their color; otherwise null
+        color: null,
+      };
+
+      if (editingEvent) {
+        await calendarEvents.updateEvent(editingEvent.id, eventData);
+        toast.success('Event updated successfully');
+      } else {
+        await calendarEvents.createEvent(eventData);
+        toast.success('Event created successfully');
+      }
+
+      setShowEventModal(false);
+      await fetchCalendarData();
+    } catch (error) {
+      console.error('Failed to save event:', error);
+      toast.error(error.response?.data?.error || 'Failed to save event');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete calendar event
+  const handleDeleteEvent = async () => {
+    if (!editingEvent) return;
+    if (!window.confirm('Are you sure you want to delete this event?')) return;
+
+    setSaving(true);
+    try {
+      await calendarEvents.deleteEvent(editingEvent.id);
+      toast.success('Event deleted successfully');
+      setShowEventModal(false);
+      await fetchCalendarData();
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete event');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Close choice popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setShowChoicePopup(false);
+    if (showChoicePopup) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showChoicePopup]);
+
   const renderMonthView = () => (
     <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
       {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -305,6 +485,8 @@ export default function CalendarPage() {
       ))}
       {calendarDays.map(({ date, isCurrentMonth }, idx) => {
         const dayTickets = ticketsByDate[date.toDateString()] || [];
+        const dayEvents = eventsByDate[date.toDateString()] || [];
+        const allItems = [...dayEvents, ...dayTickets];
         return (
           <div
             key={idx}
@@ -324,10 +506,11 @@ export default function CalendarPage() {
               {date.getDate()}
             </div>
             <div className="space-y-0.5 overflow-hidden max-h-[60px] md:max-h-[80px]">
-              {dayTickets.slice(0, 3).map(renderTicketPill)}
-              {dayTickets.length > 3 && (
+              {dayEvents.slice(0, 1).map(renderEventPill)}
+              {dayTickets.slice(0, 2).map(renderTicketPill)}
+              {allItems.length > 3 && (
                 <div className="text-xs text-gray-500 pl-1">
-                  +{dayTickets.length - 3} more
+                  +{allItems.length - 3} more
                 </div>
               )}
             </div>
@@ -342,6 +525,7 @@ export default function CalendarPage() {
       <div className="grid grid-cols-7 gap-1 md:gap-2 min-w-[640px] md:min-w-0">
         {weekDays.map((date, idx) => {
           const dayTickets = ticketsByDate[date.toDateString()] || [];
+          const dayEvents = eventsByDate[date.toDateString()] || [];
           return (
             <div key={idx} className="min-h-[200px] md:min-h-[300px]">
               <div
@@ -353,6 +537,7 @@ export default function CalendarPage() {
                 <div className="text-base md:text-lg font-semibold">{date.getDate()}</div>
               </div>
               <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-1.5 md:p-2 space-y-1 min-h-[160px] md:min-h-[250px]">
+                {dayEvents.map(renderEventPill)}
                 {dayTickets.map(renderTicketPill)}
               </div>
             </div>
@@ -364,6 +549,7 @@ export default function CalendarPage() {
 
   const renderDayView = () => {
     const dayTickets = ticketsByDate[currentDate.toDateString()] || [];
+    const dayEvents = eventsByDate[currentDate.toDateString()] || [];
     const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
 
     return (
@@ -383,17 +569,52 @@ export default function CalendarPage() {
                 <div
                   key={hour}
                   className="h-16 cursor-pointer hover:bg-primary/5 transition-colors group"
-                  onClick={() => handleTimeSlotClick(currentDate, hour)}
-                  title={`Click to create ticket at ${hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}`}
+                  onClick={(e) => handleTimeSlotClick(e, currentDate, hour)}
+                  title={`Click to add at ${hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}`}
                 >
                   <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full text-primary text-xs">
-                    <Plus size={14} className="mr-1" /> New Ticket
+                    <Plus size={14} className="mr-1" /> Add
                   </div>
                 </div>
               ))}
             </div>
-            {/* Tickets */}
+            {/* Events and Tickets */}
             <div className="relative p-2 space-y-2 pointer-events-none">
+              {/* Calendar Events */}
+              {dayEvents.map((event) => {
+                const eventColor = event.color || event.assignee?.color || '#8B5CF6';
+                return (
+                  <button
+                    key={`event-${event.id}`}
+                    onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+                    className="w-full text-left p-2 rounded border-l-4 pointer-events-auto bg-purple-50 text-purple-800 hover:opacity-80 transition-opacity"
+                    style={{ borderLeftColor: eventColor }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <CalendarDays size={14} className="text-purple-600" />
+                      <span className="font-medium text-sm">{event.title}</span>
+                    </div>
+                    {event.description && (
+                      <div className="text-xs text-purple-600 truncate mt-1">{event.description}</div>
+                    )}
+                    {event.assignee && (
+                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
+                        <User size={12} />
+                        <span
+                          className="w-2 h-2 rounded-full mr-1"
+                          style={{ backgroundColor: event.assignee.color || '#9CA3AF' }}
+                        />
+                        {event.assignee.name}
+                      </div>
+                    )}
+                    <div className="text-xs text-purple-500 mt-1">
+                      {new Date(event.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      {event.endTime && ` - ${new Date(event.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+                    </div>
+                  </button>
+                );
+              })}
+              {/* Tickets */}
               {dayTickets.map((ticket) => {
                 const agentColor = ticket.assignee?.color || '#9CA3AF';
                 const statusBg = statusColors[ticket.status] || 'bg-gray-100';
@@ -402,7 +623,7 @@ export default function CalendarPage() {
 
                 return (
                   <button
-                    key={ticket.id}
+                    key={`ticket-${ticket.id}`}
                     onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
                     className={`w-full text-left p-2 rounded border-l-4 pointer-events-auto ${statusBg} ${statusText} hover:opacity-80 transition-opacity`}
                     style={{ borderLeftColor: agentColor }}
@@ -425,9 +646,9 @@ export default function CalendarPage() {
                   </button>
                 );
               })}
-              {dayTickets.length === 0 && (
+              {dayTickets.length === 0 && dayEvents.length === 0 && (
                 <div className="text-center py-8 text-gray-500 pointer-events-auto">
-                  Click a time slot to create a new ticket
+                  Click a time slot to add a ticket or event
                 </div>
               )}
             </div>
@@ -543,6 +764,36 @@ export default function CalendarPage() {
         </div>
       )}
 
+      {/* Choice Popup (New Ticket vs Calendar Event) */}
+      {showChoicePopup && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-2"
+          style={{
+            left: choicePopupPosition.x,
+            top: choicePopupPosition.y,
+            transform: 'translate(-50%, -50%)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex gap-2">
+            <button
+              onClick={handleChooseNewTicket}
+              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+            >
+              <Ticket size={18} />
+              <span className="font-medium">New Ticket</span>
+            </button>
+            <button
+              onClick={handleChooseNewEvent}
+              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors"
+            >
+              <CalendarDays size={18} />
+              <span className="font-medium">Calendar Event</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* New Ticket Modal */}
       <Modal
         isOpen={showNewTicketModal}
@@ -642,6 +893,96 @@ export default function CalendarPage() {
             <Button type="submit" disabled={saving} className="w-full sm:w-auto">
               {saving ? <Spinner size="sm" /> : 'Create Ticket'}
             </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Calendar Event Modal */}
+      <Modal
+        isOpen={showEventModal}
+        onClose={() => setShowEventModal(false)}
+        title={editingEvent ? 'Edit Calendar Event' : 'New Calendar Event'}
+        size="md"
+      >
+        <form onSubmit={handleSaveEvent} className="space-y-4">
+          {/* Title */}
+          <Input
+            label={<>Title <span className="text-red-500">*</span></>}
+            value={eventForm.title}
+            onChange={(e) => setEventForm(prev => ({ ...prev, title: e.target.value }))}
+            placeholder="Event title"
+            required
+          />
+
+          {/* Start and End Time */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Start Time <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={eventForm.startTime}
+                onChange={(e) => setEventForm(prev => ({ ...prev, startTime: e.target.value }))}
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+              <input
+                type="datetime-local"
+                value={eventForm.endTime}
+                onChange={(e) => setEventForm(prev => ({ ...prev, endTime: e.target.value }))}
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+              />
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <Select
+            label="Assign to Agent"
+            value={eventForm.assigneeId}
+            onChange={(e) => setEventForm(prev => ({ ...prev, assigneeId: e.target.value }))}
+            options={[
+              { value: '', label: 'Unassigned' },
+              ...agentsList.map(a => ({ value: a.id, label: a.name })),
+            ]}
+          />
+
+          {/* Description */}
+          <Textarea
+            label="Description"
+            value={eventForm.description}
+            onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+            placeholder="Optional notes or details"
+            rows={3}
+          />
+
+          {/* Actions */}
+          <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t">
+            <div>
+              {editingEvent && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  onClick={handleDeleteEvent}
+                  disabled={saving}
+                  className="w-full sm:w-auto"
+                >
+                  <Trash2 size={16} className="mr-1" />
+                  Delete
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowEventModal(false)} className="w-full sm:w-auto">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+                {saving ? <Spinner size="sm" /> : editingEvent ? 'Update Event' : 'Create Event'}
+              </Button>
+            </div>
           </div>
         </form>
       </Modal>

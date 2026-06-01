@@ -163,6 +163,14 @@ export const calendar = {
   getWorkloadSummary: (params) => client.get('/api/calendar/workload', { params }).then((r) => r.data),
 };
 
+export const calendarEvents = {
+  getEvents: (params) => client.get('/api/calendar-events', { params }).then((r) => r.data),
+  getEvent: (id) => client.get('/api/calendar-events/' + id).then((r) => r.data),
+  createEvent: (data) => client.post('/api/calendar-events', data).then((r) => r.data),
+  updateEvent: (id, data) => client.put('/api/calendar-events/' + id, data).then((r) => r.data),
+  deleteEvent: (id) => client.delete('/api/calendar-events/' + id).then((r) => r.data),
+};
+
 // Phase 7 APIs
 
 export const dashboard = {
