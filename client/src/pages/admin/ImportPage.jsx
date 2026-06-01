@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Upload, FileSpreadsheet, Building2, Users, Ticket, ChevronRight, AlertCircle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button, Spinner } from '../../components/shared';
-import api from '../../api/axios';
+import api from '../../api/client';
 
 const IMPORT_TYPES = [
   {
