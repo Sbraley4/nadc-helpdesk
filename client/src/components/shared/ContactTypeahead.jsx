@@ -111,6 +111,20 @@ export default function ContactTypeahead({
           )}
         </div>
       ) : (
+        <>
+        {/* Always visible + New Client link */}
+        {onCreateNew && !disabled && (
+          <div className="mb-2">
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            >
+              <Plus size={16} />
+              New Client
+            </button>
+          </div>
+        )}
         <div className="relative">
           <div className="relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -199,6 +213,7 @@ export default function ContactTypeahead({
             </div>
           )}
         </div>
+        </>
       )}
 
       {error && <p className="mt-1.5 text-sm text-red-600">{error}</p>}

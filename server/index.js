@@ -38,8 +38,12 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Allow all origins only in development mode
+      callback(null, true);
     } else {
-      callback(null, true); // Allow all origins in dev mode
+      // Reject unauthorized origins in production
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,

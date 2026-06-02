@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { requireAuth, optionalAuth } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const { requirePortalAuth } = require('../middleware/portalAuth');
 const {
   getCategories,
