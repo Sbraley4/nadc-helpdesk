@@ -242,7 +242,7 @@ export default function TicketDetailPage() {
   // Fetch agents for assignment
   const { data: agentsData } = useQuery({
     queryKey: ['agents'],
-    queryFn: agents.getAgents,
+    queryFn: () => agents.getAgents(),
   });
 
   // Search KB articles
@@ -255,7 +255,7 @@ export default function TicketDetailPage() {
   // Fetch templates for template modal
   const { data: templatesData } = useQuery({
     queryKey: ['templates'],
-    queryFn: templates.getTemplates,
+    queryFn: () => templates.getTemplates(),
     enabled: showTemplateModal,
   });
 

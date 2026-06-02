@@ -31,7 +31,7 @@ export default function KnowledgeBasePage() {
   // Fetch categories
   const { data: categoriesData, isLoading: loadingCategories } = useQuery({
     queryKey: ['kb-categories'],
-    queryFn: kb.getCategories,
+    queryFn: () => kb.getCategories(),
   });
 
   // Fetch category with articles
@@ -525,7 +525,7 @@ function ArticleEditor({ article, categoryId, onSave, onCancel }) {
 
   const { data: categoriesData } = useQuery({
     queryKey: ['kb-categories'],
-    queryFn: kb.getCategories,
+    queryFn: () => kb.getCategories(),
   });
 
   const createMutation = useMutation({

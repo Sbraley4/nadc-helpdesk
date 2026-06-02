@@ -66,7 +66,7 @@ export default function TicketListPage() {
   // Fetch agents for assignee filter
   const { data: agentsData } = useQuery({
     queryKey: ['agents'],
-    queryFn: agents.getAgents,
+    queryFn: () => agents.getAgents(),
   });
 
   const assigneeOptions = [

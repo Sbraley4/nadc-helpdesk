@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
@@ -533,13 +533,33 @@ export default function CalendarPage() {
     }
   };
 
+  // Ref to track if popup was just opened (to prevent immediate close from same click)
+  const popupJustOpenedRef = useRef(false);
+
   // Close choice popup when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setShowChoicePopup(false);
-    if (showChoicePopup) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+    if (!showChoicePopup) {
+      popupJustOpenedRef.current = false;
+      return;
     }
+
+    // Mark that popup was just opened
+    popupJustOpenedRef.current = true;
+
+    const handleClickOutside = (e) => {
+      // Ignore the first click that opened the popup
+      if (popupJustOpenedRef.current) {
+        popupJustOpenedRef.current = false;
+        return;
+      }
+      // Don't close if clicking inside the popup
+      const popup = document.querySelector('[data-choice-popup]');
+      if (popup && popup.contains(e.target)) return;
+      setShowChoicePopup(false);
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, [showChoicePopup]);
 
   const renderMonthView = () => (
@@ -746,7 +766,7 @@ export default function CalendarPage() {
               );
             })}
             {dayTickets.length === 0 && dayEvents.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
                 Click a time slot to add a ticket or event
               </div>
             )}
@@ -875,6 +895,7 @@ export default function CalendarPage() {
       {/* Choice Popup (New Ticket vs Calendar Event) */}
       {showChoicePopup && (
         <div
+          data-choice-popup
           className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-2"
           style={{
             left: choicePopupPosition.x,

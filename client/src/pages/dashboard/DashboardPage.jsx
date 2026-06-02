@@ -69,7 +69,7 @@ export default function DashboardPage() {
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard-stats'],
-    queryFn: dashboard.getStats,
+    queryFn: () => dashboard.getStats(),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: true,
   });

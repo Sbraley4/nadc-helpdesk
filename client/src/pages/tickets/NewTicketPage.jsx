@@ -76,7 +76,7 @@ export default function NewTicketPage() {
   // Get agents for assignment
   const { data: agentsData } = useQuery({
     queryKey: ['agents'],
-    queryFn: agents.getAgents,
+    queryFn: () => agents.getAgents(),
   });
 
   // Get companies for new client modal
