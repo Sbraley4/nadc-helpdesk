@@ -1245,10 +1245,82 @@ node scripts/send-welcome-emails.js
 
 ---
 
+## Deployment Instructions
+
+### Server Details
+- **Host:** Ubuntu server at `nadc@localhost` (SSH access)
+- **App Path:** `/home/nadc/nadc-helpdesk`
+- **Process Manager:** PM2 (process name: `nadc-helpdesk`)
+- **Frontend:** Built static files served by Nginx
+- **Backend:** Node.js on port 3001
+
+### Standard Deployment (after git push)
+
+SSH into the server and run:
+
+```bash
+cd /home/nadc/nadc-helpdesk
+git pull
+cd client && npm run build
+cd ../server && npm install && pm2 restart nadc-helpdesk
+```
+
+**What each command does:**
+1. `git pull` - Pull latest changes from GitHub
+2. `cd client && npm run build` - Rebuild frontend (needed if any client/src files changed)
+3. `cd ../server && npm install` - Install any new server dependencies
+4. `pm2 restart nadc-helpdesk` - Restart the Node.js server
+
+### Backend-Only Changes
+
+If only server files changed (no frontend changes):
+
+```bash
+cd /home/nadc/nadc-helpdesk
+git pull
+cd server && npm install && pm2 restart nadc-helpdesk
+```
+
+### Database Migrations
+
+If Prisma schema changed:
+
+```bash
+cd /home/nadc/nadc-helpdesk/server
+npx prisma db push
+npx prisma generate
+pm2 restart nadc-helpdesk
+```
+
+### Running Scripts
+
+To run one-time scripts (e.g., set-agent-colors.js):
+
+```bash
+cd /home/nadc/nadc-helpdesk/server
+node scripts/script-name.js
+```
+
+### Checking Logs
+
+```bash
+pm2 logs nadc-helpdesk --lines 50
+```
+
+### Restarting Services
+
+```bash
+pm2 restart nadc-helpdesk    # Restart Node.js app
+sudo systemctl restart nginx  # Restart Nginx (if needed)
+```
+
+---
+
 ## Changelog
 
 | Date | Phase | Changes |
 |------|-------|---------|
+| 2026-06-02 | Bug Fixes | React Query queryFn pattern fixes (wrapped function references in arrow functions across Dashboard, KnowledgeBase, NewTicket, TicketDetail, TicketList pages), Calendar time slot click fix (added pointer-events-none to overlay blocking clicks), Click-outside handler refactored from global variable to useRef pattern |
 | 2026-05-31 | 9 | Production Deployment complete - Ubuntu server setup, Cloudflare Tunnel, Nginx proxy, PM2 process management, Microsoft Graph API email, admin accounts with secure setup flow, password reset fields, SetupPasswordPage, production API URL fix |
 | 2026-05-19 | 1 | Initial scaffold complete - folder structure, Vite/React client, Express server, Prisma schema with 21 models, docker-compose, environment config |
 | 2026-05-19 | 2 | Auth & Agents complete - JWT auth with login/refresh/logout/me, requireAuth & requireRole middleware, Agent CRUD with soft delete, Groups CRUD, input validation, global error handler, seed script with admin/agents/groups/tags/SLA/business hours |
