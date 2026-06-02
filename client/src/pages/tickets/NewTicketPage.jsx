@@ -35,7 +35,8 @@ export default function NewTicketPage() {
 
   // New client modal state
   const [showNewClientModal, setShowNewClientModal] = useState(false);
-  const [newClientName, setNewClientName] = useState('');
+  const [newClientFirstName, setNewClientFirstName] = useState('');
+  const [newClientLastName, setNewClientLastName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientCompanyId, setNewClientCompanyId] = useState('');
@@ -94,7 +95,8 @@ export default function NewTicketPage() {
       const newContact = data.contact || data;
       setValue('contactId', newContact.id);
       setShowNewClientModal(false);
-      setNewClientName('');
+      setNewClientFirstName('');
+      setNewClientLastName('');
       setNewClientEmail('');
       setNewClientPhone('');
       setNewClientCompanyId('');
@@ -106,14 +108,14 @@ export default function NewTicketPage() {
   });
 
   const handleCreateNewClient = () => {
-    if (!newClientName.trim() || !newClientEmail.trim()) {
-      toast.error('Name and email are required');
+    if (!newClientFirstName.trim() || !newClientLastName.trim() || !newClientEmail.trim()) {
+      toast.error('First name, last name, and email are required');
       return;
     }
     createContactMutation.mutate({
-      name: newClientName,
-      email: newClientEmail,
-      phone: newClientPhone || undefined,
+      name: `${newClientFirstName.trim()} ${newClientLastName.trim()}`,
+      email: newClientEmail.trim(),
+      phone: newClientPhone.trim() || undefined,
       companyId: newClientCompanyId || undefined,
     });
   };
@@ -267,7 +269,8 @@ export default function NewTicketPage() {
               <button
                 onClick={() => {
                   setShowNewClientModal(false);
-                  setNewClientName('');
+                  setNewClientFirstName('');
+                  setNewClientLastName('');
                   setNewClientEmail('');
                   setNewClientPhone('');
                   setNewClientCompanyId('');
@@ -278,13 +281,23 @@ export default function NewTicketPage() {
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                <Input
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  placeholder="Client name"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name <span className="text-red-500">*</span></label>
+                  <Input
+                    value={newClientFirstName}
+                    onChange={(e) => setNewClientFirstName(e.target.value)}
+                    placeholder="First name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name <span className="text-red-500">*</span></label>
+                  <Input
+                    value={newClientLastName}
+                    onChange={(e) => setNewClientLastName(e.target.value)}
+                    placeholder="Last name"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
@@ -323,7 +336,8 @@ export default function NewTicketPage() {
                   variant="outline"
                   onClick={() => {
                     setShowNewClientModal(false);
-                    setNewClientName('');
+                    setNewClientFirstName('');
+                    setNewClientLastName('');
                     setNewClientEmail('');
                     setNewClientPhone('');
                     setNewClientCompanyId('');
@@ -334,7 +348,7 @@ export default function NewTicketPage() {
                 <Button
                   onClick={handleCreateNewClient}
                   isLoading={createContactMutation.isPending}
-                  disabled={!newClientName.trim() || !newClientEmail.trim()}
+                  disabled={!newClientFirstName.trim() || !newClientLastName.trim() || !newClientEmail.trim()}
                 >
                   Create Client
                 </Button>

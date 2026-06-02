@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
-import { calendar, calendarEvents, agents, tickets as ticketsApi } from '../api';
+import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents } from '../components/shared';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 const priorityColors = {
@@ -39,13 +40,24 @@ const statusTextColors = {
   CLOSED: 'text-gray-600',
 };
 
-// Default agent colors
-const defaultAgentColors = {
-  unassigned: '#9CA3AF',
+// Agent color mapping by name (hardcoded as fallback)
+const AGENT_COLORS = {
+  'Peter Braley': '#2563EB',  // Blue
+  'Sam Braley': '#DC2626',    // Red
+  'Chris Lowrance': '#CA8A04', // Yellow/Amber
+};
+const UNASSIGNED_COLOR = '#6B7280'; // Grey
+
+// Helper to get agent color by name or from agent object
+const getAgentColor = (agent) => {
+  if (!agent) return UNASSIGNED_COLOR;
+  // First try the database color, then fallback to hardcoded by name
+  return agent.color || AGENT_COLORS[agent.name] || UNASSIGNED_COLOR;
 };
 
 export default function CalendarPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [view, setView] = useState('month'); // month, week, day
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
@@ -53,6 +65,16 @@ export default function CalendarPage() {
   const [agentsList, setAgentsList] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // New client modal state
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    companyId: '',
+  });
 
   // Choice popup state (when clicking a time slot)
   const [showChoicePopup, setShowChoicePopup] = useState(false);
@@ -84,6 +106,43 @@ export default function CalendarPage() {
     endTime: '',
     assigneeIds: [],
   });
+
+  // Get companies for new client modal
+  const { data: companiesData } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companies.getCompanies({ limit: 500 }),
+  });
+
+  // Create contact mutation
+  const createContactMutation = useMutation({
+    mutationFn: contacts.createContact,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries(['contacts']);
+      queryClient.invalidateQueries(['contacts-search']);
+      // Auto-populate the contact selector with the new contact
+      const newContact = data.contact || data;
+      setNewTicketForm(prev => ({ ...prev, contactId: newContact.id }));
+      setShowNewClientModal(false);
+      setNewClientForm({ firstName: '', lastName: '', email: '', phone: '', companyId: '' });
+      toast.success('Client created successfully');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to create client');
+    },
+  });
+
+  const handleCreateNewClient = () => {
+    if (!newClientForm.firstName.trim() || !newClientForm.lastName.trim() || !newClientForm.email.trim()) {
+      toast.error('First name, last name, and email are required');
+      return;
+    }
+    createContactMutation.mutate({
+      name: `${newClientForm.firstName.trim()} ${newClientForm.lastName.trim()}`,
+      email: newClientForm.email.trim(),
+      phone: newClientForm.phone.trim() || undefined,
+      companyId: newClientForm.companyId || undefined,
+    });
+  };
 
   // Get date range based on current view
   const dateRange = useMemo(() => {
@@ -249,8 +308,8 @@ export default function CalendarPage() {
   };
 
   const renderTicketPill = (ticket) => {
-    // Agent color for left border (default to gray if no assignee)
-    const agentColor = ticket.assignee?.color || '#9CA3AF';
+    // Agent color for left border using helper
+    const agentColor = getAgentColor(ticket.assignee);
     // Status color for background
     const statusBg = statusColors[ticket.status] || 'bg-gray-100';
     const statusText = statusTextColors[ticket.status] || 'text-gray-700';
@@ -271,20 +330,27 @@ export default function CalendarPage() {
   };
 
   const renderEventPill = (event) => {
-    // Use first agent's color or custom event color, fallback to purple for events
-    const eventColor = event.color || event.assignees?.[0]?.color || '#8B5CF6';
+    // Use first agent's color via helper, fallback to unassigned color
+    const firstAssignee = event.assignees?.[0];
+    const eventColor = event.color || getAgentColor(firstAssignee);
     const assigneeNames = event.assignees?.map(a => a.name).join(', ') || '';
+
+    // Generate light background color from agent color
+    const bgStyle = {
+      borderLeftColor: eventColor,
+      backgroundColor: `${eventColor}15`, // 15 = ~8% opacity in hex
+    };
 
     return (
       <button
         key={`event-${event.id}`}
         onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
-        className="w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity bg-purple-50 text-purple-800"
-        style={{ borderLeftColor: eventColor }}
+        className="w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity"
+        style={bgStyle}
         title={`${event.title}${assigneeNames ? ` - ${assigneeNames}` : ''}`}
       >
-        <CalendarDays size={10} className="inline mr-1" />
-        {event.title}
+        <CalendarDays size={10} className="inline mr-1" style={{ color: eventColor }} />
+        <span style={{ color: eventColor }}>{event.title}</span>
       </button>
     );
   };
@@ -551,6 +617,25 @@ export default function CalendarPage() {
     const dayTickets = ticketsByDate[currentDate.toDateString()] || [];
     const dayEvents = eventsByDate[currentDate.toDateString()] || [];
     const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
+    const START_HOUR = 8; // Grid starts at 8 AM
+    const HOUR_HEIGHT = 64; // 64px per hour (h-16 = 4rem = 64px)
+
+    // Calculate position and height for a timed item
+    const getTimePosition = (startTime, endTime) => {
+      const start = new Date(startTime);
+      const startHour = start.getHours() + start.getMinutes() / 60;
+      const top = (startHour - START_HOUR) * HOUR_HEIGHT;
+
+      let height = HOUR_HEIGHT; // Default 1 hour
+      if (endTime) {
+        const end = new Date(endTime);
+        const endHour = end.getHours() + end.getMinutes() / 60;
+        const duration = endHour - startHour;
+        height = Math.max(duration * HOUR_HEIGHT, 32); // Minimum 32px
+      }
+
+      return { top: Math.max(0, top), height };
+    };
 
     return (
       <div className="bg-white rounded-lg border border-gray-200">
@@ -562,7 +647,7 @@ export default function CalendarPage() {
               </div>
             ))}
           </div>
-          <div className="relative">
+          <div className="relative" style={{ height: hours.length * HOUR_HEIGHT }}>
             {/* Clickable time slots */}
             <div className="absolute inset-0 divide-y divide-gray-100">
               {hours.map((hour) => (
@@ -578,84 +663,93 @@ export default function CalendarPage() {
                 </div>
               ))}
             </div>
-            {/* Events and Tickets */}
-            <div className="relative p-2 space-y-2 pointer-events-none">
-              {/* Calendar Events */}
-              {dayEvents.map((event) => {
-                const eventColor = event.color || event.assignees?.[0]?.color || '#8B5CF6';
-                return (
-                  <button
-                    key={`event-${event.id}`}
-                    onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
-                    className="w-full text-left p-2 rounded border-l-4 pointer-events-auto bg-purple-50 text-purple-800 hover:opacity-80 transition-opacity"
-                    style={{ borderLeftColor: eventColor }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <CalendarDays size={14} className="text-purple-600" />
-                      <span className="font-medium text-sm">{event.title}</span>
-                    </div>
-                    {event.description && (
-                      <div className="text-xs text-purple-600 truncate mt-1">{event.description}</div>
-                    )}
-                    {event.assignees?.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75 flex-wrap">
-                        <User size={12} />
-                        {event.assignees.map((assignee, idx) => (
-                          <span key={assignee.id} className="flex items-center">
-                            <span
-                              className="w-2 h-2 rounded-full mr-1"
-                              style={{ backgroundColor: assignee.color || '#9CA3AF' }}
-                            />
-                            {assignee.name}{idx < event.assignees.length - 1 ? ',' : ''}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="text-xs text-purple-500 mt-1">
-                      {new Date(event.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                      {event.endTime && ` - ${new Date(event.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
-                    </div>
-                  </button>
-                );
-              })}
-              {/* Tickets */}
-              {dayTickets.map((ticket) => {
-                const agentColor = ticket.assignee?.color || '#9CA3AF';
-                const statusBg = statusColors[ticket.status] || 'bg-gray-100';
-                const statusText = statusTextColors[ticket.status] || 'text-gray-700';
-                const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+            {/* Calendar Events - positioned by time */}
+            {dayEvents.map((event) => {
+              const firstAssignee = event.assignees?.[0];
+              const eventColor = event.color || getAgentColor(firstAssignee);
+              const { top, height } = getTimePosition(event.startTime, event.endTime);
 
-                return (
-                  <button
-                    key={`ticket-${ticket.id}`}
-                    onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-                    className={`w-full text-left p-2 rounded border-l-4 pointer-events-auto ${statusBg} ${statusText} hover:opacity-80 transition-opacity`}
-                    style={{ borderLeftColor: agentColor }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${statusDot}`} />
-                      <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
+              return (
+                <button
+                  key={`event-${event.id}`}
+                  onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+                  className="absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden hover:opacity-80 transition-opacity z-10"
+                  style={{
+                    top: `${top}px`,
+                    height: `${height}px`,
+                    borderLeftColor: eventColor,
+                    backgroundColor: `${eventColor}20`,
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <CalendarDays size={14} style={{ color: eventColor }} />
+                    <span className="font-medium text-sm" style={{ color: eventColor }}>{event.title}</span>
+                  </div>
+                  {height > 50 && event.description && (
+                    <div className="text-xs truncate mt-1" style={{ color: eventColor, opacity: 0.8 }}>{event.description}</div>
+                  )}
+                  {height > 70 && event.assignees?.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1 text-xs flex-wrap" style={{ color: eventColor, opacity: 0.75 }}>
+                      <User size={12} />
+                      {event.assignees.map((assignee, idx) => (
+                        <span key={assignee.id} className="flex items-center">
+                          <span
+                            className="w-2 h-2 rounded-full mr-1"
+                            style={{ backgroundColor: getAgentColor(assignee) }}
+                          />
+                          {assignee.name}{idx < event.assignees.length - 1 ? ',' : ''}
+                        </span>
+                      ))}
                     </div>
-                    <div className="text-sm truncate">{ticket.subject}</div>
-                    {ticket.assignee && (
-                      <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
-                        <User size={12} />
-                        <span
-                          className="w-2 h-2 rounded-full mr-1"
-                          style={{ backgroundColor: agentColor }}
-                        />
-                        {ticket.assignee.name}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-              {dayTickets.length === 0 && dayEvents.length === 0 && (
-                <div className="text-center py-8 text-gray-500 pointer-events-auto">
-                  Click a time slot to add a ticket or event
-                </div>
-              )}
-            </div>
+                  )}
+                  <div className="text-xs mt-1" style={{ color: eventColor, opacity: 0.7 }}>
+                    {new Date(event.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                    {event.endTime && ` - ${new Date(event.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
+                  </div>
+                </button>
+              );
+            })}
+            {/* Tickets - positioned by time */}
+            {dayTickets.map((ticket) => {
+              const agentColor = getAgentColor(ticket.assignee);
+              const statusBg = statusColors[ticket.status] || 'bg-gray-100';
+              const statusText = statusTextColors[ticket.status] || 'text-gray-700';
+              const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+
+              // Use dueDate or scheduledDate for positioning
+              const ticketTime = ticket.scheduledDate || ticket.dueDate;
+              const { top, height } = getTimePosition(ticketTime, null);
+
+              return (
+                <button
+                  key={`ticket-${ticket.id}`}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
+                  className={`absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden ${statusBg} ${statusText} hover:opacity-80 transition-opacity z-10`}
+                  style={{ top: `${top}px`, height: `${height}px`, borderLeftColor: agentColor }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${statusDot}`} />
+                    <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
+                  </div>
+                  <div className="text-sm truncate">{ticket.subject}</div>
+                  {ticket.assignee && (
+                    <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
+                      <User size={12} />
+                      <span
+                        className="w-2 h-2 rounded-full mr-1"
+                        style={{ backgroundColor: agentColor }}
+                      />
+                      {ticket.assignee.name}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+            {dayTickets.length === 0 && dayEvents.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                Click a time slot to add a ticket or event
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -695,19 +789,29 @@ export default function CalendarPage() {
 
         {/* Filters and View Toggle */}
         <div className="flex items-center gap-2 md:gap-3">
-          {/* Agent Filter */}
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="flex-1 md:flex-none text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px] bg-white"
-          >
-            <option value="">All Technicians</option>
-            {agentsList.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
+          {/* Agent Filter - Custom dropdown with colors */}
+          <div className="relative flex-1 md:flex-none">
+            <select
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              className="w-full text-sm border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px] bg-white appearance-none"
+            >
+              <option value="">All Technicians</option>
+              {agentsList.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+            {/* Color indicator for selected agent */}
+            {selectedAgent && (
+              <span
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full pointer-events-none"
+                style={{ backgroundColor: getAgentColor(agentsList.find(a => a.id === selectedAgent)) }}
+              />
+            )}
+            <ChevronRight size={16} className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-gray-400 pointer-events-none" />
+          </div>
 
           {/* Agent Color Legend */}
           <div className="hidden md:flex items-center gap-3 text-xs">
@@ -848,6 +952,7 @@ export default function CalendarPage() {
               required
               value={newTicketForm.contactId}
               onChange={(id) => setNewTicketForm(prev => ({ ...prev, contactId: id }))}
+              onCreateNew={() => setShowNewClientModal(true)}
             />
             <CompanyTypeahead
               label="Company"
@@ -988,6 +1093,96 @@ export default function CalendarPage() {
           </div>
         </form>
       </Modal>
+
+      {/* New Client Modal */}
+      {showNewClientModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">New Client</h3>
+              <button
+                onClick={() => {
+                  setShowNewClientModal(false);
+                  setNewClientForm({ firstName: '', lastName: '', email: '', phone: '', companyId: '' });
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name <span className="text-red-500">*</span></label>
+                  <Input
+                    value={newClientForm.firstName}
+                    onChange={(e) => setNewClientForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    placeholder="First name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name <span className="text-red-500">*</span></label>
+                  <Input
+                    value={newClientForm.lastName}
+                    onChange={(e) => setNewClientForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    placeholder="Last name"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                <Input
+                  type="email"
+                  value={newClientForm.email}
+                  onChange={(e) => setNewClientForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="client@example.com"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <Input
+                  type="tel"
+                  value={newClientForm.phone}
+                  onChange={(e) => setNewClientForm(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="(555) 123-4567"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                <Select
+                  value={newClientForm.companyId}
+                  onChange={(e) => setNewClientForm(prev => ({ ...prev, companyId: e.target.value }))}
+                  options={[
+                    { value: '', label: 'No company' },
+                    ...(companiesData?.companies || []).map((c) => ({
+                      value: c.id,
+                      label: c.name,
+                    })),
+                  ]}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewClientModal(false);
+                    setNewClientForm({ firstName: '', lastName: '', email: '', phone: '', companyId: '' });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateNewClient}
+                  isLoading={createContactMutation.isPending}
+                  disabled={!newClientForm.firstName.trim() || !newClientForm.lastName.trim() || !newClientForm.email.trim()}
+                >
+                  Create Client
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

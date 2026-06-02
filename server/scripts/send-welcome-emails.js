@@ -98,7 +98,7 @@ async function main() {
   const adminUsers = [
     { email: 'sbraley@nadc.com', name: 'Sam Braley' },
     { email: 'clowrance@nadc.com', name: 'Chris Lowrance' },
-    { email: 'pbraley@nadc.com', name: 'Paul Braley' },
+    { email: 'pbraley@nadc.com', name: 'Peter Braley' },
   ];
 
   const graphClient = getGraphClient();
