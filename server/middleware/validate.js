@@ -122,8 +122,8 @@ const createTicketValidation = [
     .withMessage('Type must be one of: QUESTION, INCIDENT, PROBLEM, FEATURE_REQUEST'),
   body('status')
     .optional()
-    .isIn(['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'])
-    .withMessage('Status must be one of: OPEN, PENDING, RESOLVED, CLOSED'),
+    .isIn(['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'])
+    .withMessage('Status must be one of: OPEN, PENDING, INVOICED, POSTED, CLOSED'),
   body('tagIds')
     .optional()
     .isArray()
@@ -155,8 +155,8 @@ const updateTicketValidation = [
     .withMessage('Type must be one of: QUESTION, INCIDENT, PROBLEM, FEATURE_REQUEST'),
   body('status')
     .optional()
-    .isIn(['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'])
-    .withMessage('Status must be one of: OPEN, PENDING, RESOLVED, CLOSED'),
+    .isIn(['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'])
+    .withMessage('Status must be one of: OPEN, PENDING, INVOICED, POSTED, CLOSED'),
   body('tagIds')
     .optional()
     .isArray()

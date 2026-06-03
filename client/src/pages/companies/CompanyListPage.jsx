@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Users, Ticket, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { companies } from '../../api';
-import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input } from '../../components/shared';
+import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, PhoneInput } from '../../components/shared';
 
 export default function CompanyListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -168,11 +168,10 @@ export default function CompanyListPage() {
             onChange={(e) => setCreateForm({ ...createForm, domain: e.target.value })}
             placeholder="e.g., acmecorp.com"
           />
-          <Input
+          <PhoneInput
             label="Phone"
             value={createForm.phone}
             onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-            placeholder="Enter phone number"
           />
           <Input
             label="Address"

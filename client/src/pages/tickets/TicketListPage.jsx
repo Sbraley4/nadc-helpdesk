@@ -302,7 +302,7 @@ function TicketRow({ ticket, onStatusChange, onNavigate }) {
           <>
             <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowStatusDropdown(false); }} />
             <div className="absolute z-20 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]">
-              {['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'].map((status) => (
+              {['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'].map((status) => (
                 <button
                   key={status}
                   onClick={(e) => { e.stopPropagation(); handleStatusChange(status); }}
@@ -367,7 +367,7 @@ function MobileTicketCard({ ticket, onStatusChange, onClick }) {
                 onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
               />
               <div className="absolute right-0 z-20 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]">
-                {['OPEN', 'PENDING', 'RESOLVED', 'CLOSED'].map((status) => (
+                {['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'].map((status) => (
                   <button
                     key={status}
                     onClick={(e) => {

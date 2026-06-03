@@ -1452,103 +1452,150 @@ export default function TicketDetailPage() {
           </button>
         </div>
 
-        <div className="p-4 lg:p-0">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-4">
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <Select
-                options={statusOptions}
-                value={ticket.status}
-                onChange={(e) => updateMutation.mutate({ status: e.target.value })}
-              />
+        <div className="p-4 lg:p-0 space-y-4">
+          {/* Status & Priority Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Status & Priority</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Status</label>
+                <Select
+                  options={statusOptions}
+                  value={ticket.status}
+                  onChange={(e) => updateMutation.mutate({ status: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Priority</label>
+                <Select
+                  options={priorityOptions}
+                  value={ticket.priority}
+                  onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
+                />
+              </div>
             </div>
-
-            {/* Priority */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-              <Select
-                options={priorityOptions}
-                value={ticket.priority}
-                onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
-              />
+            {/* Current status/priority badges for quick reference */}
+            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+              <Badge variant={statusConfig[ticket.status]?.variant}>
+                {statusConfig[ticket.status]?.label}
+              </Badge>
+              <Badge variant={priorityConfig[ticket.priority]?.variant}>
+                {priorityConfig[ticket.priority]?.label}
+              </Badge>
             </div>
+          </div>
 
-            {/* Assignee */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
-              <Select
-                options={agentOptions}
-                value={ticket.assigneeId || ''}
-                onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
-              />
+          {/* Assignment Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Assignment</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Primary Assignee</label>
+                <Select
+                  options={agentOptions}
+                  value={ticket.assigneeId || ''}
+                  onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
+                />
+              </div>
+              <div>
+                <MultiSelectAgents
+                  label="Additional Assignees"
+                  agents={agentsData?.agents || []}
+                  selectedIds={ticket.additionalAssignees?.map(a => a.id) || []}
+                  onChange={(ids) => updateMutation.mutate({ additionalAssigneeIds: ids })}
+                  placeholder="Add more agents..."
+                />
+              </div>
+              {/* Show assigned agents with avatars */}
+              {(ticket.assignee || ticket.additionalAssignees?.length > 0) && (
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                  {ticket.assignee && (
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-full">
+                      <Avatar name={ticket.assignee.name} size="xs" />
+                      <span className="text-xs font-medium text-gray-700">{ticket.assignee.name}</span>
+                    </div>
+                  )}
+                  {ticket.additionalAssignees?.map(agent => (
+                    <div key={agent.id} className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-full">
+                      <Avatar name={agent.name} size="xs" />
+                      <span className="text-xs text-gray-600">{agent.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Additional Assignees */}
-            <div>
-              <MultiSelectAgents
-                label="Additional Assignees"
-                agents={agentsData?.agents || []}
-                selectedIds={ticket.additionalAssignees?.map(a => a.id) || []}
-                onChange={(ids) => updateMutation.mutate({ additionalAssigneeIds: ids })}
-                placeholder="Add more agents..."
-              />
-            </div>
-
-            <hr className="border-gray-200" />
-
-            {/* Contact info */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Contact</h3>
-              <div className="flex items-center gap-2">
-                <Avatar name={ticket.requester?.name} size="sm" />
-                <div className="min-w-0">
+          {/* Contact & Company Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Contact Information</h3>
+            <div className="space-y-3">
+              {/* Contact */}
+              <div className="flex items-center gap-3">
+                <Avatar name={ticket.requester?.name} size="md" />
+                <div className="min-w-0 flex-1">
                   <Link to={'/contacts/' + ticket.requester?.id} className="text-sm font-medium text-gray-900 hover:text-primary block truncate">
                     {ticket.requester?.name}
                   </Link>
                   <p className="text-xs text-gray-500 truncate">{ticket.requester?.email}</p>
+                  {ticket.requester?.phone && (
+                    <p className="text-xs text-gray-500">{ticket.requester.phone}</p>
+                  )}
                 </div>
               </div>
+              {/* Company */}
+              {ticket.company && (
+                <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <Building2 size={20} className="text-gray-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Link to={'/companies/' + ticket.company.id} className="text-sm font-medium text-gray-900 hover:text-primary block truncate">
+                      {ticket.company.name}
+                    </Link>
+                    {ticket.company.domain && (
+                      <p className="text-xs text-gray-500">{ticket.company.domain}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Company info */}
-            {ticket.company && (
+          {/* Schedule Section - Only shown if there's a due date */}
+          {ticket.dueDate && (
+            <div className="bg-primary/5 rounded-lg border border-primary/20 p-4">
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Clock size={12} />
+                Scheduled
+              </h3>
+              <p className="text-sm font-semibold text-gray-900">
+                {format(new Date(ticket.dueDate), 'EEEE, MMMM d, yyyy')}
+              </p>
+              <p className="text-sm text-gray-600">
+                at {format(new Date(ticket.dueDate), 'h:mm a')}
+              </p>
+            </div>
+          )}
+
+          {/* Metadata Section */}
+          <div className="bg-gray-50 rounded-lg p-3">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Company</h3>
-                <div className="flex items-center gap-2">
-                  <Building2 size={16} className="text-gray-400 flex-shrink-0" />
-                  <Link to={'/companies/' + ticket.company.id} className="text-sm text-gray-900 hover:text-primary truncate">
-                    {ticket.company.name}
-                  </Link>
-                </div>
+                <p className="text-gray-400">Created</p>
+                <p className="text-gray-600 font-medium">{format(new Date(ticket.createdAt), 'MMM d, yyyy')}</p>
+                <p className="text-gray-500">{format(new Date(ticket.createdAt), 'h:mm a')}</p>
               </div>
-            )}
-
-            {/* Scheduled Date/Time */}
-            {ticket.dueDate && (
-              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
-                <h3 className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                  <Clock size={14} className="text-primary" />
-                  Scheduled
-                </h3>
-                <p className="text-sm font-medium text-gray-900">
-                  {format(new Date(ticket.dueDate), 'EEEE, MMMM d, yyyy')}
-                </p>
-                <p className="text-sm text-gray-600">
-                  at {format(new Date(ticket.dueDate), 'h:mm a')}
-                </p>
+              <div>
+                <p className="text-gray-400">Updated</p>
+                <p className="text-gray-600 font-medium">{format(new Date(ticket.updatedAt), 'MMM d, yyyy')}</p>
+                <p className="text-gray-500">{format(new Date(ticket.updatedAt), 'h:mm a')}</p>
               </div>
-            )}
-
-            {/* Timestamps */}
-            <div className="text-xs text-gray-500 space-y-1">
-              <p>Created: {format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</p>
-              <p>Updated: {format(new Date(ticket.updatedAt), 'MMM d, yyyy h:mm a')}</p>
             </div>
           </div>
 
         {/* Checklist Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mt-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <button
             onClick={() => setShowChecklist(!showChecklist)}
             className="w-full flex items-center justify-between"

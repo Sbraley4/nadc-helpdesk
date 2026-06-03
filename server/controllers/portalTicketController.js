@@ -341,8 +341,8 @@ async function portalReplyToTicket(req, res, next) {
       },
     });
 
-    // Reopen ticket if it was resolved or closed
-    if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+    // Reopen ticket if it was in a completed state
+    if (['INVOICED', 'POSTED', 'CLOSED'].includes(ticket.status)) {
       await prisma.ticket.update({
         where: { id },
         data: { status: 'OPEN' },

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Building2, Ticket, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { contacts, companies } from '../../api';
-import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, Select } from '../../components/shared';
+import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, Select, PhoneInput } from '../../components/shared';
 
 export default function ContactListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -207,11 +207,10 @@ export default function ContactListPage() {
             onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
             placeholder="Enter email address"
           />
-          <Input
+          <PhoneInput
             label="Phone"
             value={createForm.phone}
             onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-            placeholder="Enter phone number"
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>

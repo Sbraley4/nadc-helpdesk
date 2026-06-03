@@ -115,6 +115,7 @@ async function getContact(req, res, next) {
  */
 async function createContact(req, res, next) {
   try {
+    console.log('[CreateContact] Request body:', req.body);
     const { name, email, phone, companyId, notes } = req.body;
 
     // Validate required fields

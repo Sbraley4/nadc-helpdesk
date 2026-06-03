@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents } from '../components/shared';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -40,6 +40,15 @@ const statusTextColors = {
   CLOSED: 'text-gray-600',
 };
 
+// Status stripe colors (hex for inline styles)
+const statusStripeColors = {
+  OPEN: '#EAB308',     // yellow-500
+  PENDING: '#6B7280',  // gray-500
+  INVOICED: '#22C55E', // green-500
+  POSTED: '#EC4899',   // pink-500
+  CLOSED: '#374151',   // gray-700
+};
+
 // Agent color mapping by name (hardcoded as fallback)
 const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
@@ -53,6 +62,51 @@ const getAgentColor = (agent) => {
   if (!agent) return UNASSIGNED_COLOR;
   // First try the database color, then fallback to hardcoded by name
   return agent.color || AGENT_COLORS[agent.name] || UNASSIGNED_COLOR;
+};
+
+// Helper to get all agent colors for a ticket (primary + additional)
+const getAllAgentColors = (ticket) => {
+  const colors = [];
+  if (ticket.assignee) {
+    colors.push(getAgentColor(ticket.assignee));
+  }
+  if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
+    ticket.additionalAssignees.forEach(assignee => {
+      colors.push(getAgentColor(assignee));
+    });
+  }
+  // If no assignees, use unassigned color
+  if (colors.length === 0) {
+    colors.push(UNASSIGNED_COLOR);
+  }
+  return colors;
+};
+
+// Generate CSS background for agent colors (solid or diagonal stripes)
+const getAgentBackground = (colors) => {
+  if (colors.length === 1) {
+    return { backgroundColor: colors[0] };
+  }
+
+  // Multiple colors: create diagonal stripe pattern
+  const stripeWidth = 12; // pixels per stripe
+  const gradientStops = [];
+  const totalWidth = colors.length * stripeWidth;
+
+  colors.forEach((color, index) => {
+    const startPercent = (index * stripeWidth / totalWidth) * 100;
+    const endPercent = ((index + 1) * stripeWidth / totalWidth) * 100;
+    gradientStops.push(`${color} ${startPercent}%`);
+    gradientStops.push(`${color} ${endPercent}%`);
+  });
+
+  return {
+    backgroundImage: `repeating-linear-gradient(
+      135deg,
+      ${gradientStops.join(', ')}
+    )`,
+    backgroundSize: `${totalWidth}px ${totalWidth}px`,
+  };
 };
 
 export default function CalendarPage() {
@@ -308,23 +362,31 @@ export default function CalendarPage() {
   };
 
   const renderTicketPill = (ticket) => {
-    // Agent color for left border using helper
-    const agentColor = getAgentColor(ticket.assignee);
-    // Status color for background
-    const statusBg = statusColors[ticket.status] || 'bg-gray-100';
-    const statusText = statusTextColors[ticket.status] || 'text-gray-700';
-    const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+    // Get all agent colors and generate background
+    const agentColors = getAllAgentColors(ticket);
+    const agentBgStyle = getAgentBackground(agentColors);
+    const statusStripe = statusStripeColors[ticket.status] || '#6B7280';
+
+    // Build assignee names for tooltip
+    const assigneeNames = [
+      ticket.assignee?.name,
+      ...(ticket.additionalAssignees || []).map(a => a.name)
+    ].filter(Boolean).join(', ');
 
     return (
       <button
         key={`ticket-${ticket.id}`}
         onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-        className={`w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity ${statusBg} ${statusText}`}
-        style={{ borderLeftColor: agentColor }}
-        title={`${ticket.subject}${ticket.assignee ? ` - ${ticket.assignee.name}` : ''}`}
+        className="w-full text-left text-xs rounded overflow-hidden mb-0.5 hover:opacity-90 transition-opacity"
+        style={agentBgStyle}
+        title={`${ticket.subject}${assigneeNames ? ` - ${assigneeNames}` : ''}`}
       >
-        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${statusDot}`} />
-        <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
+        {/* Status stripe at top */}
+        <div className="h-1" style={{ backgroundColor: statusStripe }} />
+        {/* Content with white text */}
+        <div className="p-1 text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+          <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
+        </div>
       </button>
     );
   };
@@ -731,10 +793,16 @@ export default function CalendarPage() {
             })}
             {/* Tickets - positioned by time */}
             {dayTickets.map((ticket) => {
-              const agentColor = getAgentColor(ticket.assignee);
-              const statusBg = statusColors[ticket.status] || 'bg-gray-100';
-              const statusText = statusTextColors[ticket.status] || 'text-gray-700';
-              const statusDot = statusDotColors[ticket.status] || 'bg-gray-500';
+              // Get all agent colors and generate background
+              const agentColors = getAllAgentColors(ticket);
+              const agentBgStyle = getAgentBackground(agentColors);
+              const statusStripe = statusStripeColors[ticket.status] || '#6B7280';
+
+              // Build assignee names for display
+              const allAssignees = [
+                ticket.assignee,
+                ...(ticket.additionalAssignees || [])
+              ].filter(Boolean);
 
               // Use dueDate or scheduledDate for positioning
               const ticketTime = ticket.scheduledDate || ticket.dueDate;
@@ -744,24 +812,27 @@ export default function CalendarPage() {
                 <button
                   key={`ticket-${ticket.id}`}
                   onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-                  className={`absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden ${statusBg} ${statusText} hover:opacity-80 transition-opacity z-10`}
-                  style={{ top: `${top}px`, height: `${height}px`, borderLeftColor: agentColor }}
+                  className="absolute left-1 right-1 text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10"
+                  style={{ top: `${top}px`, height: `${height}px`, ...agentBgStyle }}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${statusDot}`} />
-                    <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
-                  </div>
-                  <div className="text-sm truncate">{ticket.subject}</div>
-                  {ticket.assignee && (
-                    <div className="flex items-center gap-1 mt-1 text-xs opacity-75">
-                      <User size={12} />
-                      <span
-                        className="w-2 h-2 rounded-full mr-1"
-                        style={{ backgroundColor: agentColor }}
-                      />
-                      {ticket.assignee.name}
+                  {/* Status stripe at top */}
+                  <div className="h-1.5" style={{ backgroundColor: statusStripe }} />
+                  {/* Content with white text */}
+                  <div className="p-2 text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                    <div className="flex items-center gap-2">
+                      <Ticket size={14} />
+                      <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
                     </div>
-                  )}
+                    <div className="text-sm truncate mt-0.5">{ticket.subject}</div>
+                    {allAssignees.length > 0 && (
+                      <div className="flex items-center gap-1 mt-1 text-xs opacity-90">
+                        <User size={12} />
+                        <span className="truncate">
+                          {allAssignees.map(a => a.name).join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </button>
               );
             })}
@@ -1160,12 +1231,10 @@ export default function CalendarPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <Input
-                  type="tel"
+                <PhoneInput
+                  label="Phone"
                   value={newClientForm.phone}
                   onChange={(e) => setNewClientForm(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="(555) 123-4567"
                 />
               </div>
               <div>

@@ -1,0 +1,287 @@
+- generic [ref=e5]:
+  - complementary [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: NADC Helpdesk
+      - button [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - navigation [ref=e12]:
+      - list [ref=e13]:
+        - listitem [ref=e14]:
+          - link "Dashboard" [ref=e15] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e16]
+            - generic [ref=e21]: Dashboard
+        - listitem [ref=e22]:
+          - link "Tickets" [ref=e23] [cursor=pointer]:
+            - /url: /tickets
+            - img [ref=e24]
+            - generic [ref=e26]: Tickets
+        - listitem [ref=e27]:
+          - link "Calendar" [ref=e28] [cursor=pointer]:
+            - /url: /calendar
+            - img [ref=e29]
+            - generic [ref=e31]: Calendar
+        - listitem [ref=e32]:
+          - link "Workload" [ref=e33] [cursor=pointer]:
+            - /url: /workload
+            - img [ref=e34]
+            - generic [ref=e39]: Workload
+        - listitem [ref=e40]:
+          - link "Contacts" [ref=e41] [cursor=pointer]:
+            - /url: /contacts
+            - img [ref=e42]
+            - generic [ref=e47]: Contacts
+        - listitem [ref=e48]:
+          - link "Companies" [ref=e49] [cursor=pointer]:
+            - /url: /companies
+            - img [ref=e50]
+            - generic [ref=e54]: Companies
+        - listitem [ref=e55]:
+          - link "Devices" [ref=e56] [cursor=pointer]:
+            - /url: /devices
+            - img [ref=e57]
+            - generic [ref=e59]: Devices
+        - listitem [ref=e60]:
+          - link "Templates" [ref=e61] [cursor=pointer]:
+            - /url: /templates
+            - img [ref=e62]
+            - generic [ref=e65]: Templates
+        - listitem [ref=e66]:
+          - link "Reports" [ref=e67] [cursor=pointer]:
+            - /url: /reports
+            - img [ref=e68]
+            - generic [ref=e69]: Reports
+        - listitem [ref=e70]:
+          - link "Automations" [ref=e71] [cursor=pointer]:
+            - /url: /automations
+            - img [ref=e72]
+            - generic [ref=e74]: Automations
+        - listitem [ref=e75]:
+          - link "Knowledge Base" [ref=e76] [cursor=pointer]:
+            - /url: /kb
+            - img [ref=e77]
+            - generic [ref=e79]: Knowledge Base
+        - listitem [ref=e80]:
+          - link "Satisfaction" [ref=e81] [cursor=pointer]:
+            - /url: /satisfaction
+            - img [ref=e82]
+            - generic [ref=e84]: Satisfaction
+        - listitem [ref=e85]:
+          - link "Settings" [ref=e86] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e87]
+            - generic [ref=e90]: Settings
+    - generic [ref=e92]:
+      - generic [ref=e94]: "?"
+      - generic [ref=e96]:
+        - paragraph
+        - paragraph [ref=e97]: offline
+      - button "Logout" [ref=e98] [cursor=pointer]:
+        - img [ref=e99]
+  - generic [ref=e102]:
+    - banner [ref=e104]:
+      - heading "Calendar" [level=1] [ref=e106]
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - img [ref=e109]
+          - textbox "Search tickets, contacts, companies..." [ref=e112]
+        - button [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+        - button "?" [ref=e119] [cursor=pointer]:
+          - generic [ref=e120]: "?"
+          - img [ref=e121]
+    - main [ref=e123]:
+      - generic [ref=e124]:
+        - generic [ref=e125]:
+          - generic [ref=e126]:
+            - generic [ref=e127]:
+              - button [ref=e128] [cursor=pointer]:
+                - img [ref=e129]
+              - button "Today" [ref=e131] [cursor=pointer]
+              - button [ref=e132] [cursor=pointer]:
+                - img [ref=e133]
+            - heading "Tuesday, June 2, 2026" [level=2] [ref=e255]
+          - generic [ref=e136]:
+            - generic [ref=e137]:
+              - combobox [ref=e138]:
+                - option "All Technicians" [selected]
+                - option "Chris Lowrance"
+                - option "Peter Braley"
+                - option "Sam Admin"
+                - option "Sam Braley"
+                - option "Tech One"
+                - option "Tech Two"
+              - img
+            - generic [ref=e139]:
+              - generic [ref=e142]: Chris
+              - generic [ref=e145]: Peter
+              - generic [ref=e148]: Sam
+              - generic [ref=e151]: Sam
+            - generic [ref=e152]:
+              - button "Month" [ref=e153] [cursor=pointer]:
+                - generic [ref=e154]: Month
+              - button "Week" [ref=e155] [cursor=pointer]:
+                - generic [ref=e156]: Week
+              - button "Day" [ref=e157] [cursor=pointer]:
+                - generic [ref=e158]: Day
+        - generic [ref=e257]:
+          - generic [ref=e258]:
+            - generic [ref=e259]: 8 AM
+            - generic [ref=e260]: 9 AM
+            - generic [ref=e261]: 10 AM
+            - generic [ref=e262]: 11 AM
+            - generic [ref=e263]: 12 PM
+            - generic [ref=e264]: 1 PM
+            - generic [ref=e265]: 2 PM
+            - generic [ref=e266]: 3 PM
+            - generic [ref=e267]: 4 PM
+            - generic [ref=e268]: 5 PM
+            - generic [ref=e269]: 6 PM
+            - generic [ref=e270]: 7 PM
+          - generic [ref=e271]:
+            - generic [ref=e272]:
+              - generic "Click to add at 8 AM" [ref=e273] [cursor=pointer]:
+                - generic [ref=e274]:
+                  - img [ref=e275]
+                  - text: Add
+              - generic "Click to add at 9 AM" [ref=e276] [cursor=pointer]:
+                - generic [ref=e277]:
+                  - img [ref=e278]
+                  - text: Add
+              - generic "Click to add at 10 AM" [ref=e279] [cursor=pointer]:
+                - generic [ref=e280]:
+                  - img [ref=e281]
+                  - text: Add
+              - generic "Click to add at 11 AM" [ref=e282] [cursor=pointer]:
+                - generic [ref=e283]:
+                  - img [ref=e284]
+                  - text: Add
+              - generic "Click to add at 12 PM" [ref=e285] [cursor=pointer]:
+                - generic [ref=e286]:
+                  - img [ref=e287]
+                  - text: Add
+              - generic "Click to add at 1 PM" [ref=e288] [cursor=pointer]:
+                - generic [ref=e289]:
+                  - img [ref=e290]
+                  - text: Add
+              - generic "Click to add at 2 PM" [ref=e291] [cursor=pointer]:
+                - generic [ref=e292]:
+                  - img [ref=e293]
+                  - text: Add
+              - generic "Click to add at 3 PM" [ref=e294] [cursor=pointer]:
+                - generic [ref=e295]:
+                  - img [ref=e296]
+                  - text: Add
+              - generic "Click to add at 4 PM" [ref=e297] [cursor=pointer]:
+                - generic [ref=e298]:
+                  - img [ref=e299]
+                  - text: Add
+              - generic "Click to add at 5 PM" [ref=e300] [cursor=pointer]:
+                - generic [ref=e301]:
+                  - img [ref=e302]
+                  - text: Add
+              - generic "Click to add at 6 PM" [ref=e303] [cursor=pointer]:
+                - generic [ref=e304]:
+                  - img [ref=e305]
+                  - text: Add
+              - generic "Click to add at 7 PM" [ref=e306] [cursor=pointer]:
+                - generic [ref=e307]:
+                  - img [ref=e308]
+                  - text: Add
+            - generic: Click a time slot to add a ticket or event
+        - generic [ref=e322]:
+          - generic [ref=e323]:
+            - heading "Create New Ticket" [level=3] [ref=e324]
+            - button [ref=e325] [cursor=pointer]:
+              - img [ref=e326]
+          - generic [ref=e330]:
+            - generic [ref=e331]:
+              - generic [ref=e332]:
+                - generic [ref=e333]: Date
+                - textbox [ref=e334]: 2026-06-02
+              - generic [ref=e335]:
+                - generic [ref=e336]: Time
+                - textbox [ref=e337]: 10:00
+            - generic [ref=e338]:
+              - generic [ref=e339]: Subject **
+              - textbox "Brief description of the issue" [ref=e341]
+            - generic [ref=e342]:
+              - generic [ref=e343]:
+                - generic [ref=e344]: Contact*
+                - button "New Client" [active] [ref=e346] [cursor=pointer]:
+                  - img [ref=e347]
+                  - text: New Client
+                - generic [ref=e349]:
+                  - img
+                  - textbox "Search contacts..." [ref=e350]
+              - generic [ref=e351]:
+                - generic [ref=e352]: Company
+                - generic [ref=e354]:
+                  - img [ref=e355]
+                  - textbox "Search companies..." [ref=e358]
+            - generic [ref=e359]:
+              - generic [ref=e360]:
+                - generic [ref=e361]: Priority
+                - generic [ref=e362]:
+                  - combobox [ref=e363]:
+                    - option "Select..." [disabled]
+                    - option "Low"
+                    - option "Medium" [selected]
+                    - option "High"
+                    - option "Urgent"
+                  - img
+              - generic [ref=e364]:
+                - generic [ref=e365]: Assignee
+                - generic [ref=e366]:
+                  - combobox [ref=e367]:
+                    - option "Select..." [disabled] [selected]
+                    - option "Unassigned"
+                    - option "Chris Lowrance"
+                    - option "Peter Braley"
+                    - option "Sam Admin"
+                    - option "Sam Braley"
+                    - option "Tech One"
+                    - option "Tech Two"
+                  - img
+            - generic [ref=e368]:
+              - generic [ref=e369]: Description
+              - textbox "Detailed description of the issue" [ref=e370]
+            - generic [ref=e371]:
+              - button "Cancel" [ref=e372] [cursor=pointer]
+              - button "Create Ticket" [ref=e373] [cursor=pointer]
+        - generic [ref=e375]:
+          - generic [ref=e376]:
+            - heading "New Client" [level=3] [ref=e377]
+            - button [ref=e378] [cursor=pointer]:
+              - img [ref=e379]
+          - generic [ref=e382]:
+            - generic [ref=e383]:
+              - generic [ref=e384]:
+                - generic [ref=e385]: First Name *
+                - textbox "First name" [ref=e388]
+              - generic [ref=e389]:
+                - generic [ref=e390]: Last Name *
+                - textbox "Last name" [ref=e393]
+            - generic [ref=e394]:
+              - generic [ref=e395]: Email *
+              - textbox "client@example.com" [ref=e398]
+            - generic [ref=e399]:
+              - generic [ref=e400]: Phone
+              - textbox "(555) 123-4567" [ref=e403]
+            - generic [ref=e404]:
+              - generic [ref=e405]: Company
+              - generic [ref=e407]:
+                - combobox [ref=e408]:
+                  - option "Select..." [disabled] [selected]
+                  - option "No company"
+                  - option "Acme Corp"
+                  - option "Tech Firm LLC"
+                  - option "jack"
+                  - option "test"
+                  - option "tets123"
+                - img
+            - generic [ref=e409]:
+              - button "Cancel" [ref=e410] [cursor=pointer]
+              - button "Create Client" [disabled] [ref=e411]
+  - button "Create new ticket" [ref=e253] [cursor=pointer]:
+    - img [ref=e254]

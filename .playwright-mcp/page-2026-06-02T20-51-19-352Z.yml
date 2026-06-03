@@ -1,0 +1,159 @@
+- generic [ref=e5]:
+  - complementary [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: NADC Helpdesk
+      - button [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - navigation [ref=e12]:
+      - list [ref=e13]:
+        - listitem [ref=e14]:
+          - link "Dashboard" [ref=e15] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e16]
+            - generic [ref=e21]: Dashboard
+        - listitem [ref=e22]:
+          - link "Tickets" [ref=e23] [cursor=pointer]:
+            - /url: /tickets
+            - img [ref=e24]
+            - generic [ref=e26]: Tickets
+        - listitem [ref=e27]:
+          - link "Calendar" [ref=e28] [cursor=pointer]:
+            - /url: /calendar
+            - img [ref=e29]
+            - generic [ref=e31]: Calendar
+        - listitem [ref=e32]:
+          - link "Workload" [ref=e33] [cursor=pointer]:
+            - /url: /workload
+            - img [ref=e34]
+            - generic [ref=e39]: Workload
+        - listitem [ref=e40]:
+          - link "Contacts" [ref=e41] [cursor=pointer]:
+            - /url: /contacts
+            - img [ref=e42]
+            - generic [ref=e47]: Contacts
+        - listitem [ref=e48]:
+          - link "Companies" [ref=e49] [cursor=pointer]:
+            - /url: /companies
+            - img [ref=e50]
+            - generic [ref=e54]: Companies
+        - listitem [ref=e55]:
+          - link "Devices" [ref=e56] [cursor=pointer]:
+            - /url: /devices
+            - img [ref=e57]
+            - generic [ref=e59]: Devices
+        - listitem [ref=e60]:
+          - link "Templates" [ref=e61] [cursor=pointer]:
+            - /url: /templates
+            - img [ref=e62]
+            - generic [ref=e65]: Templates
+        - listitem [ref=e66]:
+          - link "Reports" [ref=e67] [cursor=pointer]:
+            - /url: /reports
+            - img [ref=e68]
+            - generic [ref=e69]: Reports
+        - listitem [ref=e70]:
+          - link "Automations" [ref=e71] [cursor=pointer]:
+            - /url: /automations
+            - img [ref=e72]
+            - generic [ref=e74]: Automations
+        - listitem [ref=e75]:
+          - link "Knowledge Base" [ref=e76] [cursor=pointer]:
+            - /url: /kb
+            - img [ref=e77]
+            - generic [ref=e79]: Knowledge Base
+        - listitem [ref=e80]:
+          - link "Satisfaction" [ref=e81] [cursor=pointer]:
+            - /url: /satisfaction
+            - img [ref=e82]
+            - generic [ref=e84]: Satisfaction
+        - listitem [ref=e85]:
+          - link "Settings" [ref=e86] [cursor=pointer]:
+            - /url: /settings
+            - img [ref=e87]
+            - generic [ref=e90]: Settings
+    - generic [ref=e92]:
+      - generic [ref=e94]: "?"
+      - generic [ref=e96]:
+        - paragraph
+        - paragraph [ref=e97]: offline
+      - button "Logout" [ref=e98] [cursor=pointer]:
+        - img [ref=e99]
+  - generic [ref=e102]:
+    - banner [ref=e104]:
+      - heading "New Ticket" [level=1] [ref=e106]
+      - generic [ref=e107]:
+        - generic [ref=e108]:
+          - img [ref=e109]
+          - textbox "Search tickets, contacts, companies..." [ref=e112]
+        - button [ref=e114] [cursor=pointer]:
+          - img [ref=e115]
+        - button "?" [ref=e119] [cursor=pointer]:
+          - generic [ref=e120]: "?"
+          - img [ref=e121]
+    - main [ref=e123]:
+      - generic [ref=e124]:
+        - generic [ref=e125]:
+          - button [ref=e126] [cursor=pointer]:
+            - img [ref=e127]
+          - heading "New Ticket" [level=1] [ref=e129]
+        - generic [ref=e130]:
+          - generic [ref=e131]:
+            - generic [ref=e132]:
+              - generic [ref=e133]: Contact*
+              - button "New Client" [ref=e135] [cursor=pointer]:
+                - img [ref=e136]
+                - text: New Client
+              - generic [ref=e138]:
+                - img
+                - textbox "Search contacts..." [ref=e139]
+            - generic [ref=e140]:
+              - generic [ref=e141]: Subject*
+              - textbox [ref=e143]
+            - generic [ref=e144]:
+              - generic [ref=e145]: Description*
+              - textbox [ref=e146]
+            - generic [ref=e147]:
+              - generic [ref=e148]:
+                - generic [ref=e149]: Priority
+                - generic [ref=e150]:
+                  - combobox [ref=e151]:
+                    - option "Select..." [disabled]
+                    - option "Low"
+                    - option "Medium" [selected]
+                    - option "High"
+                    - option "Urgent"
+                  - img
+              - generic [ref=e152]:
+                - generic [ref=e153]: Assign To
+                - generic [ref=e154]:
+                  - combobox [ref=e155]:
+                    - option "Select..." [disabled] [selected]
+                    - option "Unassigned"
+                    - option "Chris Lowrance"
+                    - option "Peter Braley"
+                    - option "Sam Admin"
+                    - option "Sam Braley"
+                    - option "Tech One"
+                    - option "Tech Two"
+                  - img
+            - generic [ref=e156]:
+              - generic [ref=e157]: Additional Assignees
+              - generic [ref=e158]:
+                - generic [ref=e160] [cursor=pointer]: Add more agents...
+                - img
+            - generic [ref=e161]:
+              - generic [ref=e162]:
+                - img [ref=e163]
+                - text: Schedule on Calendar
+              - generic [ref=e165]:
+                - generic [ref=e166]:
+                  - generic [ref=e167]: Due Date
+                  - textbox [ref=e168]
+                - generic [ref=e169]:
+                  - generic [ref=e170]: Time
+                  - textbox [ref=e171]: 09:00
+          - generic [ref=e172]:
+            - button "Cancel" [ref=e173] [cursor=pointer]
+            - button "Create Ticket" [ref=e174] [cursor=pointer]
+  - button "Create new ticket" [ref=e176] [cursor=pointer]:
+    - img [ref=e177]

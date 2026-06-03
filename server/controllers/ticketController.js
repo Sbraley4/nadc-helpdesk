@@ -118,7 +118,14 @@ const listTickets = async (req, res, next) => {
     // Build where clause
     const where = {};
 
+    // Valid ticket statuses
+    const validStatuses = ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'];
+
     if (status) {
+      // Validate status to prevent Prisma errors from invalid enum values
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ error: `Invalid status: ${status}. Valid values: ${validStatuses.join(', ')}` });
+      }
       where.status = status;
     }
 
@@ -252,9 +259,9 @@ const getViews = async (req, res) => {
       filters: { slaBreached: 'true' },
     },
     {
-      id: 'resolved-today',
-      label: 'Resolved today',
-      filters: { status: 'RESOLVED', createdAfter: '{{today}}' },
+      id: 'closed-today',
+      label: 'Closed today',
+      filters: { status: 'CLOSED', createdAfter: '{{today}}' },
     },
   ];
 
@@ -498,14 +505,11 @@ const updateTicket = async (req, res, next) => {
       });
 
       // Handle timestamp updates based on status change
-      if (status === 'RESOLVED') {
-        updateData.resolvedAt = new Date();
-      } else if (status === 'CLOSED') {
+      if (status === 'CLOSED') {
         updateData.closedAt = new Date();
         // Schedule review request when ticket is closed
         scheduleReviewRequest({ id, ...existingTicket });
-      } else if (status === 'OPEN' && ['RESOLVED', 'CLOSED'].includes(existingTicket.status)) {
-        updateData.resolvedAt = null;
+      } else if (status === 'OPEN' && existingTicket.status === 'CLOSED') {
         updateData.closedAt = null;
       }
     }

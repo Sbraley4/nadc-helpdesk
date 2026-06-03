@@ -11,6 +11,7 @@ export { default as Input } from './Input';
 export { default as Modal } from './Modal';
 export { default as MultiSelectAgents } from './MultiSelectAgents';
 export { default as Pagination } from './Pagination';
+export { default as PhoneInput, formatPhoneNumber, unformatPhoneNumber } from './PhoneInput';
 export { default as SearchInput } from './SearchInput';
 export { default as Select } from './Select';
 export { default as Spinner, FullPageSpinner, CenteredSpinner } from './Spinner';

@@ -1,0 +1,22 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e7]: "N"
+    - heading "NADC Helpdesk" [level=2] [ref=e8]
+    - paragraph [ref=e9]: Sign in to your account
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: Email address
+        - generic [ref=e14]:
+          - generic:
+            - img
+          - textbox [ref=e15]
+      - generic [ref=e17]:
+        - generic [ref=e18]: Password
+        - generic [ref=e19]:
+          - generic:
+            - img
+          - textbox [ref=e20]
+          - button [ref=e22] [cursor=pointer]:
+            - img [ref=e23]
+    - button "Sign in" [ref=e26] [cursor=pointer]

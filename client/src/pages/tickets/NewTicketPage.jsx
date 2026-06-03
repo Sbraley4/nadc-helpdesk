@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents, templates, contacts, companies } from '../../api';
-import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents } from '../../components/shared';
+import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput } from '../../components/shared';
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
@@ -89,6 +89,7 @@ export default function NewTicketPage() {
   const createContactMutation = useMutation({
     mutationFn: contacts.createContact,
     onSuccess: (data) => {
+      console.log('[CreateContact] Success:', data);
       queryClient.invalidateQueries(['contacts']);
       queryClient.invalidateQueries(['contacts-search']);
       // Auto-populate the contact selector with the new contact
@@ -103,21 +104,36 @@ export default function NewTicketPage() {
       toast.success('Client created successfully');
     },
     onError: (error) => {
-      toast.error(error.response?.data?.message || 'Failed to create client');
+      console.error('[CreateContact] Error:', error.response?.data || error);
+      // Server returns { error: '...' }, not { message: '...' }
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to create client';
+      toast.error(errorMessage);
     },
   });
 
   const handleCreateNewClient = () => {
+    console.log('[CreateContact] handleCreateNewClient called');
+    console.log('[CreateContact] Form values:', {
+      firstName: newClientFirstName,
+      lastName: newClientLastName,
+      email: newClientEmail,
+      phone: newClientPhone,
+      companyId: newClientCompanyId
+    });
+
     if (!newClientFirstName.trim() || !newClientLastName.trim() || !newClientEmail.trim()) {
       toast.error('First name, last name, and email are required');
       return;
     }
-    createContactMutation.mutate({
+
+    const contactData = {
       name: `${newClientFirstName.trim()} ${newClientLastName.trim()}`,
       email: newClientEmail.trim(),
       phone: newClientPhone.trim() || undefined,
       companyId: newClientCompanyId || undefined,
-    });
+    };
+    console.log('[CreateContact] Sending data:', contactData);
+    createContactMutation.mutate(contactData);
   };
 
   const createMutation = useMutation({
@@ -309,12 +325,10 @@ export default function NewTicketPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <Input
-                  type="tel"
+                <PhoneInput
+                  label="Phone"
                   value={newClientPhone}
                   onChange={(e) => setNewClientPhone(e.target.value)}
-                  placeholder="(555) 123-4567"
                 />
               </div>
               <div>

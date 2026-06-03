@@ -148,8 +148,8 @@ async function createReply(req, res, next) {
           updates.firstResponseAt = new Date();
         }
 
-        // Reopen ticket if it was resolved or closed
-        if (ticket.status === 'RESOLVED' || ticket.status === 'CLOSED') {
+        // Reopen ticket if it was in a completed state
+        if (['INVOICED', 'POSTED', 'CLOSED'].includes(ticket.status)) {
           updates.status = 'OPEN';
 
           // Create reopen activity

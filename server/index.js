@@ -287,12 +287,16 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
 
   // Initialize notification service with Socket.io
   const notificationService = require('./services/notificationService');
   notificationService.setSocketIO(io);
+
+  // Initialize email service (Microsoft Graph API)
+  const emailService = require('./services/emailService');
+  await emailService.initializeTransporter();
 
   // Initialize SLA checker cron job
   const { scheduleSLAChecker } = require('./jobs/slaChecker');

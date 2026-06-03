@@ -35,6 +35,13 @@ async function getCalendarTickets(req, res, next) {
         assignee: {
           select: { id: true, name: true, avatar: true, color: true },
         },
+        additionalAssignees: {
+          include: {
+            user: {
+              select: { id: true, name: true, avatar: true, color: true },
+            },
+          },
+        },
         requester: {
           select: { id: true, name: true },
         },
@@ -103,6 +110,7 @@ async function getCalendarTickets(req, res, next) {
       priority: ticket.priority,
       dueDate: ticket.dueDate,
       assignee: ticket.assignee,
+      additionalAssignees: ticket.additionalAssignees?.map((ta) => ta.user) || [],
       requester: ticket.requester,
       company: ticket.company,
     }));
