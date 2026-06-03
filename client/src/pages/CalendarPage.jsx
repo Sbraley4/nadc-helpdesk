@@ -17,6 +17,7 @@ const priorityColors = {
 const statusColors = {
   OPEN: 'bg-yellow-100',
   PENDING: 'bg-gray-100',
+  RESOLVED: 'bg-slate-100',
   INVOICED: 'bg-green-100',
   POSTED: 'bg-pink-100',
   CLOSED: 'bg-gray-200',
@@ -26,6 +27,7 @@ const statusColors = {
 const statusDotColors = {
   OPEN: 'bg-yellow-500',
   PENDING: 'bg-gray-500',
+  RESOLVED: 'bg-slate-500',
   INVOICED: 'bg-green-500',
   POSTED: 'bg-pink-500',
   CLOSED: 'bg-gray-700',
@@ -35,6 +37,7 @@ const statusDotColors = {
 const statusTextColors = {
   OPEN: 'text-yellow-800',
   PENDING: 'text-gray-700',
+  RESOLVED: 'text-slate-700',
   INVOICED: 'text-green-800',
   POSTED: 'text-pink-800',
   CLOSED: 'text-gray-600',
@@ -44,6 +47,7 @@ const statusTextColors = {
 const statusStripeColors = {
   OPEN: '#EAB308',     // yellow-500
   PENDING: '#6B7280',  // gray-500
+  RESOLVED: '#64748B', // slate-500
   INVOICED: '#22C55E', // green-500
   POSTED: '#EC4899',   // pink-500
   CLOSED: '#374151',   // gray-700
@@ -230,7 +234,7 @@ export default function CalendarPage() {
         calendar.getCalendarTickets({
           start: dateRange.start.toISOString(),
           end: dateRange.end.toISOString(),
-          agentId: selectedAgent || undefined,
+          assigneeId: selectedAgent || undefined,
         }),
         calendarEvents.getEvents({
           startDate: dateRange.start.toISOString(),
@@ -848,7 +852,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-full overflow-hidden">
       {/* Header Controls */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         {/* Navigation */}

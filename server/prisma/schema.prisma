@@ -30,6 +30,7 @@ enum Availability {
 enum TicketStatus {
   OPEN
   PENDING
+  RESOLVED
   INVOICED
   POSTED
   CLOSED

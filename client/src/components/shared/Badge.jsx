@@ -5,8 +5,8 @@ const variants = {
   invoiced: 'bg-green-100 text-green-800',
   posted: 'bg-pink-100 text-pink-800',
   closed: 'bg-gray-100 text-gray-600',
-  // Legacy (keep for backward compatibility)
-  resolved: 'bg-green-100 text-green-800',
+  // Resolved status
+  resolved: 'bg-slate-100 text-slate-700',
 
   // Priority badges
   low: 'bg-gray-100 text-gray-700',

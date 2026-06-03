@@ -119,7 +119,7 @@ const listTickets = async (req, res, next) => {
     const where = {};
 
     // Valid ticket statuses
-    const validStatuses = ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'];
+    const validStatuses = ['OPEN', 'PENDING', 'RESOLVED', 'INVOICED', 'POSTED', 'CLOSED'];
 
     if (status) {
       // Validate status to prevent Prisma errors from invalid enum values

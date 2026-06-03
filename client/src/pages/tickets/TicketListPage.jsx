@@ -10,6 +10,7 @@ import { Badge, Button, SearchInput, Select, Pagination, EmptyState, CenteredSpi
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open', icon: AlertCircle },
   PENDING: { label: 'Pending', variant: 'pending', icon: Clock },
+  RESOLVED: { label: 'Resolved', variant: 'resolved', icon: CheckCircle },
   INVOICED: { label: 'Invoiced', variant: 'invoiced', icon: DollarSign },
   POSTED: { label: 'Posted', variant: 'posted', icon: Send },
   CLOSED: { label: 'Closed', variant: 'closed', icon: XCircle },
@@ -26,6 +27,7 @@ const statusOptions = [
   { value: '', label: 'All Statuses' },
   { value: 'OPEN', label: 'Open' },
   { value: 'PENDING', label: 'Pending' },
+  { value: 'RESOLVED', label: 'Resolved' },
   { value: 'INVOICED', label: 'Invoiced' },
   { value: 'POSTED', label: 'Posted' },
   { value: 'CLOSED', label: 'Closed' },

@@ -12,6 +12,7 @@ import { useTicketSocket } from '../../hooks/useSocket';
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
   PENDING: { label: 'Pending', variant: 'pending' },
+  RESOLVED: { label: 'Resolved', variant: 'resolved' },
   INVOICED: { label: 'Invoiced', variant: 'invoiced' },
   POSTED: { label: 'Posted', variant: 'posted' },
   CLOSED: { label: 'Closed', variant: 'closed' },
@@ -27,6 +28,7 @@ const priorityConfig = {
 const statusOptions = [
   { value: 'OPEN', label: 'Open' },
   { value: 'PENDING', label: 'Pending' },
+  { value: 'RESOLVED', label: 'Resolved' },
   { value: 'INVOICED', label: 'Invoiced' },
   { value: 'POSTED', label: 'Posted' },
   { value: 'CLOSED', label: 'Closed' },
@@ -389,8 +391,8 @@ export default function TicketDetailPage() {
     mutationFn: (data) => timeEntries.createTimeEntry(id, data),
     onSuccess: () => {
       toast.success('Time logged');
-      setTimeLogHours('');
-      setTimeLogMinutes('');
+      setTimeLogStartTime('');
+      setTimeLogFinishTime('');
       setTimeLogDescription('');
       setShowTimeLog(false);
     },

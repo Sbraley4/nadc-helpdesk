@@ -39,3 +39,6 @@ coverage/
 # Misc
 *.tgz
 .eslintcache
+
+nul
+.playwright-mcp/
