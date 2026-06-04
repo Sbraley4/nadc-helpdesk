@@ -152,6 +152,7 @@ export default function CalendarPage() {
     contactId: '',
     companyId: '',
     assigneeId: '',
+    additionalAssigneeIds: [],
   });
 
   // Calendar event modal state
@@ -454,6 +455,7 @@ export default function CalendarPage() {
       contactId: '',
       companyId: '',
       assigneeId: '',
+      additionalAssigneeIds: [],
     });
     setShowNewTicketModal(true);
   };
@@ -526,6 +528,7 @@ export default function CalendarPage() {
         requesterId: newTicketForm.contactId,
         companyId: newTicketForm.companyId || null,
         assigneeId: newTicketForm.assigneeId || null,
+        additionalAssigneeIds: newTicketForm.additionalAssigneeIds.length > 0 ? newTicketForm.additionalAssigneeIds : undefined,
         dueDate: dueDateTime.toISOString(),
       };
 
@@ -1071,7 +1074,7 @@ export default function CalendarPage() {
               ]}
             />
             <Select
-              label="Assignee"
+              label="Assign To"
               value={newTicketForm.assigneeId}
               onChange={(e) => setNewTicketForm(prev => ({ ...prev, assigneeId: e.target.value }))}
               options={[
@@ -1080,6 +1083,15 @@ export default function CalendarPage() {
               ]}
             />
           </div>
+
+          {/* Additional Assignees */}
+          <MultiSelectAgents
+            label="Additional Assignees"
+            agents={agentsList}
+            selectedIds={newTicketForm.additionalAssigneeIds}
+            onChange={(ids) => setNewTicketForm(prev => ({ ...prev, additionalAssigneeIds: ids }))}
+            placeholder="Add more agents..."
+          />
 
           {/* Description */}
           <Textarea

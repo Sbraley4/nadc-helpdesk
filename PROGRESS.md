@@ -1320,6 +1320,7 @@ sudo systemctl restart nginx  # Restart Nginx (if needed)
 
 | Date | Phase | Changes |
 |------|-------|---------|
+| 2026-06-03 | Bug Fixes | RESOLVED status added to Prisma enum and all UI components, Time entry state references fixed (setTimeLogHours→setTimeLogStartTime), Calendar overflow CSS fix, Agent filter parameter fix (agentId→assigneeId), **IN PROGRESS:** Calendar ticket creation multi-agent support (MultiSelectAgents component added but not rendering - investigating HMR/cache issue) |
 | 2026-06-02 | Bug Fixes | React Query queryFn pattern fixes (wrapped function references in arrow functions across Dashboard, KnowledgeBase, NewTicket, TicketDetail, TicketList pages), Calendar time slot click fix (added pointer-events-none to overlay blocking clicks), Click-outside handler refactored from global variable to useRef pattern |
 | 2026-05-31 | 9 | Production Deployment complete - Ubuntu server setup, Cloudflare Tunnel, Nginx proxy, PM2 process management, Microsoft Graph API email, admin accounts with secure setup flow, password reset fields, SetupPasswordPage, production API URL fix |
 | 2026-05-19 | 1 | Initial scaffold complete - folder structure, Vite/React client, Express server, Prisma schema with 21 models, docker-compose, environment config |
