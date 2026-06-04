@@ -86,45 +86,26 @@ const getAllAgentColors = (ticket) => {
   return colors;
 };
 
-// Helper to convert hex color to muted/pastel version
-const muteColor = (hex, opacity = 0.7) => {
-  // Convert hex to RGB, then return as rgba with reduced opacity
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  // Blend with white to create pastel effect, then apply opacity
-  const blend = 0.3; // 30% white blend for softer colors
-  const pr = Math.round(r + (255 - r) * blend);
-  const pg = Math.round(g + (255 - g) * blend);
-  const pb = Math.round(b + (255 - b) * blend);
-  return `rgba(${pr}, ${pg}, ${pb}, ${opacity})`;
-};
-
 // Generate CSS background for agent colors (solid or diagonal stripes)
 const getAgentBackground = (colors) => {
   if (colors.length === 1) {
     return { backgroundColor: colors[0] };
   }
 
-  // Multiple colors: create wide diagonal stripe pattern (3-4 stripes visible)
-  const stripeWidth = 45; // much wider stripes for cleaner look
+  // Multiple colors: create diagonal stripe pattern with equal distribution
+  const stripeWidth = 22; // ~6-8 stripes visible across a block
   const gradientStops = [];
-  const totalWidth = colors.length * stripeWidth;
 
+  // Build gradient stops using absolute pixel positions for equal stripe sizes
   colors.forEach((color, index) => {
-    const mutedColor = muteColor(color, 0.85);
-    const startPercent = (index * stripeWidth / totalWidth) * 100;
-    const endPercent = ((index + 1) * stripeWidth / totalWidth) * 100;
-    gradientStops.push(`${mutedColor} ${startPercent}%`);
-    gradientStops.push(`${mutedColor} ${endPercent}%`);
+    const startPx = index * stripeWidth;
+    const endPx = (index + 1) * stripeWidth;
+    gradientStops.push(`${color} ${startPx}px`);
+    gradientStops.push(`${color} ${endPx}px`);
   });
 
   return {
-    backgroundImage: `repeating-linear-gradient(
-      135deg,
-      ${gradientStops.join(', ')}
-    )`,
-    backgroundSize: `${totalWidth}px ${totalWidth}px`,
+    backgroundImage: `repeating-linear-gradient(135deg, ${gradientStops.join(', ')})`,
   };
 };
 
