@@ -671,32 +671,391 @@ export default function CalendarPage() {
     </div>
   );
 
-  const renderWeekView = () => (
-    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-      <div className="grid grid-cols-7 gap-1 md:gap-2 min-w-[640px] md:min-w-0">
-        {weekDays.map((date, idx) => {
-          const dayTickets = ticketsByDate[date.toDateString()] || [];
-          const dayEvents = eventsByDate[date.toDateString()] || [];
-          return (
-            <div key={idx} className="min-h-[200px] md:min-h-[300px]">
-              <div
-                className={`text-center p-1.5 md:p-2 rounded-t-lg ${
-                  isToday(date) ? 'bg-primary text-white' : 'bg-gray-100'
-                }`}
-              >
-                <div className="text-xs">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                <div className="text-base md:text-lg font-semibold">{date.getDate()}</div>
+  // Week view constants
+  const WEEK_START_HOUR = 7; // 7 AM
+  const WEEK_END_HOUR = 19; // 7 PM
+  const WEEK_HOURS = Array.from({ length: WEEK_END_HOUR - WEEK_START_HOUR + 1 }, (_, i) => i + WEEK_START_HOUR);
+  const WEEK_HOUR_HEIGHT = 60; // 60px per hour
+
+  // Helper to check if a ticket/event spans multiple days
+  const isMultiDay = (item) => {
+    const start = new Date(item.startTime || item.scheduledDate || item.dueDate);
+    const end = item.endTime ? new Date(item.endTime) : null;
+    if (!end) return false;
+    return start.toDateString() !== end.toDateString();
+  };
+
+  // Helper to calculate position within the week time grid
+  const getWeekTimePosition = (startTime, endTime) => {
+    const start = new Date(startTime);
+    const startHour = start.getHours() + start.getMinutes() / 60;
+    const clampedStart = Math.max(startHour, WEEK_START_HOUR);
+    const top = (clampedStart - WEEK_START_HOUR) * WEEK_HOUR_HEIGHT;
+
+    let height = WEEK_HOUR_HEIGHT; // Default 1 hour
+    if (endTime) {
+      const end = new Date(endTime);
+      const endHour = end.getHours() + end.getMinutes() / 60;
+      const clampedEnd = Math.min(endHour, WEEK_END_HOUR + 1);
+      const duration = clampedEnd - clampedStart;
+      height = Math.max(duration * WEEK_HOUR_HEIGHT, 24); // Minimum 24px
+    }
+
+    return { top: Math.max(0, top), height };
+  };
+
+  // Helper to detect overlapping items and assign columns
+  const assignOverlapColumns = (items) => {
+    if (!items.length) return [];
+
+    // Sort by start time
+    const sorted = [...items].sort((a, b) => {
+      const aTime = new Date(a.startTime || a.scheduledDate || a.dueDate).getTime();
+      const bTime = new Date(b.startTime || b.scheduledDate || b.dueDate).getTime();
+      return aTime - bTime;
+    });
+
+    const columns = []; // Array of columns, each column is an array of items
+    const itemPlacements = new Map(); // item id -> { column, totalColumns }
+
+    sorted.forEach((item) => {
+      const startTime = new Date(item.startTime || item.scheduledDate || item.dueDate);
+      const endTime = item.endTime ? new Date(item.endTime) : new Date(startTime.getTime() + 60 * 60 * 1000);
+      const itemStart = startTime.getTime();
+      const itemEnd = endTime.getTime();
+
+      // Find first column where item doesn't overlap
+      let placed = false;
+      for (let col = 0; col < columns.length; col++) {
+        const lastInCol = columns[col][columns[col].length - 1];
+        const lastEnd = lastInCol.endTime
+          ? new Date(lastInCol.endTime).getTime()
+          : new Date(lastInCol.startTime || lastInCol.scheduledDate || lastInCol.dueDate).getTime() + 60 * 60 * 1000;
+
+        if (itemStart >= lastEnd) {
+          columns[col].push(item);
+          itemPlacements.set(item.id, { column: col });
+          placed = true;
+          break;
+        }
+      }
+
+      if (!placed) {
+        columns.push([item]);
+        itemPlacements.set(item.id, { column: columns.length - 1 });
+      }
+    });
+
+    // Update total columns for each item
+    const totalColumns = columns.length;
+    sorted.forEach((item) => {
+      const placement = itemPlacements.get(item.id);
+      if (placement) {
+        placement.totalColumns = totalColumns;
+      }
+    });
+
+    return sorted.map((item) => ({
+      item,
+      ...itemPlacements.get(item.id),
+    }));
+  };
+
+  // Get multi-day items and single-day items for week view
+  const { multiDayItems, singleDayItemsByDate } = useMemo(() => {
+    if (view !== 'week') return { multiDayItems: [], singleDayItemsByDate: {} };
+
+    const multiDay = [];
+    const singleDay = {};
+
+    // Process tickets
+    tickets.forEach((ticket) => {
+      const ticketTime = ticket.scheduledDate || ticket.dueDate;
+      if (!ticketTime) return;
+
+      const hasEnd = ticket.endDate || ticket.scheduledEndDate;
+      if (hasEnd && isMultiDay({ startTime: ticketTime, endTime: hasEnd })) {
+        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, endTime: hasEnd });
+      } else {
+        const dateKey = new Date(ticketTime).toDateString();
+        if (!singleDay[dateKey]) singleDay[dateKey] = [];
+        singleDay[dateKey].push({ type: 'ticket', ...ticket, startTime: ticketTime });
+      }
+    });
+
+    // Process events
+    events.forEach((event) => {
+      if (isMultiDay(event)) {
+        multiDay.push({ type: 'event', ...event });
+      } else {
+        const dateKey = new Date(event.startTime).toDateString();
+        if (!singleDay[dateKey]) singleDay[dateKey] = [];
+        singleDay[dateKey].push({ type: 'event', ...event });
+      }
+    });
+
+    return { multiDayItems: multiDay, singleDayItemsByDate: singleDay };
+  }, [tickets, events, view]);
+
+  // Calculate which days a multi-day item spans
+  const getMultiDaySpan = (item, weekDays) => {
+    const start = new Date(item.startTime);
+    const end = new Date(item.endTime);
+
+    let startCol = -1;
+    let endCol = -1;
+
+    weekDays.forEach((day, idx) => {
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      if (start <= dayEnd && end >= dayStart) {
+        if (startCol === -1) startCol = idx;
+        endCol = idx;
+      }
+    });
+
+    return { startCol, endCol, span: endCol - startCol + 1 };
+  };
+
+  // Current time for the time indicator
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, []);
+
+  const renderWeekView = () => {
+    const gridHeight = WEEK_HOURS.length * WEEK_HOUR_HEIGHT;
+
+    return (
+      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="min-w-[800px] bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {/* Multi-day event banners */}
+          {multiDayItems.length > 0 && (
+            <div className="border-b border-gray-200 bg-gray-50">
+              {/* Header row for multi-day section */}
+              <div className="grid grid-cols-[60px_repeat(7,1fr)]">
+                <div className="p-1 text-xs text-gray-400 text-center">All day</div>
+                {weekDays.map((date, idx) => (
+                  <div key={idx} className="relative border-l border-gray-100 min-h-[28px]" />
+                ))}
               </div>
-              <div className="bg-white border border-t-0 border-gray-200 rounded-b-lg p-1.5 md:p-2 space-y-1 min-h-[160px] md:min-h-[250px]">
-                {dayEvents.map(renderEventPill)}
-                {dayTickets.map(renderTicketPill)}
+              {/* Multi-day items */}
+              <div className="relative grid grid-cols-[60px_repeat(7,1fr)]" style={{ minHeight: multiDayItems.length * 26 + 4 }}>
+                <div />
+                {multiDayItems.map((item, itemIdx) => {
+                  const { startCol, endCol, span } = getMultiDaySpan(item, weekDays);
+                  if (startCol === -1) return null;
+
+                  const agentColors = item.type === 'ticket' ? getAllAgentColors(item) :
+                    [item.color || getAgentColor(item.assignees?.[0])];
+                  const bgStyle = getAgentBackground(agentColors);
+
+                  // Calculate position based on grid
+                  const leftPercent = (startCol / 7) * 100;
+                  const widthPercent = (span / 7) * 100;
+
+                  return (
+                    <button
+                      key={`multi-${item.type}-${item.id}`}
+                      onClick={() => item.type === 'ticket' ? navigate(`/tickets/${item.id}`) : handleEventClick(item)}
+                      className="absolute text-left text-xs rounded overflow-hidden hover:opacity-90 transition-opacity"
+                      style={{
+                        ...bgStyle,
+                        left: `calc(60px + ${leftPercent}%)`,
+                        width: `calc(${widthPercent}% - 8px)`,
+                        top: `${itemIdx * 26 + 2}px`,
+                        height: '24px',
+                      }}
+                    >
+                      <div className="px-2 py-1 text-white truncate flex items-center gap-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                        {item.type === 'ticket' && <span className="font-bold">#{item.ticketNumber}</span>}
+                        <span className="truncate">{item.type === 'ticket' ? item.subject : item.title}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
+          )}
+
+          {/* Day headers */}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-gray-200 sticky top-0 bg-white z-20">
+            <div className="p-2 text-xs text-gray-400 text-center border-r border-gray-100" />
+            {weekDays.map((date, idx) => (
+              <div
+                key={idx}
+                className={`text-center p-2 border-l border-gray-100 ${
+                  isToday(date) ? 'bg-primary/10' : ''
+                }`}
+              >
+                <div className="text-xs text-gray-500">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                <div className={`text-lg font-semibold ${isToday(date) ? 'text-primary' : 'text-gray-900'}`}>
+                  {date.getDate()}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Time grid */}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)]" style={{ height: gridHeight }}>
+            {/* Time labels column */}
+            <div className="border-r border-gray-100 relative">
+              {WEEK_HOURS.map((hour, idx) => (
+                <div
+                  key={hour}
+                  className="absolute w-full text-right pr-2 text-xs text-gray-500"
+                  style={{ top: idx * WEEK_HOUR_HEIGHT - 6 }}
+                >
+                  {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
+                </div>
+              ))}
+            </div>
+
+            {/* Day columns */}
+            {weekDays.map((date, dayIdx) => {
+              const dateKey = date.toDateString();
+              const dayItems = singleDayItemsByDate[dateKey] || [];
+              const itemsWithColumns = assignOverlapColumns(dayItems);
+              const todayColumn = isToday(date);
+
+              // Calculate current time indicator position
+              let currentTimeTop = null;
+              if (todayColumn) {
+                const now = currentTime;
+                const nowHour = now.getHours() + now.getMinutes() / 60;
+                if (nowHour >= WEEK_START_HOUR && nowHour <= WEEK_END_HOUR) {
+                  currentTimeTop = (nowHour - WEEK_START_HOUR) * WEEK_HOUR_HEIGHT;
+                }
+              }
+
+              return (
+                <div
+                  key={dayIdx}
+                  className={`border-l border-gray-100 relative ${todayColumn ? 'bg-yellow-50/30' : ''}`}
+                >
+                  {/* Hour gridlines */}
+                  {WEEK_HOURS.map((hour, idx) => (
+                    <div
+                      key={hour}
+                      className="absolute w-full border-t border-gray-100 cursor-pointer hover:bg-primary/5 transition-colors group"
+                      style={{ top: idx * WEEK_HOUR_HEIGHT, height: WEEK_HOUR_HEIGHT }}
+                      onClick={(e) => handleTimeSlotClick(e, date, hour)}
+                    >
+                      {/* Half-hour line */}
+                      <div
+                        className="absolute w-full border-t border-gray-50"
+                        style={{ top: WEEK_HOUR_HEIGHT / 2 }}
+                      />
+                      <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full text-primary text-xs">
+                        <Plus size={12} />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Current time indicator */}
+                  {currentTimeTop !== null && (
+                    <div
+                      className="absolute left-0 right-0 z-30 pointer-events-none"
+                      style={{ top: currentTimeTop }}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                        <div className="flex-1 h-0.5 bg-red-500" />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Positioned items */}
+                  {itemsWithColumns.map(({ item, column, totalColumns }) => {
+                    const { top, height } = getWeekTimePosition(
+                      item.startTime || item.scheduledDate || item.dueDate,
+                      item.endTime
+                    );
+
+                    // Calculate width and left position based on columns
+                    const colWidth = 100 / totalColumns;
+                    const leftPercent = column * colWidth;
+                    const widthPercent = colWidth;
+
+                    if (item.type === 'ticket') {
+                      const agentColors = getAllAgentColors(item);
+                      const agentBgStyle = getAgentBackground(agentColors);
+                      const statusStripe = statusStripeColors[item.status] || '#6B7280';
+
+                      // Format display: "10am Company: Subject #123"
+                      const startDate = new Date(item.startTime || item.scheduledDate || item.dueDate);
+                      const timeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(':00', '');
+                      const companyName = item.company?.name || item.requester?.company?.name || '';
+                      const contactName = item.requester?.name || '';
+                      const displayName = companyName || contactName;
+
+                      return (
+                        <button
+                          key={`ticket-${item.id}`}
+                          onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${item.id}`); }}
+                          className="absolute text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10"
+                          style={{
+                            ...agentBgStyle,
+                            top: `${top}px`,
+                            height: `${height}px`,
+                            left: `${leftPercent}%`,
+                            width: `calc(${widthPercent}% - 2px)`,
+                          }}
+                          title={`${item.subject} - ${displayName || 'No contact'} #${item.ticketNumber}`}
+                        >
+                          <div className="h-1" style={{ backgroundColor: statusStripe }} />
+                          <div className="p-1 text-white overflow-hidden" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                            <div className="text-[10px] leading-tight truncate">
+                              <span className="font-medium">{timeStr}</span>
+                              {displayName && <span className="ml-1">{displayName}:</span>}
+                            </div>
+                            <div className="text-[11px] leading-tight truncate font-medium">{item.subject}</div>
+                            <div className="text-[10px] leading-tight opacity-80">#{item.ticketNumber}</div>
+                          </div>
+                        </button>
+                      );
+                    } else {
+                      // Calendar event
+                      const firstAssignee = item.assignees?.[0];
+                      const eventColor = item.color || getAgentColor(firstAssignee);
+                      const startDate = new Date(item.startTime);
+                      const timeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(':00', '');
+
+                      return (
+                        <button
+                          key={`event-${item.id}`}
+                          onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
+                          className="absolute text-left rounded border-l-2 overflow-hidden hover:opacity-80 transition-opacity z-10"
+                          style={{
+                            top: `${top}px`,
+                            height: `${height}px`,
+                            left: `${leftPercent}%`,
+                            width: `calc(${widthPercent}% - 2px)`,
+                            borderLeftColor: eventColor,
+                            backgroundColor: `${eventColor}20`,
+                          }}
+                          title={item.title}
+                        >
+                          <div className="p-1 overflow-hidden" style={{ color: eventColor }}>
+                            <div className="text-[10px] leading-tight truncate font-medium">{timeStr}</div>
+                            <div className="text-[11px] leading-tight truncate">{item.title}</div>
+                          </div>
+                        </button>
+                      );
+                    }
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderDayView = () => {
     const dayTickets = ticketsByDate[currentDate.toDateString()] || [];
