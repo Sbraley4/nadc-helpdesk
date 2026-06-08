@@ -112,7 +112,7 @@ const getAgentBackground = (colors) => {
 export default function CalendarPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [view, setView] = useState('month'); // month, week, day
+  const [view, setView] = useState('week'); // month, week, day
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
@@ -958,27 +958,36 @@ export default function CalendarPage() {
                 }
               }
 
+              // Handle click on column background - calculate hour from Y position
+              const handleColumnClick = (e) => {
+                // Get click position relative to column
+                const rect = e.currentTarget.getBoundingClientRect();
+                const clickY = e.clientY - rect.top;
+                const hourIndex = Math.floor(clickY / WEEK_HOUR_HEIGHT);
+                const clickedHour = WEEK_START_HOUR + hourIndex;
+                if (clickedHour >= WEEK_START_HOUR && clickedHour <= WEEK_END_HOUR) {
+                  handleTimeSlotClick(e, date, clickedHour);
+                }
+              };
+
               return (
                 <div
                   key={dayIdx}
-                  className={`border-l border-gray-100 relative ${todayColumn ? 'bg-yellow-50/30' : ''}`}
+                  className={`border-l border-gray-100 relative cursor-pointer ${todayColumn ? 'bg-yellow-50/30' : ''}`}
+                  onClick={handleColumnClick}
                 >
-                  {/* Hour gridlines */}
+                  {/* Hour gridlines - visual only, click is on parent */}
                   {WEEK_HOURS.map((hour, idx) => (
                     <div
                       key={hour}
-                      className="absolute w-full border-t border-gray-100 cursor-pointer hover:bg-primary/5 transition-colors group"
+                      className="absolute w-full border-t border-gray-100 pointer-events-none"
                       style={{ top: idx * WEEK_HOUR_HEIGHT, height: WEEK_HOUR_HEIGHT }}
-                      onClick={(e) => handleTimeSlotClick(e, date, hour)}
                     >
                       {/* Half-hour line */}
                       <div
                         className="absolute w-full border-t border-gray-50"
                         style={{ top: WEEK_HOUR_HEIGHT / 2 }}
                       />
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full text-primary text-xs">
-                        <Plus size={12} />
-                      </div>
                     </div>
                   ))}
 
@@ -1119,20 +1128,28 @@ export default function CalendarPage() {
               </div>
             ))}
           </div>
-          <div className="relative" style={{ height: hours.length * HOUR_HEIGHT }}>
-            {/* Clickable time slots */}
-            <div className="absolute inset-0 divide-y divide-gray-100">
+          <div
+            className="relative cursor-pointer"
+            style={{ height: hours.length * HOUR_HEIGHT }}
+            onClick={(e) => {
+              // Calculate clicked hour from Y position
+              const rect = e.currentTarget.getBoundingClientRect();
+              const clickY = e.clientY - rect.top;
+              const hourIndex = Math.floor(clickY / HOUR_HEIGHT);
+              const clickedHour = START_HOUR + hourIndex;
+              if (clickedHour >= START_HOUR && clickedHour < START_HOUR + hours.length) {
+                handleTimeSlotClick(e, currentDate, clickedHour);
+              }
+            }}
+          >
+            {/* Time slot gridlines - visual only */}
+            <div className="absolute inset-0 divide-y divide-gray-100 pointer-events-none">
               {hours.map((hour) => (
                 <div
                   key={hour}
-                  className="h-16 cursor-pointer hover:bg-primary/5 transition-colors group"
-                  onClick={(e) => handleTimeSlotClick(e, currentDate, hour)}
+                  className="h-16"
                   title={`Click to add at ${hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}`}
-                >
-                  <div className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-full text-primary text-xs">
-                    <Plus size={14} className="mr-1" /> Add
-                  </div>
-                </div>
+                />
               ))}
             </div>
             {/* Calendar Events - positioned by time */}

@@ -107,8 +107,7 @@ const createTicketValidation = [
     .withMessage('Subject is required')
     .trim(),
   body('description')
-    .notEmpty()
-    .withMessage('Description is required'),
+    .optional(),
   body('requesterId')
     .notEmpty()
     .withMessage('Requester ID is required'),
