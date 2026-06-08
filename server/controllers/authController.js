@@ -169,7 +169,12 @@ const verifySetupToken = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid or expired setup link' });
     }
 
-    if (user.passwordResetExpires && new Date() > user.passwordResetExpires) {
+    // Use explicit UTC timestamps for comparison to avoid timezone issues
+    const nowMs = Date.now();
+    const expiresMs = user.passwordResetExpires ? new Date(user.passwordResetExpires).getTime() : null;
+
+    if (expiresMs && nowMs > expiresMs) {
+      console.log(`[Auth] Token expired: now=${nowMs}, expires=${expiresMs}, diff=${(nowMs - expiresMs) / 1000}s`);
       return res.status(400).json({ error: 'Setup link has expired' });
     }
 
@@ -209,7 +214,12 @@ const setupPassword = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid or expired setup link' });
     }
 
-    if (user.passwordResetExpires && new Date() > user.passwordResetExpires) {
+    // Use explicit UTC timestamps for comparison to avoid timezone issues
+    const nowMs = Date.now();
+    const expiresMs = user.passwordResetExpires ? new Date(user.passwordResetExpires).getTime() : null;
+
+    if (expiresMs && nowMs > expiresMs) {
+      console.log(`[Auth] Token expired during setup: now=${nowMs}, expires=${expiresMs}, diff=${(nowMs - expiresMs) / 1000}s`);
       return res.status(400).json({ error: 'Setup link has expired' });
     }
 

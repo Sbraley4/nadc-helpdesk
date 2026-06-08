@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Internal Note on Your Ticket</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #F8F9FA;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #F8F9FA;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+          <!-- Header -->
+          <tr>
+            <td style="background-color: #1B2A4A; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">{{company_name}}</h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="background-color: #ffffff; padding: 32px;">
+              <p style="margin: 0 0 16px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hi {{agent_name}},
+              </p>
+
+              <p style="margin: 0 0 24px 0; color: #374151; font-size: 16px; line-height: 1.6;">
+                A new internal note has been added to a ticket assigned to you:
+              </p>
+
+              <!-- Info Table -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 24px 0; background-color: #FEF3C7; border-radius: 8px; border: 1px solid #F59E0B;">
+                <tr>
+                  <td style="padding: 16px 20px; border-bottom: 1px solid #FCD34D;">
+                    <span style="color: #92400E; font-size: 14px;">Ticket</span>
+                    <br>
+                    <strong style="color: #1B2A4A; font-size: 16px;">#{{ticket_number}} - {{ticket_subject}}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 16px 20px; border-bottom: 1px solid #FCD34D;">
+                    <span style="color: #92400E; font-size: 14px;">Note from</span>
+                    <br>
+                    <strong style="color: #374151; font-size: 16px;">{{author_name}}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 16px 20px;">
+                    <span style="color: #92400E; font-size: 14px;">Internal Note</span>
+                    <br>
+                    <div style="color: #374151; font-size: 14px; line-height: 1.6; margin-top: 8px; padding: 12px; background-color: #FFFBEB; border-radius: 4px;">{{note_preview}}</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 24px 0;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: #1B2A4A;">
+                    <a href="{{ticket_url}}" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600;">View Ticket</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F8F9FA; padding: 24px 32px; border-radius: 0 0 8px 8px; border-top: 1px solid #E5E7EB;">
+              <p style="margin: 0; color: #9CA3AF; font-size: 12px;">
+                This is an automated notification from {{company_name}}.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

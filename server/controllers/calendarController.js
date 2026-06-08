@@ -109,6 +109,7 @@ async function getCalendarTickets(req, res, next) {
       status: ticket.status,
       priority: ticket.priority,
       dueDate: ticket.dueDate,
+      scheduledEnd: ticket.scheduledEnd,
       assignee: ticket.assignee,
       additionalAssignees: ticket.additionalAssignees?.map((ta) => ta.user) || [],
       requester: ticket.requester,

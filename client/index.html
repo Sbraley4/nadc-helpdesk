@@ -13,24 +13,136 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="NADC Helpdesk">
     <link rel="apple-touch-icon" href="/icon-192.png">
+
+    <!-- Update notification styles -->
+    <style>
+      .sw-update-banner {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e40af;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        animation: slideUp 0.3s ease;
+      }
+      @keyframes slideUp {
+        from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+      }
+      .sw-update-banner button {
+        background: white;
+        color: #1e40af;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 13px;
+      }
+      .sw-update-banner button:hover {
+        background: #f0f0f0;
+      }
+      .sw-update-banner .dismiss {
+        background: transparent;
+        color: white;
+        opacity: 0.8;
+        padding: 4px 8px;
+      }
+      .sw-update-banner .dismiss:hover {
+        opacity: 1;
+        background: rgba(255,255,255,0.1);
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker Registration with Update Detection -->
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered: ', registration);
-            })
-            .catch(error => {
-              console.log('SW registration failed: ', error);
-            });
+      (function() {
+        if (!('serviceWorker' in navigator)) return;
+
+        let refreshing = false;
+        let updateBanner = null;
+
+        // Show update notification
+        function showUpdateNotification() {
+          if (updateBanner) return;
+
+          updateBanner = document.createElement('div');
+          updateBanner.className = 'sw-update-banner';
+          updateBanner.innerHTML = `
+            <span>🔄 Update available</span>
+            <button onclick="window.swRefresh()">Refresh</button>
+            <button class="dismiss" onclick="this.parentElement.remove(); window.swBanner = null;">✕</button>
+          `;
+          document.body.appendChild(updateBanner);
+        }
+
+        // Refresh the page
+        window.swRefresh = function() {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        };
+
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', (event) => {
+          if (event.data && event.data.type === 'SW_UPDATED') {
+            console.log('[App] Service worker updated to version:', event.data.version);
+            showUpdateNotification();
+          }
         });
-      }
+
+        // Handle controller change (new SW activated)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          console.log('[App] New service worker controller');
+          if (!refreshing) {
+            showUpdateNotification();
+          }
+        });
+
+        // Register service worker
+        window.addEventListener('load', async () => {
+          try {
+            const registration = await navigator.serviceWorker.register('/sw.js');
+            console.log('[App] SW registered:', registration.scope);
+
+            // Check for updates periodically (every 5 minutes)
+            setInterval(() => {
+              registration.update().catch(() => {});
+            }, 5 * 60 * 1000);
+
+            // Handle updates
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              console.log('[App] New service worker installing');
+
+              newWorker.addEventListener('statechange', () => {
+                console.log('[App] SW state:', newWorker.state);
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New SW installed, show update notification
+                  console.log('[App] New version installed, showing update notification');
+                  showUpdateNotification();
+                }
+              });
+            });
+
+          } catch (error) {
+            console.log('[App] SW registration failed:', error);
+          }
+        });
+      })();
     </script>
   </body>
 </html>

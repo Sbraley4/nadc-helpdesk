@@ -125,9 +125,10 @@ async function main() {
     }
 
     // Generate setup token (expires in 7 days)
+    // Use explicit milliseconds to avoid timezone issues
     const setupToken = generateSetupToken();
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const expiresAt = new Date(Date.now() + SEVEN_DAYS_MS);
 
     // Update user with setup token
     await prisma.user.update({

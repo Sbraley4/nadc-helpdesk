@@ -4,6 +4,7 @@ const {
   sendTicketConfirmation,
   sendTicketAssignedEmail,
   sendStatusChangedEmail,
+  sendStatusChangeToAgent,
 } = require('../services/emailService');
 const { runAutomations } = require('../services/automationEngine');
 
@@ -314,8 +315,8 @@ const createTicket = async (req, res, next) => {
     } = req.body;
 
     // Validate required fields
-    if (!subject || !description) {
-      return res.status(400).json({ error: 'Subject and description are required' });
+    if (!subject) {
+      return res.status(400).json({ error: 'Subject is required' });
     }
 
     if (!requesterId) {
@@ -342,7 +343,7 @@ const createTicket = async (req, res, next) => {
       const newTicket = await tx.ticket.create({
         data: {
           subject,
-          description,
+          description: description || '',
           priority,
           type,
           status,
@@ -351,6 +352,7 @@ const createTicket = async (req, res, next) => {
           assigneeId,
           groupId,
           dueDate: dueDate ? new Date(dueDate) : null,
+          scheduledEnd: req.body.scheduledEnd ? new Date(req.body.scheduledEnd) : null,
           slaPolicyId: slaPolicy?.id,
           firstResponseAt: assigneeId ? new Date() : null,
         },
@@ -413,6 +415,24 @@ const createTicket = async (req, res, next) => {
       );
     }
 
+    // Send assignment email to primary assignee
+    if (fullTicket.assignee && fullTicket.assignee.email) {
+      sendTicketAssignedEmail(fullTicket, fullTicket.assignee, requester).catch((err) =>
+        console.error('[Ticket] Failed to send assignment email to primary assignee:', err.message)
+      );
+    }
+    // Send assignment email to additional assignees
+    if (fullTicket.additionalAssignees && fullTicket.additionalAssignees.length > 0) {
+      for (const assigneeRel of fullTicket.additionalAssignees) {
+        const agent = assigneeRel.user || assigneeRel;
+        if (agent && agent.email) {
+          sendTicketAssignedEmail(fullTicket, agent, requester).catch((err) =>
+            console.error('[Ticket] Failed to send assignment email to additional assignee:', err.message)
+          );
+        }
+      }
+    }
+
     // Run automations
     try {
       const ticketForAutomation = await prisma.ticket.findUnique({
@@ -441,6 +461,10 @@ const createTicket = async (req, res, next) => {
  * Update a ticket
  */
 const updateTicket = async (req, res, next) => {
+  console.log(`[Ticket Update] ========== HANDLER ENTERED ==========`);
+  console.log(`[Ticket Update] Ticket ID: ${req.params.id}`);
+  console.log(`[Ticket Update] Request body keys:`, Object.keys(req.body));
+  console.log(`[Ticket Update] Full body:`, JSON.stringify(req.body, null, 2));
   try {
     const { id } = req.params;
     const {
@@ -454,18 +478,29 @@ const updateTicket = async (req, res, next) => {
       groupId,
       companyId,
       dueDate,
+      scheduledEnd,
       tagIds,
       slaBreached,
     } = req.body;
 
-    // Get existing ticket
+    // Get existing ticket with current assignees
     const existingTicket = await prisma.ticket.findUnique({
       where: { id },
       include: {
-        assignee: { select: { name: true } },
+        assignee: { select: { id: true, name: true, email: true } },
         group: { select: { name: true } },
+        additionalAssignees: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        },
       },
     });
+
+    // Track existing additional assignee IDs for comparison
+    const existingAdditionalAssigneeIds = new Set(
+      existingTicket?.additionalAssignees?.map(ta => ta.user.id) || []
+    );
 
     if (!existingTicket) {
       return res.status(404).json({ error: 'Ticket not found' });
@@ -533,14 +568,18 @@ const updateTicket = async (req, res, next) => {
     // Track if we need to send assignment email
     let newAssigneeForEmail = null;
 
+    console.log(`[Ticket Update] Checking assignment change: assigneeId=${assigneeId}, existingAssigneeId=${existingTicket.assigneeId}`);
+
     if (assigneeId !== undefined && assigneeId !== existingTicket.assigneeId) {
       updateData.assigneeId = assigneeId || null;
+      console.log(`[Ticket Update] Assignee IS changing from ${existingTicket.assigneeId} to ${assigneeId}`);
 
       if (assigneeId) {
         const newAssignee = await prisma.user.findUnique({
           where: { id: assigneeId },
           select: { id: true, name: true, email: true },
         });
+        console.log(`[Ticket Update] Fetched new assignee:`, newAssignee);
         newAssigneeForEmail = newAssignee;
         activities.push({
           type: 'assigned',
@@ -585,6 +624,10 @@ const updateTicket = async (req, res, next) => {
 
     if (dueDate !== undefined) {
       updateData.dueDate = dueDate ? new Date(dueDate) : null;
+    }
+
+    if (scheduledEnd !== undefined) {
+      updateData.scheduledEnd = scheduledEnd ? new Date(scheduledEnd) : null;
     }
 
     if (slaBreached !== undefined) {
@@ -659,18 +702,105 @@ const updateTicket = async (req, res, next) => {
     // Send emails (async, don't block response)
     const requester = updatedTicket.requester;
 
-    // Send assignment email
+    // Send assignment email to new primary assignee
+    console.log(`[Ticket Update] Email check - newAssigneeForEmail:`, newAssigneeForEmail);
+    console.log(`[Ticket Update] Email check - requester:`, requester);
+
     if (newAssigneeForEmail && newAssigneeForEmail.email) {
+      console.log(`[Ticket Update] SENDING assignment email to ${newAssigneeForEmail.email} for ticket #${updatedTicket.ticketNumber}`);
       sendTicketAssignedEmail(updatedTicket, newAssigneeForEmail, requester).catch((err) =>
         console.error('[Ticket] Failed to send assignment email:', err.message)
       );
+    } else {
+      console.log(`[Ticket Update] NOT sending assignment email - newAssigneeForEmail=${!!newAssigneeForEmail}, email=${newAssigneeForEmail?.email}`);
     }
 
-    // Send status change email
+    // Send assignment emails to NEW additional assignees (those not in the old list)
+    if (additionalAssigneeIds !== undefined && additionalAssigneeIds.length > 0) {
+      const newAdditionalAssigneeIds = additionalAssigneeIds.filter(
+        userId => !existingAdditionalAssigneeIds.has(userId)
+      );
+
+      if (newAdditionalAssigneeIds.length > 0) {
+        // Get the new additional assignees from the updated ticket
+        const newAdditionalAssignees = updatedTicket.additionalAssignees
+          ?.filter(ta => {
+            const agent = ta.user || ta;
+            return newAdditionalAssigneeIds.includes(agent.id);
+          })
+          .map(ta => ta.user || ta) || [];
+
+        console.log(`[Ticket] Sending assignment emails to ${newAdditionalAssignees.length} new additional agent(s)`);
+        for (const agent of newAdditionalAssignees) {
+          if (agent.email) {
+            console.log(`[Ticket] Sending assignment email to additional agent ${agent.email}`);
+            sendTicketAssignedEmail(updatedTicket, agent, requester).catch((err) =>
+              console.error(`[Ticket] Failed to send assignment email to ${agent.email}:`, err.message)
+            );
+          }
+        }
+      }
+    }
+
+    // Send status change email to requester
     if (statusChanged && requester?.email) {
       sendStatusChangedEmail(updatedTicket, oldStatus, status, requester).catch((err) =>
         console.error('[Ticket] Failed to send status change email:', err.message)
       );
+    }
+
+    // Notify ALL assignees when status changes (primary + additional), excluding the person who made the change
+    if (statusChanged) {
+      const io = req.app.get('io');
+      const displayNumber = updatedTicket.ticketNumber || updatedTicket.id;
+      const notificationMessage = `Ticket #${displayNumber} status changed from ${oldStatus} to ${status}`;
+      const changedBy = { id: req.user.id, name: req.user.name };
+
+      // Collect all assignees (primary + additional), excluding the person who made the change
+      const allAssigneesToNotify = [];
+      if (updatedTicket.assignee && updatedTicket.assignee.id !== req.user.id) {
+        allAssigneesToNotify.push(updatedTicket.assignee);
+      }
+      if (updatedTicket.additionalAssignees && updatedTicket.additionalAssignees.length > 0) {
+        for (const ta of updatedTicket.additionalAssignees) {
+          const agent = ta.user || ta;
+          if (agent && agent.id !== req.user.id && !allAssigneesToNotify.some(a => a.id === agent.id)) {
+            allAssigneesToNotify.push(agent);
+          }
+        }
+      }
+
+      console.log(`[Ticket] Sending status change notifications to ${allAssigneesToNotify.length} agent(s)`);
+
+      for (const agent of allAssigneesToNotify) {
+        // Create in-app notification
+        prisma.notification.create({
+          data: {
+            userId: agent.id,
+            type: 'status_changed',
+            title: `Ticket ${status}`,
+            message: notificationMessage,
+            relatedTicketId: id,
+          },
+        }).catch((err) => console.error(`[Ticket] Failed to create status notification for ${agent.email}:`, err.message));
+
+        // Emit socket notification
+        if (io) {
+          io.to(`user:${agent.id}`).emit('notification:new', {
+            type: 'status_changed',
+            title: `Ticket ${status}`,
+            message: notificationMessage,
+            ticketId: id,
+          });
+        }
+
+        // Send email notification
+        if (agent.email) {
+          sendStatusChangeToAgent(updatedTicket, oldStatus, status, changedBy, agent).catch((err) =>
+            console.error(`[Ticket] Failed to send status change email to ${agent.email}:`, err.message)
+          );
+        }
+      }
     }
 
     // Run automations

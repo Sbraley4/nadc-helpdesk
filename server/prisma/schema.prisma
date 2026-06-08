@@ -182,6 +182,7 @@ model Ticket {
   priority                  Priority     @default(MEDIUM)
   type                      TicketType   @default(QUESTION)
   dueDate                   DateTime?
+  scheduledEnd              DateTime?
   firstResponseAt           DateTime?
   resolvedAt                DateTime?
   closedAt                  DateTime?

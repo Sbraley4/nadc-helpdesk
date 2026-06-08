@@ -1,6 +1,10 @@
 const { PrismaClient } = require('@prisma/client');
 const { deleteFile, getFileUrl } = require('../utils/fileUtils');
-const { sendAgentReplyEmail } = require('../services/emailService');
+const {
+  sendAgentReplyEmail,
+  sendReplyNotificationToAgent,
+  sendNoteNotificationToAgent,
+} = require('../services/emailService');
 const { runAutomations } = require('../services/automationEngine');
 
 const prisma = new PrismaClient();
@@ -90,12 +94,20 @@ async function createReply(req, res, next) {
       return res.status(400).json({ error: 'Reply body is required' });
     }
 
-    // Verify ticket exists and get requester for email
+    // Verify ticket exists and get requester, assignee, and additional assignees for notifications
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
       include: {
         requester: {
           select: { id: true, name: true, email: true },
+        },
+        assignee: {
+          select: { id: true, name: true, email: true },
+        },
+        additionalAssignees: {
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
         },
       },
     });
@@ -276,6 +288,62 @@ async function createReply(req, res, next) {
       sendAgentReplyEmail(ticket, fullReply, agent, ticket.requester).catch((err) =>
         console.error('[Reply] Failed to send reply email:', err.message)
       );
+    }
+
+    // Notify ALL assigned agents (primary + additional) when a reply/note is added
+    // Collect all assigned agents, excluding the person making the change
+    const allAssignedAgents = [];
+    if (ticket.assignee && ticket.assignee.id !== req.user.id && ticket.assignee.email) {
+      allAssignedAgents.push(ticket.assignee);
+    }
+    if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
+      for (const ta of ticket.additionalAssignees) {
+        const agent = ta.user || ta;
+        // Skip the person making the change, and skip duplicates
+        if (agent && agent.email && agent.id !== req.user.id && !allAssignedAgents.some(a => a.id === agent.id)) {
+          allAssignedAgents.push(agent);
+        }
+      }
+    }
+
+    // Notify each assigned agent
+    for (const agent of allAssignedAgents) {
+      const notificationType = isInternalNote ? 'note_added' : 'reply_added';
+      const notificationTitle = isInternalNote ? 'New internal note' : 'New reply on your ticket';
+      const notificationMessage = `${req.user.name} added a ${isInternalNote ? 'note' : 'reply'} to ticket #${ticket.ticketNumber || ticketId}`;
+      const author = { id: req.user.id, name: req.user.name };
+
+      // Create in-app notification for agent
+      await prisma.notification.create({
+        data: {
+          userId: agent.id,
+          type: notificationType,
+          title: notificationTitle,
+          message: notificationMessage,
+          relatedTicketId: ticketId,
+        },
+      }).catch((err) => console.error(`[Reply] Failed to create notification for agent ${agent.id}:`, err.message));
+
+      // Emit socket notification to agent
+      if (io) {
+        io.to(`user:${agent.id}`).emit('notification:new', {
+          type: notificationType,
+          title: notificationTitle,
+          message: notificationMessage,
+          ticketId,
+        });
+      }
+
+      // Send email notification to agent
+      if (isInternalNote) {
+        sendNoteNotificationToAgent(ticket, fullReply, author, agent).catch((err) =>
+          console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message)
+        );
+      } else {
+        sendReplyNotificationToAgent(ticket, fullReply, author, agent).catch((err) =>
+          console.error(`[Reply] Failed to send reply email to agent ${agent.id}:`, err.message)
+        );
+      }
     }
 
     // Run automations for public replies

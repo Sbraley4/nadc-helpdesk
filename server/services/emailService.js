@@ -18,32 +18,42 @@ let emailServiceReady = false;
  * Initialize the Microsoft Graph client
  */
 async function initializeTransporter() {
+  console.log('[Email Service] Initializing Microsoft Graph API...');
   const tenantId = process.env.AZURE_TENANT_ID;
   const clientId = process.env.AZURE_CLIENT_ID;
   const clientSecret = process.env.AZURE_CLIENT_SECRET;
 
+  console.log(`[Email Service] AZURE_TENANT_ID: ${tenantId ? 'SET' : 'NOT SET'}`);
+  console.log(`[Email Service] AZURE_CLIENT_ID: ${clientId ? 'SET' : 'NOT SET'}`);
+  console.log(`[Email Service] AZURE_CLIENT_SECRET: ${clientSecret ? 'SET (' + clientSecret.length + ' chars)' : 'NOT SET'}`);
+
   if (!tenantId || !clientId || !clientSecret) {
-    console.warn('[Email Service] Microsoft Graph API not configured - emails will be logged to console');
+    console.warn('[Email Service] Microsoft Graph API not configured - emails will be logged to console (STUB MODE)');
+    emailServiceReady = false;
     return false;
   }
 
   try {
     // Create credential using client secret
+    console.log('[Email Service] Creating ClientSecretCredential...');
     const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
 
     // Create auth provider
+    console.log('[Email Service] Creating TokenCredentialAuthenticationProvider...');
     const authProvider = new TokenCredentialAuthenticationProvider(credential, {
       scopes: ['https://graph.microsoft.com/.default'],
     });
 
     // Create Graph client
+    console.log('[Email Service] Creating Graph client...');
     graphClient = Client.initWithMiddleware({ authProvider });
 
-    console.log('[Email Service] Microsoft Graph API ready');
+    console.log('[Email Service] Microsoft Graph API ready - emails will be sent');
     emailServiceReady = true;
     return true;
   } catch (error) {
-    console.error('[Email Service] Microsoft Graph API unavailable:', error.message);
+    console.error('[Email Service] Microsoft Graph API initialization FAILED:', error.message);
+    console.error('[Email Service] Full error:', error);
     emailServiceReady = false;
     return false;
   }
@@ -240,14 +250,15 @@ async function sendTicketConfirmation(ticket, requester) {
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
   const agentName = ticket.assignee?.name || 'our team';
+  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
-    subject: `Ticket #${ticket.id} Created: ${ticket.subject}`,
+    subject: `Ticket #${displayNumber} Created: ${ticket.subject}`,
     templateName: 'new-ticket-confirmation',
     variables: {
       requester_name: requester.name || 'Customer',
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       ticket_url: ticketUrl,
       company_name: companyName,
@@ -263,14 +274,15 @@ async function sendAgentReplyEmail(ticket, reply, agent, requester) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
-    subject: `Re: Ticket #${ticket.id} - ${ticket.subject}`,
+    subject: `Re: Ticket #${displayNumber} - ${ticket.subject}`,
     templateName: 'agent-reply',
     variables: {
       requester_name: requester.name || 'Customer',
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       agent_name: agent.name,
       reply_body: reply.body,
@@ -284,17 +296,26 @@ async function sendAgentReplyEmail(ticket, reply, agent, requester) {
  * Send ticket assigned notification to agent
  */
 async function sendTicketAssignedEmail(ticket, agent, requester) {
+  const displayNumber = ticket.ticketNumber || ticket.id;
+  console.log(`[Email Service] sendTicketAssignedEmail called for ticket #${displayNumber} to ${agent?.email}`);
+  console.log(`[Email Service] emailServiceReady: ${emailServiceReady}, graphClient exists: ${!!graphClient}`);
+
+  if (!agent?.email) {
+    console.warn('[Email Service] No agent email provided for assignment notification');
+    return { success: false, error: 'No agent email' };
+  }
+
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
 
-  return await sendTemplatedEmail({
+  const result = await sendTemplatedEmail({
     to: agent.email,
-    subject: `Ticket #${ticket.id} Assigned: ${ticket.subject}`,
+    subject: `Ticket #${displayNumber} Assigned: ${ticket.subject}`,
     templateName: 'ticket-assigned',
     variables: {
       agent_name: agent.name,
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       requester_name: requester?.name || 'Unknown',
       priority: ticket.priority,
@@ -302,6 +323,9 @@ async function sendTicketAssignedEmail(ticket, agent, requester) {
       company_name: companyName,
     },
   });
+
+  console.log(`[Email Service] sendTicketAssignedEmail result:`, JSON.stringify(result));
+  return result;
 }
 
 /**
@@ -311,14 +335,15 @@ async function sendStatusChangedEmail(ticket, oldStatus, newStatus, requester) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
-    subject: `Ticket #${ticket.id} Status Updated: ${newStatus}`,
+    subject: `Ticket #${displayNumber} Status Updated: ${newStatus}`,
     templateName: 'ticket-status-changed',
     variables: {
       requester_name: requester.name || 'Customer',
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       old_status: oldStatus,
       new_status: newStatus,
@@ -335,14 +360,15 @@ async function sendSLABreachEmail(ticket, recipient, breachType) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: recipient.email,
-    subject: `SLA Breach: Ticket #${ticket.id} - ${ticket.subject}`,
+    subject: `SLA Breach: Ticket #${displayNumber} - ${ticket.subject}`,
     templateName: 'sla-breach-warning',
     variables: {
       agent_name: recipient.name,
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       requester_name: ticket.requester?.name || 'Unknown',
       priority: ticket.priority,
@@ -360,6 +386,7 @@ async function sendReviewRequestEmail(contact, ticket, tokens) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const agentName = ticket.assignee?.name || 'the NADC team';
+  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: contact.email,
@@ -367,12 +394,100 @@ async function sendReviewRequestEmail(contact, ticket, tokens) {
     templateName: 'review-request',
     variables: {
       requester_name: contact.name || 'Customer',
-      ticket_number: ticket.id.toString(),
+      ticket_number: displayNumber.toString(),
       ticket_subject: ticket.subject,
       agent_name: agentName,
       positive_url: `${helpdeskUrl}/api/satisfaction/rate?token=${tokens.positiveToken}&rating=positive`,
       negative_url: `${helpdeskUrl}/api/satisfaction/rate?token=${tokens.negativeToken}&rating=negative`,
       opt_out_url: `${helpdeskUrl}/api/satisfaction/opt-out?token=${tokens.optOutToken}`,
+      company_name: companyName,
+    },
+  });
+}
+
+/**
+ * Send reply notification email to assigned agent
+ */
+async function sendReplyNotificationToAgent(ticket, reply, author, agent) {
+  const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
+  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
+
+  // Truncate reply for preview (strip HTML and limit length)
+  const replyText = reply.body.replace(/<[^>]*>/g, '').substring(0, 300);
+  const replyPreview = replyText.length < reply.body.replace(/<[^>]*>/g, '').length
+    ? replyText + '...'
+    : replyText;
+
+  return await sendTemplatedEmail({
+    to: agent.email,
+    subject: `Re: Ticket #${displayNumber} - New Reply`,
+    templateName: 'ticket-reply-agent',
+    variables: {
+      agent_name: agent.name,
+      ticket_number: displayNumber.toString(),
+      ticket_subject: ticket.subject,
+      author_name: author.name,
+      reply_preview: replyPreview,
+      ticket_url: ticketUrl,
+      company_name: companyName,
+    },
+  });
+}
+
+/**
+ * Send internal note notification email to assigned agent
+ */
+async function sendNoteNotificationToAgent(ticket, note, author, agent) {
+  const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
+  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
+
+  // Truncate note for preview (strip HTML and limit length)
+  const noteText = note.body.replace(/<[^>]*>/g, '').substring(0, 300);
+  const notePreview = noteText.length < note.body.replace(/<[^>]*>/g, '').length
+    ? noteText + '...'
+    : noteText;
+
+  return await sendTemplatedEmail({
+    to: agent.email,
+    subject: `Ticket #${displayNumber} - New Internal Note`,
+    templateName: 'ticket-note-agent',
+    variables: {
+      agent_name: agent.name,
+      ticket_number: displayNumber.toString(),
+      ticket_subject: ticket.subject,
+      author_name: author.name,
+      note_preview: notePreview,
+      ticket_url: ticketUrl,
+      company_name: companyName,
+    },
+  });
+}
+
+/**
+ * Send status change notification email to assigned agent
+ */
+async function sendStatusChangeToAgent(ticket, oldStatus, newStatus, changedBy, agent) {
+  const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
+  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
+  const displayNumber = ticket.ticketNumber || ticket.id;
+
+  return await sendTemplatedEmail({
+    to: agent.email,
+    subject: `Ticket #${displayNumber} - Status Changed to ${newStatus}`,
+    templateName: 'ticket-status-agent',
+    variables: {
+      agent_name: agent.name,
+      ticket_number: displayNumber.toString(),
+      ticket_subject: ticket.subject,
+      changed_by: changedBy.name,
+      old_status: oldStatus,
+      new_status: newStatus,
+      ticket_url: ticketUrl,
       company_name: companyName,
     },
   });
@@ -396,4 +511,8 @@ module.exports = {
   sendStatusChangedEmail,
   sendSLABreachEmail,
   sendReviewRequestEmail,
+  // Agent notification emails
+  sendReplyNotificationToAgent,
+  sendNoteNotificationToAgent,
+  sendStatusChangeToAgent,
 };

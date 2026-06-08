@@ -140,6 +140,7 @@ export default function CalendarPage() {
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [newTicketDate, setNewTicketDate] = useState(null);
   const [newTicketTime, setNewTicketTime] = useState('09:00');
+  const [newTicketEndTime, setNewTicketEndTime] = useState('10:00');
   const [saving, setSaving] = useState(false);
   const [newTicketForm, setNewTicketForm] = useState({
     subject: '',
@@ -444,6 +445,10 @@ export default function CalendarPage() {
     setShowChoicePopup(false);
     setNewTicketDate(selectedSlotDate);
     setNewTicketTime(selectedSlotTime);
+    // Calculate default end time (1 hour after start)
+    const [startHour, startMin] = selectedSlotTime.split(':').map(Number);
+    const endHour = startHour + 1;
+    setNewTicketEndTime(`${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`);
     setNewTicketForm({
       subject: '',
       description: '',
@@ -512,10 +517,18 @@ export default function CalendarPage() {
     }
     setSaving(true);
     try {
-      // Combine date and time for dueDate
+      // Combine date and time for dueDate (start time)
       const dueDateTime = new Date(newTicketDate);
       const [hours, minutes] = newTicketTime.split(':');
       dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+      // Combine date and end time for scheduledEnd
+      let scheduledEndDateTime = null;
+      if (newTicketEndTime) {
+        scheduledEndDateTime = new Date(newTicketDate);
+        const [endHours, endMinutes] = newTicketEndTime.split(':');
+        scheduledEndDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+      }
 
       const ticketData = {
         subject: newTicketForm.subject,
@@ -526,6 +539,7 @@ export default function CalendarPage() {
         assigneeId: newTicketForm.assigneeId || null,
         additionalAssigneeIds: newTicketForm.additionalAssigneeIds.length > 0 ? newTicketForm.additionalAssigneeIds : undefined,
         dueDate: dueDateTime.toISOString(),
+        scheduledEnd: scheduledEndDateTime ? scheduledEndDateTime.toISOString() : null,
       };
 
       const result = await ticketsApi.createTicket(ticketData);
@@ -677,10 +691,19 @@ export default function CalendarPage() {
   const WEEK_HOURS = Array.from({ length: WEEK_END_HOUR - WEEK_START_HOUR + 1 }, (_, i) => i + WEEK_START_HOUR);
   const WEEK_HOUR_HEIGHT = 60; // 60px per hour
 
+  // Helper to get the end time for an item (tickets use scheduledEnd, events use endTime)
+  const getItemEndTime = (item) => {
+    if (item.type === 'ticket') {
+      return item.scheduledEnd;
+    }
+    return item.endTime;
+  };
+
   // Helper to check if a ticket/event spans multiple days
   const isMultiDay = (item) => {
     const start = new Date(item.startTime || item.scheduledDate || item.dueDate);
-    const end = item.endTime ? new Date(item.endTime) : null;
+    const endValue = getItemEndTime(item);
+    const end = endValue ? new Date(endValue) : null;
     if (!end) return false;
     return start.toDateString() !== end.toDateString();
   };
@@ -720,7 +743,8 @@ export default function CalendarPage() {
 
     sorted.forEach((item) => {
       const startTime = new Date(item.startTime || item.scheduledDate || item.dueDate);
-      const endTime = item.endTime ? new Date(item.endTime) : new Date(startTime.getTime() + 60 * 60 * 1000);
+      const itemEndValue = getItemEndTime(item);
+      const endTime = itemEndValue ? new Date(itemEndValue) : new Date(startTime.getTime() + 60 * 60 * 1000);
       const itemStart = startTime.getTime();
       const itemEnd = endTime.getTime();
 
@@ -728,8 +752,9 @@ export default function CalendarPage() {
       let placed = false;
       for (let col = 0; col < columns.length; col++) {
         const lastInCol = columns[col][columns[col].length - 1];
-        const lastEnd = lastInCol.endTime
-          ? new Date(lastInCol.endTime).getTime()
+        const lastEndValue = getItemEndTime(lastInCol);
+        const lastEnd = lastEndValue
+          ? new Date(lastEndValue).getTime()
           : new Date(lastInCol.startTime || lastInCol.scheduledDate || lastInCol.dueDate).getTime() + 60 * 60 * 1000;
 
         if (itemStart >= lastEnd) {
@@ -773,9 +798,9 @@ export default function CalendarPage() {
       const ticketTime = ticket.scheduledDate || ticket.dueDate;
       if (!ticketTime) return;
 
-      const hasEnd = ticket.endDate || ticket.scheduledEndDate;
-      if (hasEnd && isMultiDay({ startTime: ticketTime, endTime: hasEnd })) {
-        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, endTime: hasEnd });
+      const ticketEnd = ticket.scheduledEnd;
+      if (ticketEnd && isMultiDay({ type: 'ticket', startTime: ticketTime, scheduledEnd: ticketEnd })) {
+        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, scheduledEnd: ticketEnd });
       } else {
         const dateKey = new Date(ticketTime).toDateString();
         if (!singleDay[dateKey]) singleDay[dateKey] = [];
@@ -800,7 +825,8 @@ export default function CalendarPage() {
   // Calculate which days a multi-day item spans
   const getMultiDaySpan = (item, weekDays) => {
     const start = new Date(item.startTime);
-    const end = new Date(item.endTime);
+    const endValue = getItemEndTime(item);
+    const end = new Date(endValue);
 
     let startCol = -1;
     let endCol = -1;
@@ -971,9 +997,11 @@ export default function CalendarPage() {
 
                   {/* Positioned items */}
                   {itemsWithColumns.map(({ item, column, totalColumns }) => {
+                    // Use scheduledEnd for tickets, endTime for events
+                    const itemEndTime = item.type === 'ticket' ? item.scheduledEnd : item.endTime;
                     const { top, height } = getWeekTimePosition(
                       item.startTime || item.scheduledDate || item.dueDate,
-                      item.endTime
+                      itemEndTime
                     );
 
                     // Calculate width and left position based on columns
@@ -1166,9 +1194,9 @@ export default function CalendarPage() {
                 ...(ticket.additionalAssignees || [])
               ].filter(Boolean);
 
-              // Use dueDate or scheduledDate for positioning
+              // Use dueDate or scheduledDate for positioning, scheduledEnd for duration
               const ticketTime = ticket.scheduledDate || ticket.dueDate;
-              const { top, height } = getTimePosition(ticketTime, null);
+              const { top, height } = getTimePosition(ticketTime, ticket.scheduledEnd);
 
               return (
                 <button
@@ -1365,7 +1393,7 @@ export default function CalendarPage() {
       >
         <form onSubmit={handleCreateTicket} className="space-y-4">
           {/* Date and Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
@@ -1380,11 +1408,26 @@ export default function CalendarPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
               <input
                 type="time"
                 value={newTicketTime}
-                onChange={(e) => setNewTicketTime(e.target.value)}
+                onChange={(e) => {
+                  setNewTicketTime(e.target.value);
+                  // Auto-update end time to 1 hour later when start time changes
+                  const [h, m] = e.target.value.split(':').map(Number);
+                  const endH = Math.min(h + 1, 23);
+                  setNewTicketEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                }}
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+              <input
+                type="time"
+                value={newTicketEndTime}
+                onChange={(e) => setNewTicketEndTime(e.target.value)}
                 className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
             </div>
