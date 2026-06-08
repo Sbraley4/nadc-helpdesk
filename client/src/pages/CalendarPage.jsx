@@ -130,7 +130,17 @@ export default function CalendarPage() {
     companyId: '',
   });
 
-  // Choice popup state (when clicking a time slot)
+  // Context menu state (when clicking anywhere on time grid)
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    date: null,
+    time: '09:00',
+    targetItem: null, // { type: 'ticket' | 'event', item: object } or null
+  });
+
+  // Legacy choice popup state - now replaced by context menu
   const [showChoicePopup, setShowChoicePopup] = useState(false);
   const [choicePopupPosition, setChoicePopupPosition] = useState({ x: 0, y: 0 });
   const [selectedSlotDate, setSelectedSlotDate] = useState(null);
@@ -507,6 +517,142 @@ export default function CalendarPage() {
     const mins = String(date.getMinutes()).padStart(2, '0');
     return `${year}-${month}-${day}T${hours}:${mins}`;
   };
+
+  // Show context menu on time grid click
+  const showContextMenu = (e, date, hour, items = []) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const time = `${hour.toString().padStart(2, '0')}:00`;
+
+    // Find if click is on/near an item based on click position
+    // We'll check all items in this time slot
+    let targetItem = null;
+    const clickY = e.clientY;
+    const clickX = e.clientX;
+
+    // Check if any item was directly clicked (target has data-item attribute)
+    let target = e.target;
+    while (target && target !== e.currentTarget) {
+      if (target.dataset && target.dataset.itemType) {
+        const itemType = target.dataset.itemType;
+        const itemId = target.dataset.itemId;
+        if (itemType === 'ticket') {
+          const ticket = tickets.find(t => t.id === itemId);
+          if (ticket) targetItem = { type: 'ticket', item: ticket };
+        } else if (itemType === 'event') {
+          const event = events.find(ev => ev.id === itemId);
+          if (event) targetItem = { type: 'event', item: event };
+        }
+        break;
+      }
+      target = target.parentElement;
+    }
+
+    // Keep popup within viewport
+    const menuWidth = 220;
+    const menuHeight = targetItem ? 140 : 100;
+    let x = clickX;
+    let y = clickY;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 10;
+    }
+
+    setContextMenu({
+      visible: true,
+      x,
+      y,
+      date,
+      time,
+      targetItem,
+    });
+  };
+
+  // Hide context menu
+  const hideContextMenu = () => {
+    setContextMenu(prev => ({ ...prev, visible: false, targetItem: null }));
+  };
+
+  // Context menu: View existing item
+  const handleContextViewItem = () => {
+    if (contextMenu.targetItem) {
+      if (contextMenu.targetItem.type === 'ticket') {
+        navigate(`/tickets/${contextMenu.targetItem.item.id}`);
+      } else if (contextMenu.targetItem.type === 'event') {
+        handleEventClick(contextMenu.targetItem.item);
+      }
+    }
+    hideContextMenu();
+  };
+
+  // Context menu: Create new ticket
+  const handleContextNewTicket = () => {
+    hideContextMenu();
+    setNewTicketDate(contextMenu.date);
+    setNewTicketTime(contextMenu.time);
+    // Calculate default end time (1 hour after start)
+    const [startHour, startMin] = contextMenu.time.split(':').map(Number);
+    const endHour = Math.min(startHour + 1, 23);
+    setNewTicketEndTime(`${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`);
+    setNewTicketForm({
+      subject: '',
+      description: '',
+      priority: 'MEDIUM',
+      contactId: '',
+      companyId: '',
+      assigneeId: '',
+      additionalAssigneeIds: [],
+    });
+    setShowNewTicketModal(true);
+  };
+
+  // Context menu: Create new calendar event
+  const handleContextNewEvent = () => {
+    hideContextMenu();
+    setEditingEvent(null);
+
+    const startDateTime = new Date(contextMenu.date);
+    const [hours, minutes] = contextMenu.time.split(':');
+    startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    const endDateTime = new Date(startDateTime);
+    endDateTime.setHours(endDateTime.getHours() + 1);
+
+    setEventForm({
+      title: '',
+      description: '',
+      startTime: formatDateTimeLocal(startDateTime),
+      endTime: formatDateTimeLocal(endDateTime),
+      assigneeIds: [],
+    });
+    setShowEventModal(true);
+  };
+
+  // Close context menu when clicking outside
+  useEffect(() => {
+    if (!contextMenu.visible) return;
+
+    const handleClickOutside = (e) => {
+      const menu = document.querySelector('[data-context-menu]');
+      if (menu && !menu.contains(e.target)) {
+        hideContextMenu();
+      }
+    };
+
+    // Add listener with slight delay to prevent immediate close
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 10);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [contextMenu.visible]);
 
   // Create ticket from modal
   const handleCreateTicket = async (e) => {
@@ -966,7 +1112,7 @@ export default function CalendarPage() {
                 const hourIndex = Math.floor(clickY / WEEK_HOUR_HEIGHT);
                 const clickedHour = WEEK_START_HOUR + hourIndex;
                 if (clickedHour >= WEEK_START_HOUR && clickedHour <= WEEK_END_HOUR) {
-                  handleTimeSlotClick(e, date, clickedHour);
+                  showContextMenu(e, date, clickedHour, singleDayItemsByDate[dateKey] || []);
                 }
               };
 
@@ -1031,10 +1177,11 @@ export default function CalendarPage() {
                       const displayName = companyName || contactName;
 
                       return (
-                        <button
+                        <div
                           key={`ticket-${item.id}`}
-                          onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${item.id}`); }}
-                          className="absolute text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10"
+                          data-item-type="ticket"
+                          data-item-id={item.id}
+                          className="absolute text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10 cursor-pointer"
                           style={{
                             ...agentBgStyle,
                             top: `${top}px`,
@@ -1044,8 +1191,8 @@ export default function CalendarPage() {
                           }}
                           title={`${item.subject} - ${displayName || 'No contact'} #${item.ticketNumber}`}
                         >
-                          <div className="h-1" style={{ backgroundColor: statusStripe }} />
-                          <div className="p-1 text-white overflow-hidden" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                          <div className="h-1 pointer-events-none" style={{ backgroundColor: statusStripe }} />
+                          <div className="p-1 text-white overflow-hidden pointer-events-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
                             <div className="text-[10px] leading-tight truncate">
                               <span className="font-medium">{timeStr}</span>
                               {displayName && <span className="ml-1">{displayName}:</span>}
@@ -1053,7 +1200,7 @@ export default function CalendarPage() {
                             <div className="text-[11px] leading-tight truncate font-medium">{item.subject}</div>
                             <div className="text-[10px] leading-tight opacity-80">#{item.ticketNumber}</div>
                           </div>
-                        </button>
+                        </div>
                       );
                     } else {
                       // Calendar event
@@ -1063,10 +1210,11 @@ export default function CalendarPage() {
                       const timeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(':00', '');
 
                       return (
-                        <button
+                        <div
                           key={`event-${item.id}`}
-                          onClick={(e) => { e.stopPropagation(); handleEventClick(item); }}
-                          className="absolute text-left rounded border-l-2 overflow-hidden hover:opacity-80 transition-opacity z-10"
+                          data-item-type="event"
+                          data-item-id={item.id}
+                          className="absolute text-left rounded border-l-2 overflow-hidden hover:opacity-80 transition-opacity z-10 cursor-pointer"
                           style={{
                             top: `${top}px`,
                             height: `${height}px`,
@@ -1077,11 +1225,11 @@ export default function CalendarPage() {
                           }}
                           title={item.title}
                         >
-                          <div className="p-1 overflow-hidden" style={{ color: eventColor }}>
+                          <div className="p-1 overflow-hidden pointer-events-none" style={{ color: eventColor }}>
                             <div className="text-[10px] leading-tight truncate font-medium">{timeStr}</div>
                             <div className="text-[11px] leading-tight truncate">{item.title}</div>
                           </div>
-                        </button>
+                        </div>
                       );
                     }
                   })}
@@ -1138,7 +1286,7 @@ export default function CalendarPage() {
               const hourIndex = Math.floor(clickY / HOUR_HEIGHT);
               const clickedHour = START_HOUR + hourIndex;
               if (clickedHour >= START_HOUR && clickedHour < START_HOUR + hours.length) {
-                handleTimeSlotClick(e, currentDate, clickedHour);
+                showContextMenu(e, currentDate, clickedHour, [...dayEvents, ...dayTickets]);
               }
             }}
           >
@@ -1159,10 +1307,11 @@ export default function CalendarPage() {
               const { top, height } = getTimePosition(event.startTime, event.endTime);
 
               return (
-                <button
+                <div
                   key={`event-${event.id}`}
-                  onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
-                  className="absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden hover:opacity-80 transition-opacity z-10"
+                  data-item-type="event"
+                  data-item-id={event.id}
+                  className="absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden hover:opacity-80 transition-opacity z-10 cursor-pointer"
                   style={{
                     top: `${top}px`,
                     height: `${height}px`,
@@ -1170,15 +1319,15 @@ export default function CalendarPage() {
                     backgroundColor: `${eventColor}20`,
                   }}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 pointer-events-none">
                     <CalendarDays size={14} style={{ color: eventColor }} />
                     <span className="font-medium text-sm" style={{ color: eventColor }}>{event.title}</span>
                   </div>
                   {height > 50 && event.description && (
-                    <div className="text-xs truncate mt-1" style={{ color: eventColor, opacity: 0.8 }}>{event.description}</div>
+                    <div className="text-xs truncate mt-1 pointer-events-none" style={{ color: eventColor, opacity: 0.8 }}>{event.description}</div>
                   )}
                   {height > 70 && event.assignees?.length > 0 && (
-                    <div className="flex items-center gap-1 mt-1 text-xs flex-wrap" style={{ color: eventColor, opacity: 0.75 }}>
+                    <div className="flex items-center gap-1 mt-1 text-xs flex-wrap pointer-events-none" style={{ color: eventColor, opacity: 0.75 }}>
                       <User size={12} />
                       {event.assignees.map((assignee, idx) => (
                         <span key={assignee.id} className="flex items-center">
@@ -1191,11 +1340,11 @@ export default function CalendarPage() {
                       ))}
                     </div>
                   )}
-                  <div className="text-xs mt-1" style={{ color: eventColor, opacity: 0.7 }}>
+                  <div className="text-xs mt-1 pointer-events-none" style={{ color: eventColor, opacity: 0.7 }}>
                     {new Date(event.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                     {event.endTime && ` - ${new Date(event.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
                   </div>
-                </button>
+                </div>
               );
             })}
             {/* Tickets - positioned by time */}
@@ -1216,16 +1365,17 @@ export default function CalendarPage() {
               const { top, height } = getTimePosition(ticketTime, ticket.scheduledEnd);
 
               return (
-                <button
+                <div
                   key={`ticket-${ticket.id}`}
-                  onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-                  className="absolute left-1 right-1 text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10"
+                  data-item-type="ticket"
+                  data-item-id={ticket.id}
+                  className="absolute left-1 right-1 text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10 cursor-pointer"
                   style={{ top: `${top}px`, height: `${height}px`, ...agentBgStyle }}
                 >
                   {/* Status stripe at top */}
-                  <div className="h-1.5" style={{ backgroundColor: statusStripe }} />
+                  <div className="h-1.5 pointer-events-none" style={{ backgroundColor: statusStripe }} />
                   {/* Content with white text */}
-                  <div className="p-2 text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                  <div className="p-2 text-white pointer-events-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
                     <div className="flex items-center gap-2">
                       <Ticket size={14} />
                       <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
@@ -1240,7 +1390,7 @@ export default function CalendarPage() {
                       </div>
                     )}
                   </div>
-                </button>
+                </div>
               );
             })}
             {dayTickets.length === 0 && dayEvents.length === 0 && (
@@ -1370,34 +1520,51 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Choice Popup (New Ticket vs Calendar Event) */}
-      {showChoicePopup && (
+      {/* Context Menu for time slot clicks */}
+      {contextMenu.visible && (
         <div
-          data-choice-popup
-          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 p-2"
+          data-context-menu
+          className="fixed z-50 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[200px]"
           style={{
-            left: choicePopupPosition.x,
-            top: choicePopupPosition.y,
-            transform: 'translate(-50%, -50%)',
+            left: contextMenu.x,
+            top: contextMenu.y,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex gap-2">
+          {/* Show "View" option if an item was clicked */}
+          {contextMenu.targetItem && (
             <button
-              onClick={handleChooseNewTicket}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+              onClick={handleContextViewItem}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
             >
-              <Ticket size={18} />
-              <span className="font-medium">New Ticket</span>
+              {contextMenu.targetItem.type === 'ticket' ? (
+                <>
+                  <Ticket size={16} className="text-primary flex-shrink-0" />
+                  <span className="truncate">View: {contextMenu.targetItem.item.subject || `#${contextMenu.targetItem.item.ticketNumber}`}</span>
+                </>
+              ) : (
+                <>
+                  <CalendarDays size={16} className="text-purple-600 flex-shrink-0" />
+                  <span className="truncate">View: {contextMenu.targetItem.item.title}</span>
+                </>
+              )}
             </button>
-            <button
-              onClick={handleChooseNewEvent}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors"
-            >
-              <CalendarDays size={18} />
-              <span className="font-medium">Calendar Event</span>
-            </button>
-          </div>
+          )}
+          {contextMenu.targetItem && <div className="border-t border-gray-100 my-1" />}
+          <button
+            onClick={handleContextNewTicket}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+          >
+            <Ticket size={16} className="text-primary flex-shrink-0" />
+            <span>New Ticket</span>
+          </button>
+          <button
+            onClick={handleContextNewEvent}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+          >
+            <CalendarDays size={16} className="text-purple-600 flex-shrink-0" />
+            <span>New Calendar Entry</span>
+          </button>
         </div>
       )}
 
