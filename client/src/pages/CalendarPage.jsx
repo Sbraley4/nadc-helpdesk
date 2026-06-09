@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput } from '../components/shared';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -119,6 +119,12 @@ export default function CalendarPage() {
   const [agentsList, setAgentsList] = useState([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Unscheduled tickets sidebar state
+  const [showUnscheduledSidebar, setShowUnscheduledSidebar] = useState(false);
+  const [unscheduledTickets, setUnscheduledTickets] = useState([]);
+  const [loadingUnscheduled, setLoadingUnscheduled] = useState(false);
+  const [scheduleTicket, setScheduleTicket] = useState(null); // Ticket being scheduled from sidebar
 
   // New client modal state
   const [showNewClientModal, setShowNewClientModal] = useState(false);
@@ -264,6 +270,33 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchCalendarData();
   }, [dateRange.start, dateRange.end, selectedAgent]);
+
+  // Fetch unscheduled tickets when sidebar opens
+  const fetchUnscheduledTickets = async () => {
+    setLoadingUnscheduled(true);
+    try {
+      // Fetch tickets with no dueDate (unscheduled)
+      const data = await ticketsApi.getTickets({
+        status: 'OPEN,PENDING',
+        unscheduled: 'true',
+        limit: 100,
+      });
+      // Filter to only tickets without a dueDate
+      const unscheduled = (data.tickets || []).filter(t => !t.dueDate);
+      setUnscheduledTickets(unscheduled);
+    } catch (error) {
+      console.error('Failed to fetch unscheduled tickets:', error);
+      toast.error('Failed to load unscheduled tickets');
+    } finally {
+      setLoadingUnscheduled(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showUnscheduledSidebar) {
+      fetchUnscheduledTickets();
+    }
+  }, [showUnscheduledSidebar]);
 
   const navigate_date = (direction) => {
     const newDate = new Date(currentDate);
@@ -1410,6 +1443,20 @@ export default function CalendarPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
         {/* Navigation */}
         <div className="flex items-center justify-between md:justify-start gap-2">
+          {/* Unscheduled Tickets Toggle */}
+          <button
+            onClick={() => setShowUnscheduledSidebar(!showUnscheduledSidebar)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors touch-manipulation min-h-[44px] ${
+              showUnscheduledSidebar
+                ? 'bg-primary text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+            title="Toggle unscheduled tickets"
+          >
+            <ListTodo size={18} />
+            <span className="hidden sm:inline">Unscheduled</span>
+          </button>
+
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate_date(-1)}
@@ -1507,18 +1554,106 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar Content */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
+      {/* Calendar Content with Sidebar */}
+      <div className="flex relative">
+        {/* Unscheduled Tickets Sidebar */}
+        {/* Mobile: overlay, Desktop: push content */}
+        {showUnscheduledSidebar && (
+          <>
+            {/* Mobile overlay backdrop */}
+            <div
+              className="md:hidden fixed inset-0 bg-black/50 z-40"
+              onClick={() => setShowUnscheduledSidebar(false)}
+            />
+            {/* Sidebar panel */}
+            <div className={`
+              fixed md:relative inset-y-0 left-0 z-50 md:z-auto
+              w-[280px] bg-white border-r border-gray-200 flex-shrink-0
+              transform transition-transform duration-300 ease-in-out
+              ${showUnscheduledSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+              md:transform-none
+            `}>
+              {/* Sidebar Header */}
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                <h3 className="font-semibold text-gray-900">Unscheduled Tickets</h3>
+                <button
+                  onClick={() => setShowUnscheduledSidebar(false)}
+                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Sidebar Content */}
+              <div className="overflow-y-auto h-[calc(100vh-180px)] md:h-[calc(100vh-220px)]">
+                {loadingUnscheduled ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Spinner size="md" />
+                  </div>
+                ) : unscheduledTickets.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <ListTodo size={32} className="mx-auto mb-2 opacity-50" />
+                    <p>No unscheduled tickets</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {unscheduledTickets.map((ticket) => {
+                      const agentColor = getAgentColor(ticket.assignee);
+                      return (
+                        <div
+                          key={ticket.id}
+                          className="p-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-start gap-2">
+                            {/* Agent color indicator */}
+                            <span
+                              className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                              style={{ backgroundColor: agentColor }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 text-sm">
+                                <span className="font-medium text-gray-900">#{ticket.ticketNumber}</span>
+                              </div>
+                              <p className="text-sm text-gray-700 truncate mt-0.5">
+                                {ticket.subject}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1">
+                                {ticket.assignee?.name || <span className="italic">Unassigned</span>}
+                              </p>
+                              <button
+                                onClick={() => setScheduleTicket(ticket)}
+                                className="mt-2 flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-lg transition-colors"
+                              >
+                                <CalendarIcon size={14} />
+                                Schedule
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Main Calendar Area */}
+        <div className={`flex-1 min-w-0 transition-all duration-300 ${showUnscheduledSidebar ? 'md:ml-0' : ''}`}>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              {view === 'month' && renderMonthView()}
+              {view === 'week' && renderWeekView()}
+              {view === 'day' && renderDayView()}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="overflow-x-auto">
-          {view === 'month' && renderMonthView()}
-          {view === 'week' && renderWeekView()}
-          {view === 'day' && renderDayView()}
-        </div>
-      )}
+      </div>
 
       {/* Context Menu for time slot clicks */}
       {contextMenu.visible && (
@@ -1871,6 +2006,18 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Schedule Ticket Modal (for sidebar scheduling) */}
+      <ScheduleTicketModal
+        isOpen={!!scheduleTicket}
+        onClose={() => setScheduleTicket(null)}
+        ticket={scheduleTicket}
+        onScheduled={() => {
+          fetchUnscheduledTickets();
+          fetchCalendarData();
+          setScheduleTicket(null);
+        }}
+      />
     </div>
   );
 }

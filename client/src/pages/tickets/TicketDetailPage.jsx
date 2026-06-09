@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2 } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents } from '../../components/shared';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
@@ -94,6 +94,7 @@ export default function TicketDetailPage() {
   const [showForwardModal, setShowForwardModal] = useState(false);
   const [forwardToAgentId, setForwardToAgentId] = useState('');
   const [forwardNote, setForwardNote] = useState('');
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
@@ -705,6 +706,13 @@ export default function TicketDetailPage() {
                   >
                     <Pencil size={16} />
                     Edit Ticket
+                  </button>
+                  <button
+                    onClick={() => { setShowScheduleModal(true); setShowTicketMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Calendar size={16} />
+                    {ticket.dueDate ? 'Reschedule' : 'Add to Calendar'}
                   </button>
                   <button
                     onClick={handleStartThread}
@@ -1426,6 +1434,16 @@ export default function TicketDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Schedule Ticket Modal */}
+      <ScheduleTicketModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        ticket={ticket}
+        onScheduled={() => {
+          queryClient.invalidateQueries(['ticket', id]);
+        }}
+      />
 
       {/* Mobile Sidebar Overlay */}
       {showMobileSidebar && (
