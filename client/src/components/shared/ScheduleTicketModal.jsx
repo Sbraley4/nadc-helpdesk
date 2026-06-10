@@ -28,7 +28,7 @@ export default function ScheduleTicketModal({
     const loadAgents = async () => {
       try {
         const data = await agentsApi.getAgents();
-        setAgents(data.filter(a => a.role !== 'VIEWER'));
+        setAgents((data.agents || data).filter(a => a.role !== 'VIEWER'));
       } catch (error) {
         console.error('Failed to load agents:', error);
       } finally {

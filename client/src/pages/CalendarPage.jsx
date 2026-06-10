@@ -277,8 +277,6 @@ export default function CalendarPage() {
     try {
       // Fetch tickets with no dueDate (unscheduled)
       const data = await ticketsApi.getTickets({
-        status: 'OPEN,PENDING',
-        unscheduled: 'true',
         limit: 100,
       });
       // Filter to only tickets without a dueDate
