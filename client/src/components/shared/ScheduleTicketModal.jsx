@@ -17,6 +17,14 @@ export default function ScheduleTicketModal({
   prefilledDate = null, // Pre-fill date from calendar click
   prefilledTime = null, // Pre-fill time from calendar click
 }) {
+  // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
+  const formatLocalDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const [saving, setSaving] = useState(false);
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
@@ -50,8 +58,8 @@ export default function ScheduleTicketModal({
       // Use pre-filled date/time if provided (from calendar click)
       if (prefilledDate) {
         const date = new Date(prefilledDate);
-        setStartDate(date.toISOString().split('T')[0]);
-        setEndDate(date.toISOString().split('T')[0]);
+        setStartDate(formatLocalDate(date));
+        setEndDate(formatLocalDate(date));
         if (prefilledTime) {
           setStartTime(prefilledTime);
           // Default end time to 1 hour later
@@ -63,7 +71,7 @@ export default function ScheduleTicketModal({
       } else if (ticket.dueDate) {
         // Use existing dueDate for reschedule mode
         const date = new Date(ticket.dueDate);
-        setStartDate(date.toISOString().split('T')[0]);
+        setStartDate(formatLocalDate(date));
         const hours = date.getHours().toString().padStart(2, '0');
         const mins = date.getMinutes().toString().padStart(2, '0');
         setStartTime(`${hours}:${mins}`);
@@ -71,12 +79,12 @@ export default function ScheduleTicketModal({
         // Set end date/time from scheduledEnd
         if (ticket.scheduledEnd) {
           const endDateTime = new Date(ticket.scheduledEnd);
-          setEndDate(endDateTime.toISOString().split('T')[0]);
+          setEndDate(formatLocalDate(endDateTime));
           const endHours = endDateTime.getHours().toString().padStart(2, '0');
           const endMins = endDateTime.getMinutes().toString().padStart(2, '0');
           setEndTime(`${endHours}:${endMins}`);
         } else {
-          setEndDate(date.toISOString().split('T')[0]);
+          setEndDate(formatLocalDate(date));
           const endHours = Math.min(date.getHours() + 1, 23);
           setEndTime(`${endHours.toString().padStart(2, '0')}:${mins}`);
         }
@@ -85,8 +93,8 @@ export default function ScheduleTicketModal({
         // Default to tomorrow at 9am
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        setStartDate(tomorrow.toISOString().split('T')[0]);
-        setEndDate(tomorrow.toISOString().split('T')[0]);
+        setStartDate(formatLocalDate(tomorrow));
+        setEndDate(formatLocalDate(tomorrow));
         setStartTime('09:00');
         setEndTime('10:00');
         setIsAllDay(false);
@@ -110,7 +118,9 @@ export default function ScheduleTicketModal({
 
   // Helper to get Monday and Friday of a week containing the start date
   const getWeekBounds = (dateStr) => {
-    const date = new Date(dateStr);
+    // Parse dateStr as local date to avoid UTC timezone issues
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
     const day = date.getDay();
     const monday = new Date(date);
     monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
@@ -121,9 +131,9 @@ export default function ScheduleTicketModal({
 
   // "All Week" button handler
   const handleAllWeek = () => {
-    const { monday, friday } = getWeekBounds(startDate || new Date().toISOString().split('T')[0]);
-    setStartDate(monday.toISOString().split('T')[0]);
-    setEndDate(friday.toISOString().split('T')[0]);
+    const { monday, friday } = getWeekBounds(startDate || formatLocalDate(new Date()));
+    setStartDate(formatLocalDate(monday));
+    setEndDate(formatLocalDate(friday));
     setStartTime('08:00');
     setEndTime('17:00');
     setIsAllDay(true);
