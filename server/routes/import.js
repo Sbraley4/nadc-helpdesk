@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const { authenticate, authorize } = require('../middleware/auth');
+const { requireAuth } = require('../middleware/auth');
 const importController = require('../controllers/importController');
 
 const router = express.Router();
@@ -22,7 +22,7 @@ const upload = multer({
 });
 
 // All routes require admin authentication
-router.use(authenticate, authorize('ADMIN'));
+router.use(requireAuth, (req, res, next) => { if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin access required' }); next(); });
 
 // Preview CSV file
 router.post('/preview', upload.single('file'), importController.previewCSV);
