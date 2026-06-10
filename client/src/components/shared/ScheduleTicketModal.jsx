@@ -204,19 +204,6 @@ export default function ScheduleTicketModal({
           </div>
         )}
 
-        {/* All Week Button */}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAllWeek}
-          >
-            <CalendarRange size={14} className="mr-1.5" />
-            All Week
-          </Button>
-        </div>
-
         {/* Start Date and End Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -252,18 +239,32 @@ export default function ScheduleTicketModal({
           </div>
         </div>
 
-        {/* All Day Toggle */}
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="isAllDay"
-            checked={isAllDay}
-            onChange={(e) => setIsAllDay(e.target.checked)}
-            className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-          />
-          <label htmlFor="isAllDay" className="text-sm text-gray-700">
-            All day event {isMultiDay && '(spans multiple days)'}
-          </label>
+        {/* Quick Actions */}
+        <div className="flex items-center justify-between">
+          {/* All Day Toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isAllDay"
+              checked={isAllDay}
+              onChange={(e) => setIsAllDay(e.target.checked)}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+            />
+            <label htmlFor="isAllDay" className="text-sm text-gray-700">
+              All day event {isMultiDay && '(spans multiple days)'}
+            </label>
+          </div>
+
+          {/* All Week Button - Prominent styling */}
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleAllWeek}
+            className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+          >
+            <CalendarRange size={16} className="mr-2" />
+            All Week (Mon-Fri)
+          </Button>
         </div>
 
         {/* Start and End Time (hidden if all day) */}

@@ -1053,11 +1053,17 @@ export default function CalendarPage() {
   const renderWeekView = () => {
     const gridHeight = WEEK_HOURS.length * WEEK_HOUR_HEIGHT;
 
+    // Filter multi-day items to only those visible in the current week
+    const visibleMultiDayItems = multiDayItems.filter((item) => {
+      const { startCol } = getMultiDaySpan(item, weekDays);
+      return startCol !== -1;
+    });
+
     return (
       <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
         <div className="min-w-[800px] bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {/* Multi-day event banners */}
-          {multiDayItems.length > 0 && (
+          {/* Multi-day event banners - only shown when there are visible multi-day items */}
+          {visibleMultiDayItems.length > 0 && (
             <div className="border-b border-gray-200 bg-gray-50">
               {/* Header row for multi-day section */}
               <div className="grid grid-cols-[60px_repeat(7,1fr)]">
@@ -1067,9 +1073,9 @@ export default function CalendarPage() {
                 ))}
               </div>
               {/* Multi-day items */}
-              <div className="relative grid grid-cols-[60px_repeat(7,1fr)]" style={{ minHeight: multiDayItems.length * 26 + 4 }}>
+              <div className="relative grid grid-cols-[60px_repeat(7,1fr)]" style={{ minHeight: visibleMultiDayItems.length * 26 + 4 }}>
                 <div />
-                {multiDayItems.map((item, itemIdx) => {
+                {visibleMultiDayItems.map((item, itemIdx) => {
                   const { startCol, endCol, span } = getMultiDaySpan(item, weekDays);
                   if (startCol === -1) return null;
 

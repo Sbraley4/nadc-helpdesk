@@ -11,7 +11,7 @@ import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, P
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
-  description: z.string().min(1, 'Description is required'),
+  description: z.string().optional().default(''),
   contactId: z.string().min(1, 'Contact is required'),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']),
   assigneeId: z.string().optional(),
@@ -28,8 +28,10 @@ export default function NewTicketPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [dueDate, setDueDate] = useState(searchParams.get('dueDate') || '');
-  const [dueTime, setDueTime] = useState('09:00');
+  const [startDate, setStartDate] = useState(searchParams.get('dueDate') || '');
+  const [endDate, setEndDate] = useState(searchParams.get('dueDate') || '');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
   const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
   const templateId = searchParams.get('templateId');
 
@@ -137,7 +139,17 @@ export default function NewTicketPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: tickets.createTicket,
+    mutationFn: async (ticketData) => {
+      // Create the ticket first (without dueDate)
+      const createdTicket = await tickets.createTicket(ticketData);
+
+      // If dates are set, create a TicketSchedule entry
+      if (ticketData._scheduleData) {
+        await tickets.createSchedule(createdTicket.id, ticketData._scheduleData);
+      }
+
+      return createdTicket;
+    },
     onSuccess: (data) => {
       queryClient.invalidateQueries(['tickets']);
       toast.success('Ticket created successfully');
@@ -149,21 +161,24 @@ export default function NewTicketPage() {
   });
 
   const onSubmit = (data) => {
-    // Combine date and time if both are set
-    let dueDateValue = undefined;
-    if (dueDate) {
-      const dateTime = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T09:00:00`;
-      dueDateValue = new Date(dateTime).toISOString();
+    // Build schedule data if start date is set
+    let scheduleData = undefined;
+    if (startDate) {
+      const scheduledStart = new Date(`${startDate}T${startTime}:00`).toISOString();
+      const scheduledEnd = endDate && endTime
+        ? new Date(`${endDate}T${endTime}:00`).toISOString()
+        : null;
+      scheduleData = { scheduledStart, scheduledEnd, isAllDay: false };
     }
 
     createMutation.mutate({
       subject: data.subject,
-      description: data.description,
+      description: data.description || '',
       requesterId: data.contactId, // Backend expects requesterId, not contactId
       priority: data.priority,
       assigneeId: data.assigneeId || undefined,
       additionalAssigneeIds: additionalAssigneeIds.length > 0 ? additionalAssigneeIds : undefined,
-      dueDate: dueDateValue,
+      _scheduleData: scheduleData, // Internal field, not sent to ticket API
     });
   };
 
@@ -203,7 +218,7 @@ export default function NewTicketPage() {
           />
 
           <Input label="Subject" required {...register('subject')} error={errors.subject?.message} />
-          <Textarea label="Description" required rows={4} {...register('description')} error={errors.description?.message} />
+          <Textarea label="Description" rows={4} {...register('description')} error={errors.description?.message} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Controller
@@ -238,33 +253,70 @@ export default function NewTicketPage() {
               <Calendar size={16} />
               Schedule on Calendar
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Due Date</label>
+                <label className="block text-xs text-gray-500 mb-1">Start Date</label>
                 <input
                   type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    // Update end date if it's before start date
+                    if (!endDate || e.target.value > endDate) {
+                      setEndDate(e.target.value);
+                    }
+                  }}
                   className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Time</label>
+                <label className="block text-xs text-gray-500 mb-1">Start Time</label>
                 <input
                   type="time"
-                  value={dueTime}
-                  onChange={(e) => setDueTime(e.target.value)}
+                  value={startTime}
+                  onChange={(e) => {
+                    setStartTime(e.target.value);
+                    // Auto-update end time to 1 hour later
+                    const [h, m] = e.target.value.split(':').map(Number);
+                    const endH = Math.min(h + 1, 23);
+                    setEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+                  }}
+                  className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">End Time</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
                   className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
                 />
               </div>
             </div>
-            {dueDate && (
+            {startDate && (
               <p className="text-xs text-gray-500 mt-2">
                 This ticket will appear on the calendar for {(() => {
                   // Parse date as local time to avoid timezone offset issues
-                  const [year, month, day] = dueDate.split('-').map(Number);
+                  const [year, month, day] = startDate.split('-').map(Number);
                   return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                 })()}
+                {endDate && endDate !== startDate && (
+                  <> through {(() => {
+                    const [year, month, day] = endDate.split('-').map(Number);
+                    return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                  })()}</>
+                )}
               </p>
             )}
           </div>
