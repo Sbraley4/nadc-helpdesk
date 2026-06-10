@@ -14,6 +14,10 @@ const {
   unlinkTickets,
   getTicketActivity,
   updateResolutionSummary,
+  getTicketSchedules,
+  createTicketSchedule,
+  deleteTicketSchedule,
+  updateTicketSchedule,
 } = require('../controllers/ticketController');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/requireRole');
@@ -57,5 +61,11 @@ router.get('/:id/activity', getTicketActivity);
 
 // Resolution summary
 router.patch('/:id/resolution', updateResolutionSummary);
+
+// Ticket schedules (multi-day calendar scheduling)
+router.get('/:id/schedules', getTicketSchedules);
+router.post('/:id/schedules', createTicketSchedule);
+router.put('/:id/schedules/:scheduleId', updateTicketSchedule);
+router.delete('/:id/schedules/:scheduleId', deleteTicketSchedule);
 
 module.exports = router;

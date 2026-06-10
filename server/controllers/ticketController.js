@@ -1151,6 +1151,173 @@ const updateResolutionSummary = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /api/tickets/:id/schedules
+ * Get all schedule entries for a ticket
+ */
+const getTicketSchedules = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Check ticket exists
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const schedules = await prisma.ticketSchedule.findMany({
+      where: { ticketId: id },
+      orderBy: { scheduledStart: 'asc' },
+    });
+
+    res.json({ schedules });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/tickets/:id/schedules
+ * Create a new schedule entry for a ticket
+ */
+const createTicketSchedule = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { scheduledStart, scheduledEnd, isAllDay } = req.body;
+
+    // Validate required fields
+    if (!scheduledStart) {
+      return res.status(400).json({ error: 'scheduledStart is required' });
+    }
+
+    // Check ticket exists
+    const ticket = await prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Create the schedule entry
+    const schedule = await prisma.ticketSchedule.create({
+      data: {
+        ticketId: id,
+        scheduledStart: new Date(scheduledStart),
+        scheduledEnd: scheduledEnd ? new Date(scheduledEnd) : null,
+        isAllDay: isAllDay || false,
+      },
+    });
+
+    // Create activity log entry
+    await prisma.ticketActivity.create({
+      data: {
+        ticketId: id,
+        type: 'schedule_added',
+        description: `Added to calendar: ${new Date(scheduledStart).toLocaleDateString()}`,
+        userId: req.user.id,
+      },
+    });
+
+    res.status(201).json(schedule);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/tickets/:id/schedules/:scheduleId
+ * Remove a specific schedule entry
+ */
+const deleteTicketSchedule = async (req, res, next) => {
+  try {
+    const { id, scheduleId } = req.params;
+
+    // Check schedule exists and belongs to this ticket
+    const schedule = await prisma.ticketSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        ticketId: id,
+      },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule entry not found' });
+    }
+
+    // Delete the schedule
+    await prisma.ticketSchedule.delete({
+      where: { id: scheduleId },
+    });
+
+    // Create activity log entry
+    await prisma.ticketActivity.create({
+      data: {
+        ticketId: id,
+        type: 'schedule_removed',
+        description: `Removed from calendar: ${schedule.scheduledStart.toLocaleDateString()}`,
+        userId: req.user.id,
+      },
+    });
+
+    res.json({ message: 'Schedule entry removed' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /api/tickets/:id/schedules/:scheduleId
+ * Update a specific schedule entry
+ */
+const updateTicketSchedule = async (req, res, next) => {
+  try {
+    const { id, scheduleId } = req.params;
+    const { scheduledStart, scheduledEnd, isAllDay } = req.body;
+
+    // Check schedule exists and belongs to this ticket
+    const schedule = await prisma.ticketSchedule.findFirst({
+      where: {
+        id: scheduleId,
+        ticketId: id,
+      },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule entry not found' });
+    }
+
+    // Build update data
+    const updateData = {};
+    if (scheduledStart !== undefined) {
+      updateData.scheduledStart = new Date(scheduledStart);
+    }
+    if (scheduledEnd !== undefined) {
+      updateData.scheduledEnd = scheduledEnd ? new Date(scheduledEnd) : null;
+    }
+    if (isAllDay !== undefined) {
+      updateData.isAllDay = isAllDay;
+    }
+
+    // Update the schedule
+    const updatedSchedule = await prisma.ticketSchedule.update({
+      where: { id: scheduleId },
+      data: updateData,
+    });
+
+    // Create activity log entry
+    await prisma.ticketActivity.create({
+      data: {
+        ticketId: id,
+        type: 'schedule_updated',
+        description: `Calendar entry updated: ${updatedSchedule.scheduledStart.toLocaleDateString()}`,
+        userId: req.user.id,
+      },
+    });
+
+    res.json(updatedSchedule);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   listTickets,
   getViews,
@@ -1165,4 +1332,8 @@ module.exports = {
   unlinkTickets,
   getTicketActivity,
   updateResolutionSummary,
+  getTicketSchedules,
+  createTicketSchedule,
+  deleteTicketSchedule,
+  updateTicketSchedule,
 };

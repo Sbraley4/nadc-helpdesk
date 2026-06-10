@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, User } from 'lucide-react';
+import { Calendar, Clock, User, CalendarRange } from 'lucide-react';
 import Modal from './Modal';
 import Button from './Button';
 import Select from './Select';
@@ -12,15 +12,21 @@ export default function ScheduleTicketModal({
   onClose,
   ticket,
   onScheduled,
+  mode = 'add', // 'add' creates new schedule, 'reschedule' updates existing
+  scheduleId = null, // Required when mode='reschedule'
+  prefilledDate = null, // Pre-fill date from calendar click
+  prefilledTime = null, // Pre-fill time from calendar click
 }) {
   const [saving, setSaving] = useState(false);
   const [agents, setAgents] = useState([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
   // Form state
-  const [scheduleDate, setScheduleDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
+  const [isAllDay, setIsAllDay] = useState(false);
   const [assigneeId, setAssigneeId] = useState('');
 
   // Load agents on mount
@@ -38,81 +44,133 @@ export default function ScheduleTicketModal({
     loadAgents();
   }, []);
 
-  // Initialize form when ticket changes or modal opens
+  // Initialize form when modal opens
   useEffect(() => {
     if (isOpen && ticket) {
-      // Set date from existing dueDate
-      if (ticket.dueDate) {
+      // Use pre-filled date/time if provided (from calendar click)
+      if (prefilledDate) {
+        const date = new Date(prefilledDate);
+        setStartDate(date.toISOString().split('T')[0]);
+        setEndDate(date.toISOString().split('T')[0]);
+        if (prefilledTime) {
+          setStartTime(prefilledTime);
+          // Default end time to 1 hour later
+          const [hours, mins] = prefilledTime.split(':').map(Number);
+          const endHours = Math.min(hours + 1, 23);
+          setEndTime(`${endHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+        }
+        setIsAllDay(false);
+      } else if (ticket.dueDate) {
+        // Use existing dueDate for reschedule mode
         const date = new Date(ticket.dueDate);
-        setScheduleDate(date.toISOString().split('T')[0]);
+        setStartDate(date.toISOString().split('T')[0]);
         const hours = date.getHours().toString().padStart(2, '0');
         const mins = date.getMinutes().toString().padStart(2, '0');
         setStartTime(`${hours}:${mins}`);
+
+        // Set end date/time from scheduledEnd
+        if (ticket.scheduledEnd) {
+          const endDateTime = new Date(ticket.scheduledEnd);
+          setEndDate(endDateTime.toISOString().split('T')[0]);
+          const endHours = endDateTime.getHours().toString().padStart(2, '0');
+          const endMins = endDateTime.getMinutes().toString().padStart(2, '0');
+          setEndTime(`${endHours}:${endMins}`);
+        } else {
+          setEndDate(date.toISOString().split('T')[0]);
+          const endHours = Math.min(date.getHours() + 1, 23);
+          setEndTime(`${endHours.toString().padStart(2, '0')}:${mins}`);
+        }
+        setIsAllDay(false);
       } else {
         // Default to tomorrow at 9am
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        setScheduleDate(tomorrow.toISOString().split('T')[0]);
+        setStartDate(tomorrow.toISOString().split('T')[0]);
+        setEndDate(tomorrow.toISOString().split('T')[0]);
         setStartTime('09:00');
-      }
-
-      // Set end time from existing scheduledEnd
-      if (ticket.scheduledEnd) {
-        const endDate = new Date(ticket.scheduledEnd);
-        const hours = endDate.getHours().toString().padStart(2, '0');
-        const mins = endDate.getMinutes().toString().padStart(2, '0');
-        setEndTime(`${hours}:${mins}`);
-      } else if (ticket.dueDate) {
-        // Default to 1 hour after start
-        const date = new Date(ticket.dueDate);
-        date.setHours(date.getHours() + 1);
-        const hours = date.getHours().toString().padStart(2, '0');
-        const mins = date.getMinutes().toString().padStart(2, '0');
-        setEndTime(`${hours}:${mins}`);
-      } else {
         setEndTime('10:00');
+        setIsAllDay(false);
       }
 
       // Set assignee
       setAssigneeId(ticket.assigneeId || ticket.assignee?.id || '');
     }
-  }, [isOpen, ticket]);
+  }, [isOpen, ticket, prefilledDate, prefilledTime]);
 
-  // Auto-update end time when start time changes
+  // Auto-update end time when start time changes (only if same day)
   const handleStartTimeChange = (newStartTime) => {
     setStartTime(newStartTime);
-    // Set end time to 1 hour later
-    const [hours, mins] = newStartTime.split(':').map(Number);
-    const endHours = Math.min(hours + 1, 23);
-    setEndTime(`${endHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+    if (startDate === endDate) {
+      // Set end time to 1 hour later
+      const [hours, mins] = newStartTime.split(':').map(Number);
+      const endHours = Math.min(hours + 1, 23);
+      setEndTime(`${endHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`);
+    }
+  };
+
+  // Helper to get Monday and Friday of a week containing the start date
+  const getWeekBounds = (dateStr) => {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+    return { monday, friday };
+  };
+
+  // "All Week" button handler
+  const handleAllWeek = () => {
+    const { monday, friday } = getWeekBounds(startDate || new Date().toISOString().split('T')[0]);
+    setStartDate(monday.toISOString().split('T')[0]);
+    setEndDate(friday.toISOString().split('T')[0]);
+    setStartTime('08:00');
+    setEndTime('17:00');
+    setIsAllDay(true);
   };
 
   const handleSave = async () => {
-    if (!scheduleDate || !startTime) {
+    if (!startDate || !startTime) {
       toast.error('Please select a date and time');
       return;
     }
 
     setSaving(true);
     try {
-      // Combine date and time for dueDate
-      const dueDateTime = new Date(`${scheduleDate}T${startTime}`);
+      // Combine date and time for scheduledStart
+      const scheduledStart = new Date(`${startDate}T${startTime}`);
 
-      // Combine date and end time for scheduledEnd
-      const scheduledEndDateTime = endTime ? new Date(`${scheduleDate}T${endTime}`) : null;
-
-      const updateData = {
-        dueDate: dueDateTime.toISOString(),
-        scheduledEnd: scheduledEndDateTime ? scheduledEndDateTime.toISOString() : null,
-      };
-
-      // Only include assigneeId if it changed
-      if (assigneeId !== (ticket.assigneeId || ticket.assignee?.id || '')) {
-        updateData.assigneeId = assigneeId || null;
+      // Combine end date and time for scheduledEnd
+      let scheduledEnd = null;
+      if (endDate && endTime) {
+        scheduledEnd = new Date(`${endDate}T${endTime}`);
       }
 
-      await ticketsApi.updateTicket(ticket.id, updateData);
-      toast.success('Ticket scheduled successfully');
+      // Create or update the schedule entry
+      if (mode === 'reschedule' && scheduleId) {
+        // Update existing schedule
+        await ticketsApi.updateSchedule(ticket.id, scheduleId, {
+          scheduledStart: scheduledStart.toISOString(),
+          scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
+          isAllDay,
+        });
+        toast.success('Schedule updated successfully');
+      } else {
+        // Create new schedule entry
+        await ticketsApi.createSchedule(ticket.id, {
+          scheduledStart: scheduledStart.toISOString(),
+          scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
+          isAllDay,
+        });
+        toast.success('Ticket added to calendar');
+      }
+
+      // Update assignee if changed
+      const currentAssigneeId = ticket.assigneeId || ticket.assignee?.id || '';
+      if (assigneeId !== currentAssigneeId) {
+        await ticketsApi.updateTicket(ticket.id, { assigneeId: assigneeId || null });
+      }
+
       onScheduled?.();
       onClose();
     } catch (error) {
@@ -123,67 +181,120 @@ export default function ScheduleTicketModal({
     }
   };
 
-  const isReschedule = !!ticket?.dueDate;
+  const isReschedule = mode === 'reschedule';
+  const isMultiDay = startDate !== endDate;
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isReschedule ? 'Reschedule Ticket' : 'Schedule Ticket'}
+      title={isReschedule ? 'Reschedule Ticket' : 'Add to Calendar'}
       size="md"
     >
       <div className="space-y-4">
         {/* Ticket info */}
         {ticket && (
           <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-            <div className="text-sm text-gray-500">Scheduling</div>
+            <div className="text-sm text-gray-500">
+              {isReschedule ? 'Rescheduling' : 'Scheduling'}
+            </div>
             <div className="font-medium text-gray-900 truncate">
               #{ticket.ticketNumber} - {ticket.subject}
             </div>
           </div>
         )}
 
-        {/* Date */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <Calendar size={14} className="inline mr-1.5 mb-0.5" />
-            Date
-          </label>
-          <input
-            type="date"
-            value={scheduleDate}
-            onChange={(e) => setScheduleDate(e.target.value)}
-            className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
-          />
+        {/* All Week Button */}
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAllWeek}
+          >
+            <CalendarRange size={14} className="mr-1.5" />
+            All Week
+          </Button>
         </div>
 
-        {/* Start and End Time */}
+        {/* Start Date and End Date */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              <Clock size={14} className="inline mr-1.5 mb-0.5" />
-              Start Time
+              <Calendar size={14} className="inline mr-1.5 mb-0.5" />
+              Start Date
             </label>
             <input
-              type="time"
-              value={startTime}
-              onChange={(e) => handleStartTimeChange(e.target.value)}
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                // Update end date if it's before start date
+                if (e.target.value > endDate) {
+                  setEndDate(e.target.value);
+                }
+              }}
               className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              <Clock size={14} className="inline mr-1.5 mb-0.5" />
-              End Time
+              <Calendar size={14} className="inline mr-1.5 mb-0.5" />
+              End Date
             </label>
             <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
               className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
             />
           </div>
         </div>
+
+        {/* All Day Toggle */}
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="isAllDay"
+            checked={isAllDay}
+            onChange={(e) => setIsAllDay(e.target.checked)}
+            className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+          />
+          <label htmlFor="isAllDay" className="text-sm text-gray-700">
+            All day event {isMultiDay && '(spans multiple days)'}
+          </label>
+        </div>
+
+        {/* Start and End Time (hidden if all day) */}
+        {!isAllDay && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Clock size={14} className="inline mr-1.5 mb-0.5" />
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
+                className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Clock size={14} className="inline mr-1.5 mb-0.5" />
+                End Time
+              </label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Agent Assignment */}
         <div>
@@ -212,8 +323,8 @@ export default function ScheduleTicketModal({
           <Button type="button" variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || !scheduleDate}>
-            {saving ? <Spinner size="sm" /> : (isReschedule ? 'Reschedule' : 'Schedule')}
+          <Button onClick={handleSave} disabled={saving || !startDate}>
+            {saving ? <Spinner size="sm" /> : (isReschedule ? 'Update Schedule' : 'Add to Calendar')}
           </Button>
         </div>
       </div>

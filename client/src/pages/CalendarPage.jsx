@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal } from '../components/shared';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -179,6 +179,11 @@ export default function CalendarPage() {
     assigneeIds: [],
   });
 
+  // Ticket search modal state (for adding existing tickets to calendar)
+  const [showTicketSearchModal, setShowTicketSearchModal] = useState(false);
+  const [ticketSearchDate, setTicketSearchDate] = useState(null);
+  const [ticketSearchTime, setTicketSearchTime] = useState('09:00');
+
   // Get companies for new client modal
   const { data: companiesData } = useQuery({
     queryKey: ['companies'],
@@ -321,11 +326,12 @@ export default function CalendarPage() {
   };
 
   // Group tickets by date
+  // Uses scheduledStart from TicketSchedule or falls back to dueDate for backwards compatibility
   const ticketsByDate = useMemo(() => {
     const grouped = {};
     tickets.forEach((ticket) => {
-      const dateKey = ticket.scheduledDate
-        ? new Date(ticket.scheduledDate).toDateString()
+      const dateKey = ticket.scheduledStart
+        ? new Date(ticket.scheduledStart).toDateString()
         : ticket.dueDate
         ? new Date(ticket.dueDate).toDateString()
         : null;
@@ -663,6 +669,14 @@ export default function CalendarPage() {
     setShowEventModal(true);
   };
 
+  // Context menu: Add existing ticket to calendar
+  const handleContextAddExistingTicket = () => {
+    hideContextMenu();
+    setTicketSearchDate(contextMenu.date);
+    setTicketSearchTime(contextMenu.time);
+    setShowTicketSearchModal(true);
+  };
+
   // Close context menu when clicking outside
   useEffect(() => {
     if (!contextMenu.visible) return;
@@ -964,20 +978,26 @@ export default function CalendarPage() {
   };
 
   // Get multi-day items and single-day items for week view
+  // Now uses scheduledStart/scheduledEnd from TicketSchedule table
   const { multiDayItems, singleDayItemsByDate } = useMemo(() => {
     if (view !== 'week') return { multiDayItems: [], singleDayItemsByDate: {} };
 
     const multiDay = [];
     const singleDay = {};
 
-    // Process tickets
+    // Process tickets (from TicketSchedule records)
     tickets.forEach((ticket) => {
-      const ticketTime = ticket.scheduledDate || ticket.dueDate;
+      // Use scheduledStart first (new TicketSchedule), then fall back to dueDate
+      const ticketTime = ticket.scheduledStart || ticket.dueDate;
       if (!ticketTime) return;
 
       const ticketEnd = ticket.scheduledEnd;
-      if (ticketEnd && isMultiDay({ type: 'ticket', startTime: ticketTime, scheduledEnd: ticketEnd })) {
-        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, scheduledEnd: ticketEnd });
+      // Show as multi-day banner if isAllDay is true OR spans multiple days
+      const shouldShowAsMultiDay = ticket.isAllDay ||
+        (ticketEnd && isMultiDay({ type: 'ticket', startTime: ticketTime, scheduledEnd: ticketEnd }));
+
+      if (shouldShowAsMultiDay) {
+        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, scheduledEnd: ticketEnd || ticketTime });
       } else {
         const dateKey = new Date(ticketTime).toDateString();
         if (!singleDay[dateKey]) singleDay[dateKey] = [];
@@ -1692,6 +1712,13 @@ export default function CalendarPage() {
             <span>New Ticket</span>
           </button>
           <button
+            onClick={handleContextAddExistingTicket}
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+          >
+            <Search size={16} className="text-green-600 flex-shrink-0" />
+            <span>Add Existing Ticket</span>
+          </button>
+          <button
             onClick={handleContextNewEvent}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
           >
@@ -2014,6 +2041,18 @@ export default function CalendarPage() {
           fetchUnscheduledTickets();
           fetchCalendarData();
           setScheduleTicket(null);
+        }}
+      />
+
+      {/* Ticket Search Modal (for adding existing tickets to calendar) */}
+      <TicketSearchModal
+        isOpen={showTicketSearchModal}
+        onClose={() => setShowTicketSearchModal(false)}
+        prefilledDate={ticketSearchDate}
+        prefilledTime={ticketSearchTime}
+        onTicketScheduled={() => {
+          fetchCalendarData();
+          setShowTicketSearchModal(false);
         }}
       />
     </div>

@@ -222,6 +222,7 @@ model Ticket {
   checklistItems      TicketChecklistItem[]
   devices             TicketDevice[]
   satisfactionRating  SatisfactionRating?
+  schedules           TicketSchedule[]
 }
 
 // TicketReply
@@ -677,4 +678,16 @@ model TicketAssignee {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([ticketId, userId])
+}
+
+// TicketSchedule - multiple calendar placements for tickets
+model TicketSchedule {
+  id             String    @id @default(cuid())
+  ticketId       String
+  ticket         Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  scheduledStart DateTime
+  scheduledEnd   DateTime?
+  isAllDay       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }

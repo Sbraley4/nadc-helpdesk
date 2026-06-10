@@ -20,6 +20,11 @@ export const tickets = {
   linkTickets: (ticketId, relatedId) => client.post('/api/tickets/' + ticketId + '/related', { relatedTicketId: relatedId }).then((r) => r.data),
   unlinkTickets: (ticketId, relatedId) => client.delete('/api/tickets/' + ticketId + '/related/' + relatedId).then((r) => r.data),
   getViews: () => client.get('/api/tickets/views').then((r) => r.data),
+  // Ticket schedules (multi-day calendar scheduling)
+  getSchedules: (ticketId) => client.get('/api/tickets/' + ticketId + '/schedules').then((r) => r.data),
+  createSchedule: (ticketId, data) => client.post('/api/tickets/' + ticketId + '/schedules', data).then((r) => r.data),
+  updateSchedule: (ticketId, scheduleId, data) => client.put('/api/tickets/' + ticketId + '/schedules/' + scheduleId, data).then((r) => r.data),
+  deleteSchedule: (ticketId, scheduleId) => client.delete('/api/tickets/' + ticketId + '/schedules/' + scheduleId).then((r) => r.data),
 };
 
 export const replies = {

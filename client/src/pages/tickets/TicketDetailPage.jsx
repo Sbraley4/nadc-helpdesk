@@ -95,6 +95,12 @@ export default function TicketDetailPage() {
   const [forwardToAgentId, setForwardToAgentId] = useState('');
   const [forwardNote, setForwardNote] = useState('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [scheduleModalMode, setScheduleModalMode] = useState('add'); // 'add' or 'reschedule'
+  const [rescheduleId, setRescheduleId] = useState(null);
+
+  // Schedule entries state
+  const [scheduleEntries, setScheduleEntries] = useState([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(false);
 
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
@@ -269,7 +275,27 @@ export default function TicketDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch ticket schedule entries
+  const { data: schedulesData, refetch: refetchSchedules } = useQuery({
+    queryKey: ['ticket-schedules', id],
+    queryFn: () => tickets.getSchedules(id),
+    enabled: !!id,
+  });
+
   const checklistItems = checklistData?.items || [];
+  const schedulesList = schedulesData?.schedules || [];
+
+  // Delete schedule mutation
+  const deleteScheduleMutation = useMutation({
+    mutationFn: (scheduleId) => tickets.deleteSchedule(id, scheduleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['ticket-schedules', id]);
+      toast.success('Schedule entry removed');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to remove schedule');
+    },
+  });
 
   // Filter templates by search query
   const filteredTemplates = (templatesData?.templates || []).filter(
@@ -708,11 +734,16 @@ export default function TicketDetailPage() {
                     Edit Ticket
                   </button>
                   <button
-                    onClick={() => { setShowScheduleModal(true); setShowTicketMenu(false); }}
+                    onClick={() => {
+                      setScheduleModalMode('add');
+                      setRescheduleId(null);
+                      setShowScheduleModal(true);
+                      setShowTicketMenu(false);
+                    }}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
                     <Calendar size={16} />
-                    {ticket.dueDate ? 'Reschedule' : 'Add to Calendar'}
+                    Add to Calendar
                   </button>
                   <button
                     onClick={handleStartThread}
@@ -1438,10 +1469,17 @@ export default function TicketDetailPage() {
       {/* Schedule Ticket Modal */}
       <ScheduleTicketModal
         isOpen={showScheduleModal}
-        onClose={() => setShowScheduleModal(false)}
+        onClose={() => {
+          setShowScheduleModal(false);
+          setScheduleModalMode('add');
+          setRescheduleId(null);
+        }}
         ticket={ticket}
+        mode={scheduleModalMode}
+        scheduleId={rescheduleId}
         onScheduled={() => {
           queryClient.invalidateQueries(['ticket', id]);
+          queryClient.invalidateQueries(['ticket-schedules', id]);
         }}
       />
 
@@ -1582,21 +1620,85 @@ export default function TicketDetailPage() {
             </div>
           </div>
 
-          {/* Schedule Section - Only shown if there's a due date */}
-          {ticket.dueDate && (
-            <div className="bg-primary/5 rounded-lg border border-primary/20 p-4">
-              <h3 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <Clock size={12} />
-                Scheduled
+          {/* Schedule Section - Shows all schedule entries */}
+          <div className="bg-primary/5 rounded-lg border border-primary/20 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar size={12} />
+                Calendar Schedules
               </h3>
-              <p className="text-sm font-semibold text-gray-900">
-                {format(new Date(ticket.dueDate), 'EEEE, MMMM d, yyyy')}
-              </p>
-              <p className="text-sm text-gray-600">
-                at {format(new Date(ticket.dueDate), 'h:mm a')}
-              </p>
+              <button
+                onClick={() => {
+                  setScheduleModalMode('add');
+                  setRescheduleId(null);
+                  setShowScheduleModal(true);
+                }}
+                className="text-xs text-primary hover:text-primary/80 font-medium flex items-center gap-1"
+              >
+                <Plus size={12} />
+                Add
+              </button>
             </div>
-          )}
+            {schedulesList.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No scheduled times</p>
+            ) : (
+              <div className="space-y-2">
+                {schedulesList.map((schedule) => {
+                  const startDate = new Date(schedule.scheduledStart);
+                  const endDate = schedule.scheduledEnd ? new Date(schedule.scheduledEnd) : null;
+                  const isMultiDay = endDate && startDate.toDateString() !== endDate.toDateString();
+
+                  return (
+                    <div
+                      key={schedule.id}
+                      className="flex items-start justify-between bg-white rounded-lg px-3 py-2 border border-primary/10"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {format(startDate, 'EEE, MMM d, yyyy')}
+                          {isMultiDay && endDate && (
+                            <span> - {format(endDate, 'EEE, MMM d')}</span>
+                          )}
+                        </p>
+                        {!schedule.isAllDay && (
+                          <p className="text-xs text-gray-600">
+                            {format(startDate, 'h:mm a')}
+                            {endDate && !isMultiDay && (
+                              <span> - {format(endDate, 'h:mm a')}</span>
+                            )}
+                          </p>
+                        )}
+                        {schedule.isAllDay && (
+                          <p className="text-xs text-gray-500 italic">All day</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          onClick={() => {
+                            setScheduleModalMode('reschedule');
+                            setRescheduleId(schedule.id);
+                            setShowScheduleModal(true);
+                          }}
+                          className="p-1 text-gray-400 hover:text-primary rounded"
+                          title="Reschedule"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => deleteScheduleMutation.mutate(schedule.id)}
+                          className="p-1 text-gray-400 hover:text-red-500 rounded"
+                          title="Remove"
+                          disabled={deleteScheduleMutation.isLoading}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Metadata Section */}
           <div className="bg-gray-50 rounded-lg p-3">

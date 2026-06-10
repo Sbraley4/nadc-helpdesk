@@ -3,7 +3,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // GET /api/calendar
-// Returns tickets and time entries for a date range
+// Returns ticket schedules and time entries for a date range
+// Now fetches from TicketSchedule table for multi-day scheduling support
 async function getCalendarTickets(req, res, next) {
   try {
     const { start, end, assigneeId } = req.query;
@@ -16,40 +17,70 @@ async function getCalendarTickets(req, res, next) {
     const startDate = new Date(start);
     const endDate = new Date(end);
 
-    // Build where clause for tickets
-    const ticketWhere = {
-      dueDate: {
-        gte: startDate,
-        lte: endDate,
-      },
+    // Build where clause for ticket schedules
+    // A schedule is in range if:
+    // - scheduledStart is within range, OR
+    // - scheduledEnd is within range, OR
+    // - schedule spans the entire range (start before, end after)
+    const scheduleWhere = {
+      OR: [
+        {
+          scheduledStart: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        {
+          scheduledEnd: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        {
+          AND: [
+            { scheduledStart: { lt: startDate } },
+            { scheduledEnd: { gt: endDate } },
+          ],
+        },
+      ],
     };
 
+    // If filtering by assignee, add ticket relation filter
     if (assigneeId) {
-      ticketWhere.assigneeId = assigneeId;
+      scheduleWhere.ticket = {
+        OR: [
+          { assigneeId: assigneeId },
+          { additionalAssignees: { some: { userId: assigneeId } } },
+        ],
+      };
     }
 
-    // Fetch tickets with due dates in range
-    const tickets = await prisma.ticket.findMany({
-      where: ticketWhere,
+    // Fetch ticket schedules with full ticket data
+    const schedules = await prisma.ticketSchedule.findMany({
+      where: scheduleWhere,
       include: {
-        assignee: {
-          select: { id: true, name: true, avatar: true, color: true },
-        },
-        additionalAssignees: {
+        ticket: {
           include: {
-            user: {
+            assignee: {
               select: { id: true, name: true, avatar: true, color: true },
+            },
+            additionalAssignees: {
+              include: {
+                user: {
+                  select: { id: true, name: true, avatar: true, color: true },
+                },
+              },
+            },
+            requester: {
+              select: { id: true, name: true },
+            },
+            company: {
+              select: { id: true, name: true },
             },
           },
         },
-        requester: {
-          select: { id: true, name: true },
-        },
-        company: {
-          select: { id: true, name: true },
-        },
       },
-      orderBy: [{ dueDate: 'asc' }, { priority: 'desc' }],
+      orderBy: [{ scheduledStart: 'asc' }],
     });
 
     // Build where clause for time entries
@@ -101,19 +132,27 @@ async function getCalendarTickets(req, res, next) {
       day.totalMinutes = day.totalMinutes % 60;
     }
 
-    // Format tickets for calendar
-    const formattedTickets = tickets.map((ticket) => ({
-      id: ticket.id,
-      ticketNumber: ticket.ticketNumber,
-      subject: ticket.subject,
-      status: ticket.status,
-      priority: ticket.priority,
-      dueDate: ticket.dueDate,
-      scheduledEnd: ticket.scheduledEnd,
-      assignee: ticket.assignee,
-      additionalAssignees: ticket.additionalAssignees?.map((ta) => ta.user) || [],
-      requester: ticket.requester,
-      company: ticket.company,
+    // Format schedule entries for calendar
+    // Each schedule entry appears as a separate item on the calendar
+    // A ticket with 2 schedules will appear twice
+    const formattedTickets = schedules.map((schedule) => ({
+      // Schedule-specific fields
+      scheduleId: schedule.id,
+      scheduledStart: schedule.scheduledStart,
+      scheduledEnd: schedule.scheduledEnd,
+      isAllDay: schedule.isAllDay,
+      // Legacy fields for backwards compatibility with frontend
+      dueDate: schedule.scheduledStart,
+      // Ticket data (flattened)
+      id: schedule.ticket.id,
+      ticketNumber: schedule.ticket.ticketNumber,
+      subject: schedule.ticket.subject,
+      status: schedule.ticket.status,
+      priority: schedule.ticket.priority,
+      assignee: schedule.ticket.assignee,
+      additionalAssignees: schedule.ticket.additionalAssignees?.map((ta) => ta.user) || [],
+      requester: schedule.ticket.requester,
+      company: schedule.ticket.company,
     }));
 
     res.json({
