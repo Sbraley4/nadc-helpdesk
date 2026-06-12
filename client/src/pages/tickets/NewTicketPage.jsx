@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, X } from 'lucide-react';
+import { ArrowLeft, Calendar, CalendarRange, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents, templates, contacts, companies } from '../../api';
 import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput } from '../../components/shared';
@@ -34,6 +34,35 @@ export default function NewTicketPage() {
   const [endTime, setEndTime] = useState('10:00');
   const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
   const templateId = searchParams.get('templateId');
+
+  // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
+  const formatLocalDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // Helper to get Monday and Friday of a week containing the start date
+  const getWeekBounds = (dateStr) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 3);
+    return { monday, friday };
+  };
+
+  // "All Week" button handler
+  const handleAllWeek = () => {
+    const { monday, friday } = getWeekBounds(startDate || formatLocalDate(new Date()));
+    setStartDate(formatLocalDate(monday));
+    setEndDate(formatLocalDate(friday));
+    setStartTime('08:00');
+    setEndTime('17:00');
+  };
 
   // New client modal state
   const [showNewClientModal, setShowNewClientModal] = useState(false);
@@ -303,6 +332,18 @@ export default function NewTicketPage() {
                   className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary min-h-[44px]"
                 />
               </div>
+            </div>
+            {/* All Week Button */}
+            <div className="flex justify-end mt-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleAllWeek}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+              >
+                <CalendarRange size={16} className="mr-2" />
+                All Week (Mon-Fri)
+              </Button>
             </div>
             {startDate && (
               <p className="text-xs text-gray-500 mt-2">

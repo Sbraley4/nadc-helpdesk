@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -157,6 +157,7 @@ export default function CalendarPage() {
   const [newTicketDate, setNewTicketDate] = useState(null);
   const [newTicketTime, setNewTicketTime] = useState('09:00');
   const [newTicketEndTime, setNewTicketEndTime] = useState('10:00');
+  const [newTicketEndDate, setNewTicketEndDate] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newTicketForm, setNewTicketForm] = useState({
     subject: '',
@@ -491,6 +492,7 @@ export default function CalendarPage() {
   const handleChooseNewTicket = () => {
     setShowChoicePopup(false);
     setNewTicketDate(selectedSlotDate);
+    setNewTicketEndDate(selectedSlotDate);
     setNewTicketTime(selectedSlotTime);
     // Calculate default end time (1 hour after start)
     const [startHour, startMin] = selectedSlotTime.split(':').map(Number);
@@ -543,6 +545,33 @@ export default function CalendarPage() {
       assigneeIds: event.assignees?.map(a => a.id) || [],
     });
     setShowEventModal(true);
+  };
+
+  // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
+  const formatLocalDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  // Helper to get Monday and Friday of a week containing the given date
+  const getWeekBoundsFromDate = (date) => {
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 3);
+    return { monday, friday };
+  };
+
+  // "All Week" button handler for new ticket modal
+  const handleAllWeekNewTicket = () => {
+    const { monday, friday } = getWeekBoundsFromDate(newTicketDate || new Date());
+    setNewTicketDate(monday);
+    setNewTicketEndDate(friday);
+    setNewTicketTime('08:00');
+    setNewTicketEndTime('17:00');
   };
 
   // Format date for datetime-local input
@@ -630,6 +659,7 @@ export default function CalendarPage() {
   const handleContextNewTicket = () => {
     hideContextMenu();
     setNewTicketDate(contextMenu.date);
+    setNewTicketEndDate(contextMenu.date);
     setNewTicketTime(contextMenu.time);
     // Calculate default end time (1 hour after start)
     const [startHour, startMin] = contextMenu.time.split(':').map(Number);
@@ -713,10 +743,10 @@ export default function CalendarPage() {
       const [hours, minutes] = newTicketTime.split(':');
       dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      // Combine date and end time for scheduledEnd
+      // Combine end date and end time for scheduledEnd
       let scheduledEndDateTime = null;
       if (newTicketEndTime) {
-        scheduledEndDateTime = new Date(newTicketDate);
+        scheduledEndDateTime = new Date(newTicketEndDate || newTicketDate);
         const [endHours, endMinutes] = newTicketEndTime.split(':');
         scheduledEndDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
       }
@@ -1067,7 +1097,7 @@ export default function CalendarPage() {
             <div className="border-b border-gray-200 bg-gray-50">
               {/* Header row for multi-day section */}
               <div className="grid grid-cols-[60px_repeat(7,1fr)]">
-                <div className="p-1 text-xs text-gray-400 text-center">All day</div>
+                <div className="p-1 text-xs text-gray-400 text-center"></div>
                 {weekDays.map((date, idx) => (
                   <div key={idx} className="relative border-l border-gray-100 min-h-[28px]" />
                 ))}
@@ -1743,16 +1773,21 @@ export default function CalendarPage() {
       >
         <form onSubmit={handleCreateTicket} className="space-y-4">
           {/* Date and Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
               <input
                 type="date"
                 value={newTicketDate ? `${newTicketDate.getFullYear()}-${String(newTicketDate.getMonth() + 1).padStart(2, '0')}-${String(newTicketDate.getDate()).padStart(2, '0')}` : ''}
                 onChange={(e) => {
                   // Parse date as local time to avoid timezone offset issues
                   const [year, month, day] = e.target.value.split('-').map(Number);
-                  setNewTicketDate(new Date(year, month - 1, day));
+                  const newDate = new Date(year, month - 1, day);
+                  setNewTicketDate(newDate);
+                  // Update end date if it's before start date
+                  if (!newTicketEndDate || newDate > newTicketEndDate) {
+                    setNewTicketEndDate(newDate);
+                  }
                 }}
                 className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
@@ -1773,6 +1808,19 @@ export default function CalendarPage() {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={newTicketEndDate ? `${newTicketEndDate.getFullYear()}-${String(newTicketEndDate.getMonth() + 1).padStart(2, '0')}-${String(newTicketEndDate.getDate()).padStart(2, '0')}` : ''}
+                min={newTicketDate ? `${newTicketDate.getFullYear()}-${String(newTicketDate.getMonth() + 1).padStart(2, '0')}-${String(newTicketDate.getDate()).padStart(2, '0')}` : ''}
+                onChange={(e) => {
+                  const [year, month, day] = e.target.value.split('-').map(Number);
+                  setNewTicketEndDate(new Date(year, month - 1, day));
+                }}
+                className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+              />
+            </div>
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
               <input
                 type="time"
@@ -1781,6 +1829,18 @@ export default function CalendarPage() {
                 className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
               />
             </div>
+          </div>
+          {/* All Week Button */}
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleAllWeekNewTicket}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+            >
+              <CalendarRange size={16} className="mr-2" />
+              All Week (Mon-Fri)
+            </Button>
           </div>
 
           {/* Subject */}
