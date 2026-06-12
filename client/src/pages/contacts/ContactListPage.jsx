@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Building2, Ticket, AlertCircle } from 'lucide-react';
+import { Plus, Building2, Ticket, AlertCircle, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { contacts, companies } from '../../api';
 import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, Select, PhoneInput } from '../../components/shared';
@@ -13,6 +13,10 @@ export default function ContactListPage() {
   const [showInlineCompanyForm, setShowInlineCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', companyId: '' });
+  const [deletingContact, setDeletingContact] = useState(null);
   const queryClient = useQueryClient();
 
   const filters = {
@@ -43,7 +47,7 @@ export default function ContactListPage() {
   const { data: companiesData } = useQuery({
     queryKey: ['companies-list'],
     queryFn: () => companies.getCompanies({ limit: 100 }),
-    enabled: showCreateModal,
+    enabled: showCreateModal || showEditModal,
   });
 
   const createMutation = useMutation({
@@ -84,6 +88,69 @@ export default function ContactListPage() {
       name: newCompanyName.trim(),
       domain: newCompanyDomain.trim() || undefined,
     });
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => contacts.updateContact(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success('Contact updated successfully');
+      setShowEditModal(false);
+      setEditingContact(null);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update contact');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: contacts.deleteContact,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      toast.success('Contact deleted successfully');
+      setDeletingContact(null);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete contact');
+    },
+  });
+
+  const handleEditClick = (contact) => {
+    setEditingContact(contact);
+    setEditForm({
+      name: contact.name || '',
+      email: contact.email || '',
+      phone: contact.phone || '',
+      companyId: contact.company?.id || '',
+    });
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = (e) => {
+    e.preventDefault();
+    if (!editForm.name || !editForm.email) {
+      toast.error('Name and email are required');
+      return;
+    }
+    updateMutation.mutate({
+      id: editingContact.id,
+      data: {
+        name: editForm.name,
+        email: editForm.email,
+        phone: editForm.phone || undefined,
+        companyId: editForm.companyId || undefined,
+      },
+    });
+  };
+
+  const handleDeleteClick = (contact) => {
+    setDeletingContact(contact);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (deletingContact) {
+      deleteMutation.mutate(deletingContact.id);
+    }
   };
 
   const handleCreateSubmit = (e) => {
@@ -151,6 +218,7 @@ export default function ContactListPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -178,6 +246,24 @@ export default function ContactListPage() {
                       <div className="flex items-center gap-1 text-sm text-gray-500">
                         <Ticket size={16} />
                         {contact._count?.tickets || 0}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEditClick(contact)}
+                          className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                          title="Edit contact"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(contact)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Delete contact"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -279,6 +365,71 @@ export default function ContactListPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Contact Modal */}
+      <Modal isOpen={showEditModal} onClose={() => { setShowEditModal(false); setEditingContact(null); }} title="Edit Contact">
+        <form onSubmit={handleEditSubmit} className="space-y-4">
+          <Input
+            label="Name"
+            required
+            value={editForm.name}
+            onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            placeholder="Enter contact name"
+          />
+          <Input
+            label="Email"
+            type="email"
+            required
+            value={editForm.email}
+            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            placeholder="Enter email address"
+          />
+          <PhoneInput
+            label="Phone"
+            value={editForm.phone}
+            onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+            <Select
+              options={companyOptions}
+              value={editForm.companyId}
+              onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={updateMutation.isPending}>
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={!!deletingContact} onClose={() => setDeletingContact(null)} title="Delete Contact">
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete <span className="font-semibold text-gray-900">{deletingContact?.name}</span>?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="button" variant="secondary" onClick={() => setDeletingContact(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleDeleteConfirm}
+              isLoading={deleteMutation.isPending}
+            >
+              Delete Contact
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
