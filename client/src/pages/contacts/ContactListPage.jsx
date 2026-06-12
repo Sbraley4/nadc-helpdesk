@@ -16,6 +16,7 @@ export default function ContactListPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', companyId: '' });
+  const [showEditInlineCompanyForm, setShowEditInlineCompanyForm] = useState(false);
   const [deletingContact, setDeletingContact] = useState(null);
   const queryClient = useQueryClient();
 
@@ -67,9 +68,15 @@ export default function ContactListPage() {
     mutationFn: companies.createCompany,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['companies-list'] });
-      // Auto-select the newly created company
-      setCreateForm({ ...createForm, companyId: data.company?.id || data.id });
-      setShowInlineCompanyForm(false);
+      const newCompanyId = data.company?.id || data.id;
+      // Auto-select the newly created company in the appropriate form
+      if (showEditModal) {
+        setEditForm({ ...editForm, companyId: newCompanyId });
+        setShowEditInlineCompanyForm(false);
+      } else {
+        setCreateForm({ ...createForm, companyId: newCompanyId });
+        setShowInlineCompanyForm(false);
+      }
       setNewCompanyName('');
       setNewCompanyDomain('');
       toast.success('Company created and selected');
@@ -123,6 +130,9 @@ export default function ContactListPage() {
       phone: contact.phone || '',
       companyId: contact.company?.id || '',
     });
+    setShowEditInlineCompanyForm(false);
+    setNewCompanyName('');
+    setNewCompanyDomain('');
     setShowEditModal(true);
   };
 
@@ -392,14 +402,64 @@ export default function ContactListPage() {
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-            <Select
-              options={companyOptions}
-              value={editForm.companyId}
-              onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
-            />
+            {!showEditInlineCompanyForm ? (
+              <>
+                <Select
+                  options={companyOptions}
+                  value={editForm.companyId}
+                  onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditInlineCompanyForm(true)}
+                  className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <Plus size={14} />
+                  Create new company
+                </button>
+              </>
+            ) : (
+              <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                <Input
+                  label="Company Name"
+                  required
+                  value={newCompanyName}
+                  onChange={(e) => setNewCompanyName(e.target.value)}
+                  placeholder="Enter company name"
+                />
+                <Input
+                  label="Domain"
+                  value={newCompanyDomain}
+                  onChange={(e) => setNewCompanyDomain(e.target.value)}
+                  placeholder="e.g., example.com"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleCreateCompanyInline}
+                    isLoading={createCompanyMutation.isPending}
+                  >
+                    Create Company
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowEditInlineCompanyForm(false);
+                      setNewCompanyName('');
+                      setNewCompanyDomain('');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="secondary" onClick={() => { setShowEditModal(false); setEditingContact(null); }}>
+            <Button type="button" variant="secondary" onClick={() => { setShowEditModal(false); setEditingContact(null); setShowEditInlineCompanyForm(false); }}>
               Cancel
             </Button>
             <Button type="submit" isLoading={updateMutation.isPending}>
