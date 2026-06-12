@@ -1064,7 +1064,18 @@ export default function CalendarPage() {
       const dayEnd = new Date(day);
       dayEnd.setHours(23, 59, 59, 999);
 
-      if (start <= dayEnd && end >= dayStart) {
+      // For all-day items, compare only the date portion to avoid UTC timezone bleed
+      // (scheduledEnd stored in UTC can shift into the next day when parsed locally)
+      let endComparison;
+      if (item.isAllDay) {
+        const endDateOnly = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        const dayDateOnly = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+        endComparison = endDateOnly >= dayDateOnly;
+      } else {
+        endComparison = end >= dayStart;
+      }
+
+      if (start <= dayEnd && endComparison) {
         if (startCol === -1) startCol = idx;
         endCol = idx;
       }
