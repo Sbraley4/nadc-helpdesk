@@ -238,44 +238,50 @@ export default function CompanyListPage() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-gray-200">
+            <div className="block md:hidden">
               {companyList.map((company) => (
-                <div key={company.id} className="p-4 active:bg-gray-50 touch-manipulation">
-                  <Link to={'/companies/' + company.id}>
-                    <p className="text-sm font-medium text-gray-900">{company.name}</p>
-                    {company.domain && <p className="text-xs text-gray-500 mt-0.5">{company.domain}</p>}
+                <div key={company.id} className="p-4 border-b border-gray-100 last:border-b-0">
+                  <Link to={'/companies/' + company.id} className="block mb-3">
+                    <p className="text-base font-medium text-gray-900">{company.name}</p>
+                    {company.domain && <p className="text-sm text-gray-500 mt-0.5">{company.domain}</p>}
                   </Link>
-                  {company.assignedAgent && (
-                    <div className="flex items-center gap-2 mt-2">
-                      <Avatar name={company.assignedAgent.name} size="xs" />
-                      <span className="text-xs text-gray-600">{company.assignedAgent.name}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+
+                  {/* Company Details */}
+                  <div className="space-y-2 mb-3">
+                    {company.assignedAgent && (
+                      <div className="flex items-center gap-2">
+                        <Avatar name={company.assignedAgent.name} size="xs" />
+                        <span className="text-sm text-gray-600">{company.assignedAgent.name}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
                       <span className="flex items-center gap-1">
-                        <Users size={12} />
+                        <Users size={14} className="text-gray-400" />
                         {company._count?.contacts || 0} contacts
                       </span>
                       <span className="flex items-center gap-1">
-                        <Ticket size={12} />
+                        <Ticket size={14} className="text-gray-400" />
                         {company._count?.tickets || 0} tickets
                       </span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => { e.preventDefault(); handleEditClick(company); }}
-                        className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.preventDefault(); handleDeleteClick(company); }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleEditClick(company)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg border border-gray-200 min-h-[44px] touch-manipulation"
+                    >
+                      <Pencil size={16} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(company)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 min-h-[44px] touch-manipulation"
+                    >
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
               ))}

@@ -285,44 +285,52 @@ export default function ContactListPage() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-gray-200">
+            <div className="block md:hidden">
               {contactList.map((contact) => (
-                <div key={contact.id} className="p-4 active:bg-gray-50 touch-manipulation">
-                  <Link to={'/contacts/' + contact.id} className="flex items-start gap-3">
-                    <Avatar name={contact.name} size="md" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{contact.name}</p>
-                      <p className="text-sm text-gray-500 truncate">{contact.email}</p>
-                      {contact.company && (
-                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                          <Building2 size={12} />
-                          {contact.company.name}
-                        </p>
-                      )}
+                <div key={contact.id} className="p-4 border-b border-gray-100 last:border-b-0">
+                  <Link to={'/contacts/' + contact.id} className="block">
+                    <div className="flex items-start gap-3 mb-3">
+                      <Avatar name={contact.name} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium text-gray-900">{contact.name}</p>
+                        <p className="text-sm text-gray-500 break-all">{contact.email}</p>
+                      </div>
                     </div>
                   </Link>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      {contact.phone && <span>{contact.phone}</span>}
-                      <span className="flex items-center gap-1">
-                        <Ticket size={12} />
-                        {contact._count?.tickets || 0} tickets
-                      </span>
+
+                  {/* Contact Details */}
+                  <div className="space-y-2 mb-3 pl-12">
+                    {contact.company && (
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Building2 size={14} className="text-gray-400 flex-shrink-0" />
+                        <span>{contact.company.name}</span>
+                      </div>
+                    )}
+                    {contact.phone && (
+                      <div className="text-sm text-gray-600">{contact.phone}</div>
+                    )}
+                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                      <Ticket size={14} className="text-gray-400" />
+                      <span>{contact._count?.tickets || 0} tickets</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => { e.preventDefault(); handleEditClick(contact); }}
-                        className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.preventDefault(); handleDeleteClick(contact); }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-2 pl-12">
+                    <button
+                      onClick={() => handleEditClick(contact)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-primary hover:bg-gray-100 rounded-lg border border-gray-200 min-h-[44px] touch-manipulation"
+                    >
+                      <Pencil size={16} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(contact)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 min-h-[44px] touch-manipulation"
+                    >
+                      <Trash2 size={16} />
+                      <span>Delete</span>
+                    </button>
                   </div>
                 </div>
               ))}
