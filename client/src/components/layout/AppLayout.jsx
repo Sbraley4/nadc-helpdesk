@@ -171,7 +171,7 @@ export default function AppLayout() {
                 <button
                   key={item.label}
                   onClick={() => handleBottomNavClick(item)}
-                  className={`flex flex-col items-center justify-center flex-1 h-full touch-manipulation ${
+                  className={`flex flex-col items-center justify-center flex-1 min-h-[56px] touch-manipulation ${
                     item.highlight
                       ? 'text-accent'
                       : isActive

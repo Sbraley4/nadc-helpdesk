@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html, body {
+    @apply overflow-x-hidden;
+  }
+}
+
 /* Mobile-first utilities */
 @layer utilities {
   /* Safe area insets for iPhone notch */

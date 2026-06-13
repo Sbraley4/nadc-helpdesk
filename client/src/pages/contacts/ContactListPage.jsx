@@ -194,22 +194,22 @@ export default function ContactListPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
-          <p className="text-sm text-gray-500 mt-1">{pagination.total} total contacts</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Contacts</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{pagination.total} total contacts</p>
         </div>
-        <Button leftIcon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>
+        <Button leftIcon={<Plus size={18} />} onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
           Add Contact
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4 mb-4 md:mb-6">
         <SearchInput
           value={filters.search}
           onChange={(value) => updateFilters({ search: value, page: 1 })}
           placeholder="Search contacts..."
-          className="w-64"
+          className="w-full md:w-64"
         />
       </div>
 
@@ -221,65 +221,113 @@ export default function ContactListPage() {
           />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {contactList.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <Link to={'/contacts/' + contact.id} className="flex items-center gap-3">
-                        <Avatar name={contact.name} size="sm" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 hover:text-primary">{contact.name}</p>
-                          <p className="text-sm text-gray-500">{contact.email}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4">
-                      {contact.company ? (
-                        <Link to={'/companies/' + contact.company.id} className="flex items-center gap-2 text-sm text-gray-900 hover:text-primary">
-                          <Building2 size={16} className="text-gray-400" />
-                          {contact.company.name}
-                        </Link>
-                      ) : <span className="text-sm text-gray-400">-</span>}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{contact.phone || '-'}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                        <Ticket size={16} />
-                        {contact._count?.tickets || 0}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditClick(contact)}
-                          className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded transition-colors"
-                          title="Edit contact"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(contact)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete contact"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {contactList.map((contact) => (
+                    <tr key={contact.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <Link to={'/contacts/' + contact.id} className="flex items-center gap-3">
+                          <Avatar name={contact.name} size="sm" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 hover:text-primary">{contact.name}</p>
+                            <p className="text-sm text-gray-500">{contact.email}</p>
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4">
+                        {contact.company ? (
+                          <Link to={'/companies/' + contact.company.id} className="flex items-center gap-2 text-sm text-gray-900 hover:text-primary">
+                            <Building2 size={16} className="text-gray-400" />
+                            {contact.company.name}
+                          </Link>
+                        ) : <span className="text-sm text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{contact.phone || '-'}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1 text-sm text-gray-500">
+                          <Ticket size={16} />
+                          {contact._count?.tickets || 0}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditClick(contact)}
+                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                            title="Edit contact"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(contact)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete contact"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-200">
+              {contactList.map((contact) => (
+                <div key={contact.id} className="p-4 active:bg-gray-50 touch-manipulation">
+                  <Link to={'/contacts/' + contact.id} className="flex items-start gap-3">
+                    <Avatar name={contact.name} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{contact.name}</p>
+                      <p className="text-sm text-gray-500 truncate">{contact.email}</p>
+                      {contact.company && (
+                        <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                          <Building2 size={12} />
+                          {contact.company.name}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      {contact.phone && <span>{contact.phone}</span>}
+                      <span className="flex items-center gap-1">
+                        <Ticket size={12} />
+                        {contact._count?.tickets || 0} tickets
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleEditClick(contact); }}
+                        className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleDeleteClick(contact); }}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <Pagination currentPage={filters.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={20} onPageChange={(page) => updateFilters({ page })} />
           </>
         )}

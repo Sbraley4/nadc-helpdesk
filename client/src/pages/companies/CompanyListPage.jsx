@@ -144,22 +144,22 @@ export default function CompanyListPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 md:mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Companies</h1>
-          <p className="text-sm text-gray-500 mt-1">{pagination.total} total companies</p>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Companies</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{pagination.total} total companies</p>
         </div>
-        <Button leftIcon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>
+        <Button leftIcon={<Plus size={18} />} onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
           Add Company
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 md:p-4 mb-4 md:mb-6">
         <SearchInput
           value={filters.search}
           onChange={(value) => updateFilters({ search: value, page: 1 })}
           placeholder="Search companies..."
-          className="w-64"
+          className="w-full md:w-64"
         />
       </div>
 
@@ -171,68 +171,116 @@ export default function CompanyListPage() {
           />
         ) : (
           <>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Manager</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacts</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {companyList.map((company) => (
-                  <tr key={company.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <Link to={'/companies/' + company.id} className="text-sm font-medium text-gray-900 hover:text-primary">
-                        {company.name}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{company.domain || '-'}</td>
-                    <td className="px-6 py-4">
-                      {company.assignedAgent ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar name={company.assignedAgent.name} size="xs" />
-                          <span className="text-sm text-gray-900">{company.assignedAgent.name}</span>
-                        </div>
-                      ) : <span className="text-sm text-gray-400">-</span>}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                        <Users size={16} />
-                        {company._count?.contacts || 0}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1 text-sm text-gray-500">
-                        <Ticket size={16} />
-                        {company._count?.tickets || 0}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => handleEditClick(company)}
-                          className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded transition-colors"
-                          title="Edit company"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClick(company)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Delete company"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Manager</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contacts</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tickets</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {companyList.map((company) => (
+                    <tr key={company.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <Link to={'/companies/' + company.id} className="text-sm font-medium text-gray-900 hover:text-primary">
+                          {company.name}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">{company.domain || '-'}</td>
+                      <td className="px-6 py-4">
+                        {company.assignedAgent ? (
+                          <div className="flex items-center gap-2">
+                            <Avatar name={company.assignedAgent.name} size="xs" />
+                            <span className="text-sm text-gray-900">{company.assignedAgent.name}</span>
+                          </div>
+                        ) : <span className="text-sm text-gray-400">-</span>}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1 text-sm text-gray-500">
+                          <Users size={16} />
+                          {company._count?.contacts || 0}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-1 text-sm text-gray-500">
+                          <Ticket size={16} />
+                          {company._count?.tickets || 0}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditClick(company)}
+                            className="p-1.5 text-gray-400 hover:text-primary hover:bg-gray-100 rounded transition-colors"
+                            title="Edit company"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClick(company)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Delete company"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-200">
+              {companyList.map((company) => (
+                <div key={company.id} className="p-4 active:bg-gray-50 touch-manipulation">
+                  <Link to={'/companies/' + company.id}>
+                    <p className="text-sm font-medium text-gray-900">{company.name}</p>
+                    {company.domain && <p className="text-xs text-gray-500 mt-0.5">{company.domain}</p>}
+                  </Link>
+                  {company.assignedAgent && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <Avatar name={company.assignedAgent.name} size="xs" />
+                      <span className="text-xs text-gray-600">{company.assignedAgent.name}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1">
+                        <Users size={12} />
+                        {company._count?.contacts || 0} contacts
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Ticket size={12} />
+                        {company._count?.tickets || 0} tickets
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleEditClick(company); }}
+                        className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.preventDefault(); handleDeleteClick(company); }}
+                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <Pagination currentPage={filters.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={20} onPageChange={(page) => updateFilters({ page })} />
           </>
         )}

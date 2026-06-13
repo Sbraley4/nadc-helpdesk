@@ -877,7 +877,7 @@ export default function CalendarPage() {
           <div
             key={idx}
             onClick={() => handleDayClick(date)}
-            className={`bg-white p-1 min-h-[80px] md:min-h-[100px] cursor-pointer hover:bg-gray-50 transition-colors ${
+            className={`bg-white p-2 min-h-[70px] md:min-h-[100px] cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation ${
               !isCurrentMonth ? 'opacity-50' : ''
             }`}
             title="Click to view day schedule"
@@ -1101,7 +1101,7 @@ export default function CalendarPage() {
 
     return (
       <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="min-w-[800px] bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="min-w-[700px] md:min-w-0 bg-white rounded-lg border border-gray-200 overflow-hidden">
           {/* Multi-day event banners - only shown when there are visible multi-day items */}
           {visibleMultiDayItems.length > 0 && (
             <div className="border-b border-gray-200 bg-gray-50">
@@ -1503,142 +1503,111 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-4 w-full max-w-full overflow-hidden">
-      {/* Header Controls */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4">
-        {/* Navigation */}
-        <div className="flex items-center justify-between md:justify-start gap-2">
-          {/* Unscheduled Tickets Toggle */}
-          <button
-            onClick={() => setShowUnscheduledSidebar(!showUnscheduledSidebar)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors touch-manipulation min-h-[44px] ${
-              showUnscheduledSidebar
-                ? 'bg-primary text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-            title="Toggle unscheduled tickets"
-          >
-            <ListTodo size={18} />
-            <span className="hidden sm:inline">Unscheduled</span>
-          </button>
-
+      {/* Header Controls - responsive */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-6">
+        <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-1">
             <button
               onClick={() => navigate_date(-1)}
-              className="p-2.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="p-2 hover:bg-gray-100 rounded-lg min-w-[40px] min-h-[40px] flex items-center justify-center touch-manipulation"
             >
               <ChevronLeft size={20} />
             </button>
             <button
-              onClick={goToToday}
-              className="px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-colors touch-manipulation min-h-[44px]"
-            >
-              Today
-            </button>
-            <button
               onClick={() => navigate_date(1)}
-              className="p-2.5 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="p-2 hover:bg-gray-100 rounded-lg min-w-[40px] min-h-[40px] flex items-center justify-center touch-manipulation"
             >
               <ChevronRight size={20} />
             </button>
           </div>
-          <h2 className="text-base md:text-lg font-semibold text-gray-900 md:ml-2 truncate">
-            {formatDateHeader()}
-          </h2>
+          <h1 className="text-lg md:text-xl font-bold text-gray-900">{formatDateHeader()}</h1>
+          <button
+            onClick={goToToday}
+            className="px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg min-h-[36px] touch-manipulation"
+          >
+            Today
+          </button>
         </div>
 
-        {/* Filters and View Toggle */}
-        <div className="flex items-center gap-2 md:gap-3">
-          {/* Agent Filter - Custom dropdown with colors */}
-          <div className="relative flex-1 md:flex-none">
+        {/* View toggle and agent filter wrapper */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* View toggle - horizontal scroll on mobile */}
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
+            {[
+              { key: 'month', label: 'Month', icon: Grid3X3 },
+              { key: 'week', label: 'Week', icon: CalendarIcon },
+              { key: 'day', label: 'Day', icon: List },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium min-h-[40px] touch-manipulation whitespace-nowrap ${
+                  view === key
+                    ? 'bg-primary text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Icon size={16} />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Agent filter */}
+          <div className="w-full sm:w-auto">
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              className="w-full text-sm border border-gray-300 rounded-lg pl-3 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[44px] bg-white appearance-none"
+              className="w-full sm:w-40 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[40px]"
             >
-              <option value="">All Technicians</option>
+              <option value="">All Agents</option>
               {agentsList.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
                 </option>
               ))}
             </select>
-            {/* Color indicator for selected agent */}
-            {selectedAgent && (
-              <span
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full pointer-events-none"
-                style={{ backgroundColor: getAgentColor(agentsList.find(a => a.id === selectedAgent)) }}
-              />
-            )}
-            <ChevronRight size={16} className="absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-gray-400 pointer-events-none" />
-          </div>
-
-          {/* Agent Color Legend */}
-          <div className="hidden md:flex items-center gap-3 text-xs">
-            {agentsList.filter(a => a.color).map((agent) => (
-              <div key={agent.id} className="flex items-center gap-1">
-                <span
-                  className="w-3 h-3 rounded-sm border border-gray-300"
-                  style={{ backgroundColor: agent.color }}
-                />
-                <span className="text-gray-600">{agent.name.split(' ')[0]}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* View Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setView('month')}
-              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
-                view === 'month' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <Grid3X3 size={16} className="md:hidden" />
-              <span className="hidden md:inline">Month</span>
-            </button>
-            <button
-              onClick={() => setView('week')}
-              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
-                view === 'week' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <CalendarIcon size={16} className="md:hidden" />
-              <span className="hidden md:inline">Week</span>
-            </button>
-            <button
-              onClick={() => setView('day')}
-              className={`p-2 md:px-3 md:py-1.5 text-sm rounded-md transition-colors touch-manipulation min-w-[40px] min-h-[36px] flex items-center justify-center ${
-                view === 'day' ? 'bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <List size={16} className="md:hidden" />
-              <span className="hidden md:inline">Day</span>
-            </button>
           </div>
         </div>
       </div>
 
+      {/* Unscheduled tickets toggle - floating on mobile */}
+      <button
+        onClick={() => setShowUnscheduledSidebar(!showUnscheduledSidebar)}
+        className="fixed bottom-20 right-4 md:static md:bottom-auto md:right-auto z-20 p-3 bg-white shadow-lg rounded-full md:rounded-lg md:shadow-sm md:border md:border-gray-200 min-w-[48px] min-h-[48px] flex items-center justify-center touch-manipulation"
+        title="Unscheduled Tickets"
+      >
+        <ListTodo size={20} />
+        {unscheduledTickets.length > 0 && (
+          <span className="absolute -top-1 -right-1 md:static md:ml-2 bg-primary text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+            {unscheduledTickets.length}
+          </span>
+        )}
+      </button>
+
       {/* Calendar Content with Sidebar */}
       <div className="flex relative">
-        {/* Unscheduled Tickets Sidebar */}
-        {/* Mobile: overlay, Desktop: push content */}
+        {/* Unscheduled Tickets Sidebar/Bottom Sheet */}
         {showUnscheduledSidebar && (
           <>
-            {/* Mobile overlay backdrop */}
+            {/* Mobile backdrop */}
             <div
               className="md:hidden fixed inset-0 bg-black/50 z-40"
               onClick={() => setShowUnscheduledSidebar(false)}
             />
-            {/* Sidebar panel */}
-            <div className={`
-              fixed md:relative inset-y-0 left-0 z-50 md:z-auto
-              w-[280px] bg-white border-r border-gray-200 flex-shrink-0
-              transform transition-transform duration-300 ease-in-out
-              ${showUnscheduledSidebar ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-              md:transform-none
-            `}>
-              {/* Sidebar Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+            {/* Sidebar/Bottom sheet content */}
+            <div className="fixed inset-x-0 bottom-0 md:static md:inset-auto md:w-72 bg-white rounded-t-2xl md:rounded-lg shadow-lg md:shadow-sm md:border md:border-gray-200 z-50 max-h-[70vh] md:max-h-none overflow-hidden flex flex-col safe-bottom">
+              <div className="flex items-center justify-between p-4 border-b border-gray-200 md:hidden">
+                <h3 className="font-semibold text-gray-900">Unscheduled Tickets</h3>
+                <button
+                  onClick={() => setShowUnscheduledSidebar(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg touch-manipulation"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              {/* Desktop header - hidden on mobile */}
+              <div className="hidden md:flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
                 <h3 className="font-semibold text-gray-900">Unscheduled Tickets</h3>
                 <button
                   onClick={() => setShowUnscheduledSidebar(false)}
@@ -1649,7 +1618,7 @@ export default function CalendarPage() {
               </div>
 
               {/* Sidebar Content */}
-              <div className="overflow-y-auto h-[calc(100vh-180px)] md:h-[calc(100vh-220px)]">
+              <div className="overflow-y-auto flex-1">
                 {loadingUnscheduled ? (
                   <div className="flex items-center justify-center py-8">
                     <Spinner size="md" />

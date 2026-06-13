@@ -70,7 +70,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         {isMobile ? (
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+            className="p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
           >
             <X size={20} />
           </button>
@@ -95,7 +95,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                 to={item.path}
                 onClick={handleNavClick}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  `flex items-center gap-3 px-3 py-3 rounded-lg transition-colors min-h-[44px] touch-manipulation ${
                     isActive
                       ? 'bg-white/15 text-white'
                       : 'text-white/70 hover:bg-white/10 hover:text-white'
@@ -132,7 +132,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           {(!collapsed || isMobile) && (
             <button
               onClick={logout}
-              className="p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors"
+              className="p-2 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
               title="Logout"
             >
               <LogOut size={18} />

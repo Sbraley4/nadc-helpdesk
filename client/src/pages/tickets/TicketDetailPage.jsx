@@ -817,16 +817,22 @@ export default function TicketDetailPage() {
                         rows={4}
                         autoGrow
                       />
-                      <div className="flex gap-2">
+                      <div className="flex flex-col-reverse sm:flex-row gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setEditingReplyId(null); setEditingReplyContent(''); }}
+                          className="w-full sm:w-auto"
+                        >
+                          Cancel
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => editReplyMutation.mutate({ replyId: reply.id, body: editingReplyContent })}
                           isLoading={editReplyMutation.isPending}
+                          className="w-full sm:w-auto"
                         >
                           Save
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => { setEditingReplyId(null); setEditingReplyContent(''); }}>
-                          Cancel
                         </Button>
                       </div>
                     </div>
@@ -870,7 +876,15 @@ export default function TicketDetailPage() {
                         rows={3}
                         autoGrow
                       />
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setThreadReplyId(null); setThreadContent(''); }}
+                          className="w-full sm:w-auto"
+                        >
+                          Cancel
+                        </Button>
                         <Button
                           size="sm"
                           onClick={() => {
@@ -882,11 +896,9 @@ export default function TicketDetailPage() {
                             setThreadContent('');
                           }}
                           disabled={!threadContent.trim()}
+                          className="w-full sm:w-auto"
                         >
                           Reply
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => { setThreadReplyId(null); setThreadContent(''); }}>
-                          Cancel
                         </Button>
                       </div>
                     </div>
@@ -1093,7 +1105,7 @@ export default function TicketDetailPage() {
                         type="date"
                         value={timeLogDate}
                         onChange={(e) => setTimeLogDate(e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                        className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
                       />
                     </div>
 
@@ -1105,7 +1117,7 @@ export default function TicketDetailPage() {
                           type="time"
                           value={timeLogStartTime}
                           onChange={(e) => setTimeLogStartTime(e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                          className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
                         />
                       </div>
                       <div>
@@ -1114,7 +1126,7 @@ export default function TicketDetailPage() {
                           type="time"
                           value={timeLogFinishTime}
                           onChange={(e) => setTimeLogFinishTime(e.target.value)}
-                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                          className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
                         />
                       </div>
                     </div>
@@ -1166,7 +1178,7 @@ export default function TicketDetailPage() {
                             type="time"
                             value={timeLogBtoTime}
                             onChange={(e) => setTimeLogBtoTime(e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                            className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
                           />
                         </div>
                       </div>
@@ -1202,34 +1214,36 @@ export default function TicketDetailPage() {
                     📦 {parsedData.materials.length} material{parsedData.materials.length > 1 ? 's' : ''}
                   </p>
                 )}
-                <div className="flex gap-2 mt-2">
-                  <Button size="sm" onClick={confirmParsedData}>
-                    Confirm & Log
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowParsePreview(false); setParsedData(null); }}>
+                <div className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
+                  <Button size="sm" variant="outline" onClick={() => { setShowParsePreview(false); setParsedData(null); }} className="w-full sm:w-auto">
                     Cancel
+                  </Button>
+                  <Button size="sm" onClick={confirmParsedData} className="w-full sm:w-auto">
+                    Confirm & Log
                   </Button>
                 </div>
               </div>
             )}
 
-            <div className="flex justify-between mt-3">
+            <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-3">
               {isInternalNote && (
                 <Button
                   variant="outline"
                   onClick={parseNote}
                   disabled={!replyContent.trim()}
                   leftIcon={<Zap size={16} />}
+                  className="w-full sm:w-auto"
                 >
                   Parse & Log
                 </Button>
               )}
-              <div className={!isInternalNote ? 'ml-auto' : ''}>
+              <div className={`${!isInternalNote ? 'w-full sm:ml-auto sm:w-auto' : 'w-full sm:w-auto'}`}>
                 <Button
                   onClick={handleSendReply}
                   isLoading={replyMutation.isPending}
                   disabled={!replyContent.trim()}
                   leftIcon={<Send size={16} />}
+                  className="w-full"
                 >
                   {isInternalNote ? 'Add Note' : 'Send Reply'}
                 </Button>
@@ -1353,8 +1367,8 @@ export default function TicketDetailPage() {
                 <p className="font-medium mb-1">Note preview:</p>
                 <p className="line-clamp-3">{forwardingReply.body?.replace(/<[^>]*>/g, '')}</p>
               </div>
-              <div className="flex justify-end gap-2 mt-4">
-                <Button variant="outline" onClick={() => { setForwardingReply(null); setForwardAgentId(''); }}>
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
+                <Button variant="outline" onClick={() => { setForwardingReply(null); setForwardAgentId(''); }} className="w-full sm:w-auto">
                   Cancel
                 </Button>
                 <Button
@@ -1368,6 +1382,7 @@ export default function TicketDetailPage() {
                     setForwardingReply(null);
                     setForwardAgentId('');
                   }}
+                  className="w-full sm:w-auto"
                 >
                   Forward
                 </Button>
@@ -1404,14 +1419,15 @@ export default function TicketDetailPage() {
                   rows={6}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setShowEditTicketModal(false)}>
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => setShowEditTicketModal(false)} className="w-full sm:w-auto">
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSaveTicketEdit}
                   isLoading={updateMutation.isPending}
                   disabled={!editSubject.trim()}
+                  className="w-full sm:w-auto"
                 >
                   Save Changes
                 </Button>
@@ -1449,14 +1465,15 @@ export default function TicketDetailPage() {
                   rows={3}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => { setShowForwardModal(false); setForwardToAgentId(''); setForwardNote(''); }}>
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+                <Button variant="outline" onClick={() => { setShowForwardModal(false); setForwardToAgentId(''); setForwardNote(''); }} className="w-full sm:w-auto">
                   Cancel
                 </Button>
                 <Button
                   onClick={handleForwardTicket}
                   disabled={!forwardToAgentId}
                   isLoading={updateMutation.isPending}
+                  className="w-full sm:w-auto"
                 >
                   Forward
                 </Button>
