@@ -3,9 +3,10 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
+import { auth } from '../../api';
 import { Button, Input } from '../../components/shared';
 
 const loginSchema = z.object({
@@ -13,11 +14,17 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Password is required'),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Please enter a valid email'),
+});
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated, isLoading: authLoading } = useAuthStore();
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordSubmitted, setForgotPasswordSubmitted] = useState(false);
 
   const {
     register,
@@ -28,6 +35,18 @@ export default function LoginPage() {
     defaultValues: {
       email: '',
       password: '',
+    },
+  });
+
+  const {
+    register: registerForgot,
+    handleSubmit: handleForgotSubmit,
+    formState: { errors: forgotErrors },
+    reset: resetForgot,
+  } = useForm({
+    resolver: zodResolver(forgotPasswordSchema),
+    defaultValues: {
+      email: '',
     },
   });
 
@@ -49,6 +68,111 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
+  const onForgotSubmit = async (data) => {
+    setIsSubmitting(true);
+    try {
+      await auth.forgotPassword(data.email);
+      setForgotPasswordSubmitted(true);
+    } catch (error) {
+      // Still show success to prevent email enumeration
+      setForgotPasswordSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBackToLogin = () => {
+    setShowForgotPassword(false);
+    setForgotPasswordSubmitted(false);
+    resetForgot();
+  };
+
+  // Forgot password success state
+  if (showForgotPassword && forgotPasswordSubmitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-16 w-16 bg-primary rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">N</span>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">
+              Check Your Email
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              If an account exists with that email address, we've sent instructions to reset your password.
+            </p>
+          </div>
+
+          <div className="mt-8">
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              size="lg"
+              onClick={handleBackToLogin}
+              leftIcon={<ArrowLeft size={18} />}
+            >
+              Back to Sign In
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Forgot password form
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-16 w-16 bg-primary rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-2xl">N</span>
+            </div>
+            <h2 className="mt-6 text-3xl font-bold text-gray-900">
+              Reset Password
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+          </div>
+
+          <form className="mt-8 space-y-6" onSubmit={handleForgotSubmit(onForgotSubmit)}>
+            <Input
+              label="Email address"
+              type="email"
+              autoComplete="email"
+              leftIcon={<Mail size={18} />}
+              error={forgotErrors.email?.message}
+              {...registerForgot('email')}
+            />
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              isLoading={isSubmitting}
+            >
+              Send Reset Link
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              size="lg"
+              onClick={handleBackToLogin}
+              leftIcon={<ArrowLeft size={18} />}
+            >
+              Back to Sign In
+            </Button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -96,6 +220,15 @@ export default function LoginPage() {
                 error={errors.password?.message}
                 {...register('password')}
               />
+              <div className="mt-2 text-right">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPassword(true)}
+                  className="text-sm text-primary hover:text-primary-dark font-medium"
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </div>
           </div>
 

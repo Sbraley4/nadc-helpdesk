@@ -243,6 +243,187 @@ const setupPassword = async (req, res, next) => {
   }
 };
 
+/**
+ * PUT /api/auth/change-password
+ * Change password for authenticated user
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    // Get user with current password
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    // Hash and save new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false,
+      },
+    });
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/forgot-password
+ * Send password reset email
+ */
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      console.log(`[Auth] Forgot password requested for non-existent email: ${email}`);
+      return res.json({ message: 'If an account exists with that email, a reset link has been sent.' });
+    }
+
+    // Generate secure token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    // Save token to user
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: resetToken,
+        passwordResetExpires: resetExpires,
+      },
+    });
+
+    // Send reset email
+    const emailService = require('../services/emailService');
+    await emailService.sendPasswordResetEmail(user, resetToken);
+
+    console.log(`[Auth] Password reset email sent to ${email}`);
+    res.json({ message: 'If an account exists with that email, a reset link has been sent.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/auth/verify-reset-token/:token
+ * Verify that a reset token is valid and not expired
+ */
+const verifyResetToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    const user = await prisma.user.findUnique({
+      where: { passwordResetToken: token },
+      select: {
+        id: true,
+        email: true,
+        passwordResetExpires: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(400).json({ valid: false, error: 'Invalid or expired reset link' });
+    }
+
+    // Check token expiry
+    const nowMs = Date.now();
+    const expiresMs = user.passwordResetExpires ? new Date(user.passwordResetExpires).getTime() : null;
+
+    if (expiresMs && nowMs > expiresMs) {
+      return res.status(400).json({ valid: false, error: 'Reset link has expired' });
+    }
+
+    res.json({ valid: true, email: user.email });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/auth/reset-password
+ * Reset password using token
+ */
+const resetPassword = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Token and password are required' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { passwordResetToken: token },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+
+    // Check token expiry
+    const nowMs = Date.now();
+    const expiresMs = user.passwordResetExpires ? new Date(user.passwordResetExpires).getTime() : null;
+
+    if (expiresMs && nowMs > expiresMs) {
+      return res.status(400).json({ error: 'Reset link has expired' });
+    }
+
+    // Hash and save new password
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+        mustChangePassword: false,
+      },
+    });
+
+    console.log(`[Auth] Password reset successfully for user: ${user.email}`);
+    res.json({ message: 'Password reset successfully. You can now log in.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   login,
   refresh,
@@ -250,4 +431,8 @@ module.exports = {
   me,
   verifySetupToken,
   setupPassword,
+  changePassword,
+  forgotPassword,
+  verifyResetToken,
+  resetPassword,
 };

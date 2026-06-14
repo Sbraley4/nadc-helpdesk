@@ -493,6 +493,26 @@ async function sendStatusChangeToAgent(ticket, oldStatus, newStatus, changedBy, 
   });
 }
 
+/**
+ * Send password reset email
+ */
+async function sendPasswordResetEmail(user, resetToken) {
+  const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
+  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  const resetUrl = `${helpdeskUrl}/reset-password/${resetToken}`;
+
+  return await sendTemplatedEmail({
+    to: user.email,
+    subject: `${companyName} — Password Reset Request`,
+    templateName: 'password-reset',
+    variables: {
+      user_name: user.name || 'User',
+      reset_url: resetUrl,
+      company_name: companyName,
+    },
+  });
+}
+
 module.exports = {
   initializeTransporter,
   sendEmail,
@@ -515,4 +535,6 @@ module.exports = {
   sendReplyNotificationToAgent,
   sendNoteNotificationToAgent,
   sendStatusChangeToAgent,
+  // Password emails
+  sendPasswordResetEmail,
 };

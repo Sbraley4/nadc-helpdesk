@@ -9,6 +9,7 @@ import AppLayout from './components/layout/AppLayout';
 // Pages
 import LoginPage from './pages/auth/LoginPage';
 import SetupPasswordPage from './pages/auth/SetupPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import TicketListPage from './pages/tickets/TicketListPage';
 import NewTicketPage from './pages/tickets/NewTicketPage';
 import TicketDetailPage from './pages/tickets/TicketDetailPage';
@@ -100,6 +101,7 @@ function App() {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/setup-password/:token" element={<SetupPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
       {/* Protected routes */}
       <Route

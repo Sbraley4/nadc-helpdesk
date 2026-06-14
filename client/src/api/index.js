@@ -5,6 +5,10 @@ export const auth = {
   logout: () => client.post('/api/auth/logout').then((r) => r.data),
   refresh: (refreshToken) => client.post('/api/auth/refresh', { refreshToken }).then((r) => r.data),
   getMe: () => client.get('/api/auth/me').then((r) => r.data),
+  changePassword: (currentPassword, newPassword) => client.put('/api/auth/change-password', { currentPassword, newPassword }).then((r) => r.data),
+  forgotPassword: (email) => client.post('/api/auth/forgot-password', { email }).then((r) => r.data),
+  verifyResetToken: (token) => client.get('/api/auth/verify-reset-token/' + token).then((r) => r.data),
+  resetPassword: (token, password) => client.post('/api/auth/reset-password', { token, password }).then((r) => r.data),
 };
 
 export const tickets = {

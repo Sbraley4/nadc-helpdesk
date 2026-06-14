@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Bell, ChevronDown, LogOut, User, Circle, Menu, Ticket, Users, Building, FileText, X } from 'lucide-react';
+import { Search, Bell, ChevronDown, LogOut, User, Circle, Menu, Ticket, Users, Building, FileText, X, Key } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import useNotificationStore from '../../store/notificationStore';
 import { agents, search } from '../../api';
 import Avatar from '../shared/Avatar';
 import NotificationPanel from './NotificationPanel';
-import { Spinner } from '../shared';
+import { Spinner, ChangePasswordModal } from '../shared';
 
 const availabilityOptions = [
   { value: 'ONLINE', label: 'Online', color: 'text-green-500' },
@@ -34,6 +34,7 @@ export default function Topbar({ title, onMenuClick, isMobile }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [availabilityMenuOpen, setAvailabilityMenuOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const dropdownRef = useRef(null);
   const notificationRef = useRef(null);
   const searchRef = useRef(null);
@@ -413,6 +414,16 @@ export default function Topbar({ title, onMenuClick, isMobile }) {
 
               <div className="border-t border-gray-100 mt-1 pt-1">
                 <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setShowChangePasswordModal(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  <Key size={16} />
+                  Change Password
+                </button>
+                <button
                   onClick={logout}
                   className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                 >
@@ -424,6 +435,12 @@ export default function Topbar({ title, onMenuClick, isMobile }) {
           )}
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePasswordModal}
+        onClose={() => setShowChangePasswordModal(false)}
+      />
     </header>
   );
 }
