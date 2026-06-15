@@ -426,17 +426,23 @@ async function importTickets(importDir) {
         for (const note of notes) {
           try {
             const noteBodyRaw = getValue(note, 'body');
+            const noteBodyHtmlRaw = getValue(note, 'body-html');
             const isPrivate = getValue(note, 'private');
             const noteUserId = getValue(note, 'user-id');
             const noteCreatedAt = getValue(note, 'created-at');
 
             if (noteBodyRaw == null) continue;
-            const noteBody = String(noteBodyRaw);
+            const noteBodyPlain = String(noteBodyRaw);
 
-            // Skip Freshdesk system metadata notes
-            if (noteBody.startsWith('created_by:')) {
+            // Skip Freshdesk system metadata notes (check plain text body)
+            if (noteBodyPlain.startsWith('created_by:')) {
               continue;
             }
+
+            // Use HTML body if available, otherwise fall back to plain text
+            const noteBody = (noteBodyHtmlRaw != null && String(noteBodyHtmlRaw).trim() !== '')
+              ? String(noteBodyHtmlRaw)
+              : noteBodyPlain;
 
             // Determine if this is from an agent or contact
             // Try both the raw value and string version for map lookup
