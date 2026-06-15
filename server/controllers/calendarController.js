@@ -238,7 +238,6 @@ async function getWorkloadSummary(req, res, next) {
               status: true,
               priority: true,
               dueDate: true,
-              estimatedHours: true,
               requester: {
                 select: { id: true, name: true },
               },
@@ -302,7 +301,6 @@ async function getWorkloadSummary(req, res, next) {
         status: true,
         priority: true,
         dueDate: true,
-        estimatedHours: true,
         requester: {
           select: { id: true, name: true },
         },
