@@ -433,14 +433,22 @@ async function importTickets(importDir) {
             if (noteBodyRaw == null) continue;
             const noteBody = String(noteBodyRaw);
 
+            // Skip Freshdesk system metadata notes
+            if (noteBody.startsWith('created_by:')) {
+              continue;
+            }
+
             // Determine if this is from an agent or contact
+            // Try both the raw value and string version for map lookup
             let authorId = null;
             let portalContactId = null;
+            const userIdKey = noteUserId;
+            const userIdKeyStr = String(noteUserId);
 
-            if (agentFdToDb[noteUserId]) {
-              authorId = agentFdToDb[noteUserId];
-            } else if (contactFdToDb[noteUserId]) {
-              portalContactId = contactFdToDb[noteUserId];
+            if (agentFdToDb[userIdKey] || agentFdToDb[userIdKeyStr]) {
+              authorId = agentFdToDb[userIdKey] || agentFdToDb[userIdKeyStr];
+            } else if (contactFdToDb[userIdKey] || contactFdToDb[userIdKeyStr]) {
+              portalContactId = contactFdToDb[userIdKey] || contactFdToDb[userIdKeyStr];
             }
 
             await prisma.ticketReply.create({
