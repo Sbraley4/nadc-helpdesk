@@ -53,10 +53,10 @@ export default function Modal({
         onClick={closeOnBackdrop ? onClose : undefined}
       />
 
-      {/* Modal container - full screen on mobile, centered on desktop */}
-      <div className="flex min-h-full items-end md:items-center justify-center p-0 md:p-4">
+      {/* Modal container - centered on screen with proper scrolling */}
+      <div className="min-h-full flex items-center justify-center p-4">
         <div
-          className={`fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 relative bg-white shadow-xl w-full md:w-auto ${sizes[size]} transform transition-all rounded-2xl md:rounded-lg max-h-[calc(100vh-2rem)] flex flex-col animate-slideUp md:animate-fadeIn`}
+          className={`relative bg-white shadow-xl w-full ${sizes[size]} transform transition-all rounded-lg max-h-[calc(100vh-2rem)] flex flex-col animate-fadeIn`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Mobile drag handle */}

@@ -51,7 +51,7 @@ export default function NewTicketPage() {
     const monday = new Date(date);
     monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
     const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 3);
+    friday.setDate(monday.getDate() + 4); // +4 days from Monday = Friday
     return { monday, friday };
   };
 
