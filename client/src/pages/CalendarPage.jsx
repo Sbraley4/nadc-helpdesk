@@ -738,18 +738,22 @@ export default function CalendarPage() {
     }
     setSaving(true);
     try {
-      // Combine date and time for dueDate (start time)
-      const dueDateTime = new Date(newTicketDate);
+      // Combine date and time for scheduledStart
+      const scheduledStart = new Date(newTicketDate);
       const [hours, minutes] = newTicketTime.split(':');
-      dueDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      scheduledStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
       // Combine end date and end time for scheduledEnd
-      let scheduledEndDateTime = null;
+      let scheduledEnd = null;
       if (newTicketEndTime) {
-        scheduledEndDateTime = new Date(newTicketEndDate || newTicketDate);
+        scheduledEnd = new Date(newTicketEndDate || newTicketDate);
         const [endHours, endMinutes] = newTicketEndTime.split(':');
-        scheduledEndDateTime.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
+        scheduledEnd.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
       }
+
+      // Check if this is a multi-day schedule (All Week or spanning multiple days)
+      const isMultiDay = newTicketEndDate &&
+        formatLocalDate(newTicketDate) !== formatLocalDate(newTicketEndDate);
 
       const ticketData = {
         subject: newTicketForm.subject,
@@ -759,11 +763,20 @@ export default function CalendarPage() {
         companyId: newTicketForm.companyId || null,
         assigneeId: newTicketForm.assigneeId || null,
         additionalAssigneeIds: newTicketForm.additionalAssigneeIds.length > 0 ? newTicketForm.additionalAssigneeIds : undefined,
-        dueDate: dueDateTime.toISOString(),
-        scheduledEnd: scheduledEndDateTime ? scheduledEndDateTime.toISOString() : null,
       };
 
+      // Create the ticket first
       const result = await ticketsApi.createTicket(ticketData);
+
+      // Create a TicketSchedule entry for the calendar
+      if (newTicketDate) {
+        await ticketsApi.createSchedule(result.id, {
+          scheduledStart: scheduledStart.toISOString(),
+          scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
+          isAllDay: isMultiDay, // Mark as all-day for multi-day spans
+        });
+      }
+
       toast.success('Ticket created successfully');
       setShowNewTicketModal(false);
       // Refresh calendar data
@@ -1050,31 +1063,28 @@ export default function CalendarPage() {
   }, [tickets, events, view]);
 
   // Calculate which days a multi-day item spans
+  // Uses date-string comparison (YYYY-MM-DD) to avoid UTC/local timezone issues
   const getMultiDaySpan = (item, weekDays) => {
-    const start = new Date(item.startTime);
     const endValue = getItemEndTime(item);
-    const end = new Date(endValue);
+
+    // Extract date portions from ISO strings to avoid timezone conversion issues
+    // ISO format: "2024-01-05T17:00:00.000Z" -> "2024-01-05"
+    const startDateStr = typeof item.startTime === 'string'
+      ? item.startTime.substring(0, 10)
+      : formatLocalDate(new Date(item.startTime));
+    const endDateStr = typeof endValue === 'string'
+      ? endValue.substring(0, 10)
+      : formatLocalDate(new Date(endValue));
 
     let startCol = -1;
     let endCol = -1;
 
     weekDays.forEach((day, idx) => {
-      const dayStart = new Date(day);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(day);
-      dayEnd.setHours(23, 59, 59, 999);
+      // Get YYYY-MM-DD string for this weekday column
+      const dayDateStr = formatLocalDate(day);
 
-      let endComparison;
-      if (item.isAllDay) {
-        const endStr = endValue;
-        const endDateParts = endStr.substring(0, 10).split('-').map(Number);
-        const endDateOnly = new Date(endDateParts[0], endDateParts[1] - 1, endDateParts[2]);
-        const dayDateOnly = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-        endComparison = endDateOnly >= dayDateOnly;
-      } else {
-        endComparison = end >= dayStart;
-      }
-      if (start <= dayEnd && endComparison) {
+      // Compare date strings: item spans this day if start <= day <= end
+      if (startDateStr <= dayDateStr && dayDateStr <= endDateStr) {
         if (startCol === -1) startCol = idx;
         endCol = idx;
       }
