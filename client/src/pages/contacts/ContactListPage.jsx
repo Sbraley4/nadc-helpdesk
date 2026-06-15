@@ -40,7 +40,7 @@ export default function ContactListPage() {
     queryKey: ['contacts', filters],
     queryFn: () => contacts.getContacts({
       page: filters.page,
-      limit: 20,
+      limit: 25,
       search: filters.search || undefined,
     }),
   });
@@ -336,7 +336,7 @@ export default function ContactListPage() {
               ))}
             </div>
 
-            <Pagination currentPage={filters.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={20} onPageChange={(page) => updateFilters({ page })} />
+            <Pagination currentPage={filters.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={25} onPageChange={(page) => updateFilters({ page })} />
           </>
         )}
       </div>

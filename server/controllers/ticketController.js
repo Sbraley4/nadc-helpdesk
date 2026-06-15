@@ -218,10 +218,12 @@ const listTickets = async (req, res, next) => {
 
     res.json({
       tickets: transformedTickets,
-      total,
-      page: pageNum,
-      limit: limitNum,
-      totalPages: Math.ceil(total / limitNum),
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        pages: Math.ceil(total / limitNum),
+      },
     });
   } catch (error) {
     next(error);

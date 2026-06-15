@@ -61,10 +61,12 @@ async function listContacts(req, res, next) {
 
     res.json({
       contacts,
-      total,
-      page: parseInt(page),
-      limit: take,
-      totalPages: Math.ceil(total / take),
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: take,
+        pages: Math.ceil(total / take),
+      },
     });
   } catch (error) {
     next(error);
