@@ -166,6 +166,7 @@ async function getCalendarTickets(req, res, next) {
 
 // GET /api/calendar/workload
 // Returns workload summary by agent for a date range
+// Only includes tickets that have a TicketSchedule entry within the date range
 async function getWorkloadSummary(req, res, next) {
   try {
     const { start, end } = req.query;
@@ -176,6 +177,33 @@ async function getWorkloadSummary(req, res, next) {
 
     const startDate = new Date(start);
     const endDate = new Date(end);
+
+    // Build schedule date filter - a schedule is in range if:
+    // - scheduledStart is within range, OR
+    // - scheduledEnd is within range, OR
+    // - schedule spans the entire range (start before, end after)
+    const scheduleInRange = {
+      OR: [
+        {
+          scheduledStart: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        {
+          scheduledEnd: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        {
+          AND: [
+            { scheduledStart: { lt: startDate } },
+            { scheduledEnd: { gt: endDate } },
+          ],
+        },
+      ],
+    };
 
     // Get all agents (including ADMIN role)
     const agents = await prisma.user.findMany({
@@ -191,7 +219,7 @@ async function getWorkloadSummary(req, res, next) {
       },
     });
 
-    // For each agent, get their open/pending tickets
+    // For each agent, get their tickets that have schedules in the date range
     const workload = await Promise.all(
       agents.map(async (agent) => {
         const [tickets, timeEntries] = await Promise.all([
@@ -199,6 +227,9 @@ async function getWorkloadSummary(req, res, next) {
             where: {
               assigneeId: agent.id,
               status: { in: ['OPEN', 'PENDING'] },
+              schedules: {
+                some: scheduleInRange,
+              },
             },
             select: {
               id: true,
@@ -207,8 +238,19 @@ async function getWorkloadSummary(req, res, next) {
               status: true,
               priority: true,
               dueDate: true,
+              estimatedHours: true,
               requester: {
                 select: { id: true, name: true },
+              },
+              schedules: {
+                where: scheduleInRange,
+                select: {
+                  id: true,
+                  scheduledStart: true,
+                  scheduledEnd: true,
+                  isAllDay: true,
+                },
+                orderBy: { scheduledStart: 'asc' },
               },
             },
             orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],
@@ -244,11 +286,14 @@ async function getWorkloadSummary(req, res, next) {
       })
     );
 
-    // Get unassigned tickets
+    // Get unassigned tickets that have schedules in the date range
     const unassignedTickets = await prisma.ticket.findMany({
       where: {
         assigneeId: null,
         status: { in: ['OPEN', 'PENDING'] },
+        schedules: {
+          some: scheduleInRange,
+        },
       },
       select: {
         id: true,
@@ -257,8 +302,19 @@ async function getWorkloadSummary(req, res, next) {
         status: true,
         priority: true,
         dueDate: true,
+        estimatedHours: true,
         requester: {
           select: { id: true, name: true },
+        },
+        schedules: {
+          where: scheduleInRange,
+          select: {
+            id: true,
+            scheduledStart: true,
+            scheduledEnd: true,
+            isAllDay: true,
+          },
+          orderBy: { scheduledStart: 'asc' },
         },
       },
       orderBy: [{ priority: 'desc' }, { dueDate: 'asc' }],

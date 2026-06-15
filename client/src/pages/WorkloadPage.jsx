@@ -77,8 +77,8 @@ export default function WorkloadPage() {
       setWorkloadData(workload.workload || []);
       setAgentsList(agentsData.agents || []);
 
-      // Initialize all agents as expanded
-      const expanded = {};
+      // Initialize all agents as expanded (including unassigned)
+      const expanded = { unassigned: true };
       (agentsData.agents || []).forEach((agent) => {
         expanded[agent.id] = true;
       });
