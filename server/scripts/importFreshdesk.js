@@ -253,7 +253,8 @@ async function importContacts(importDir) {
       const fdId = getValue(user, 'id');
       const name = getValue(user, 'name');
       const email = getValue(user, 'email');
-      const phone = getValue(user, 'phone') || getValue(user, 'mobile');
+      const phoneRaw = getValue(user, 'phone') || getValue(user, 'mobile');
+      const phone = phoneRaw != null ? String(phoneRaw) : null;
       const jobTitle = getValue(user, 'job-title');
       const companyId = getValue(user, 'company-id');
       const isAgent = getValue(user, 'helpdesk-agent');
@@ -424,12 +425,13 @@ async function importTickets(importDir) {
         const notes = ensureArray(ticket?.notes?.['helpdesk-note'] || ticket?.notes?.note);
         for (const note of notes) {
           try {
-            const noteBody = getValue(note, 'body');
+            const noteBodyRaw = getValue(note, 'body');
             const isPrivate = getValue(note, 'private');
             const noteUserId = getValue(note, 'user-id');
             const noteCreatedAt = getValue(note, 'created-at');
 
-            if (!noteBody) continue;
+            if (noteBodyRaw == null) continue;
+            const noteBody = String(noteBodyRaw);
 
             // Determine if this is from an agent or contact
             let authorId = null;
