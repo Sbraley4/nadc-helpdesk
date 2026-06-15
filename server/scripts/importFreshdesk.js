@@ -136,7 +136,7 @@ async function loadFreshdeskAgents(importDir) {
     return;
   }
 
-  const agents = ensureArray(data?.agents?.agent || data?.['helpdesk-agents']?.['helpdesk-agent']);
+  const agents = ensureArray(data?.users?.user);
 
   for (const agent of agents) {
     const fdId = getValue(agent, 'id') || getValue(agent, 'user-id');
