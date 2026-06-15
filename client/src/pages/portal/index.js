@@ -7,3 +7,4 @@ export { default as PortalTicketDetailPage } from './PortalTicketDetailPage';
 export { default as PortalNewTicketPage } from './PortalNewTicketPage';
 export { default as PortalKBPage } from './PortalKBPage';
 export { default as PortalAccountPage } from './PortalAccountPage';
+export { default as PortalComingSoonPage } from './PortalComingSoonPage';

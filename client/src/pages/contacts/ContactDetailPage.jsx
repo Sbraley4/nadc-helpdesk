@@ -128,9 +128,16 @@ export default function ContactDetailPage() {
             </div>
           </div>
 
-          {/* Portal Access Section */}
+          {/* Portal Access Section - DISABLED */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Portal Access</h2>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm text-amber-800 font-medium">Portal Temporarily Unavailable</p>
+              <p className="text-xs text-amber-700 mt-1">
+                The customer portal is currently disabled. Portal access management will be available when the portal is re-enabled.
+              </p>
+            </div>
+            {/* PORTAL DISABLED: Original portal access controls preserved below for re-enabling
             {portalData?.hasPortalAccess ? (
               <div className="space-y-4">
                 <div className="flex items-center gap-2 text-green-600">
@@ -227,6 +234,7 @@ export default function ContactDetailPage() {
                 </div>
               </form>
             )}
+            */}
           </div>
         </div>
         {/* Recent tickets */}

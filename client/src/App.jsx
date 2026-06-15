@@ -46,6 +46,7 @@ import {
   PortalNewTicketPage,
   PortalKBPage,
   PortalAccountPage,
+  PortalComingSoonPage,
 } from './pages/portal';
 
 // Protected Route wrapper (Agent/Admin)
@@ -140,7 +141,14 @@ function App() {
         <Route path="kb" element={<KnowledgeBasePage />} />
       </Route>
 
-      {/* Portal routes */}
+      {/* Portal routes - DISABLED: Show "Coming Soon" page for all portal URLs
+       * To re-enable:
+       * 1. Uncomment the portal routes below
+       * 2. Remove the catch-all PortalComingSoonPage route
+       * 3. Re-enable portal email links in server/services/emailService.js
+       */}
+      <Route path="/portal/*" element={<PortalComingSoonPage />} />
+      {/*
       <Route path="/portal/login" element={<PortalLoginPage />} />
       <Route path="/portal/forgot-password" element={<PortalForgotPasswordPage />} />
       <Route path="/portal/reset-password" element={<PortalResetPasswordPage />} />
@@ -161,6 +169,7 @@ function App() {
         <Route path="kb/:categorySlug/:articleSlug" element={<PortalKBPage />} />
         <Route path="account" element={<PortalAccountPage />} />
       </Route>
+      */}
 
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />

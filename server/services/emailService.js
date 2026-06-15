@@ -247,8 +247,10 @@ async function reinitialize() {
  */
 async function sendTicketConfirmation(ticket, requester) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
-  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
-  const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  // PORTAL DISABLED: Portal links are disabled until re-enabled
+  // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  const ticketUrl = '#'; // Portal disabled - link hidden in template
   const agentName = ticket.assignee?.name || 'our team';
   const displayNumber = ticket.ticketNumber || ticket.id;
 
@@ -272,8 +274,10 @@ async function sendTicketConfirmation(ticket, requester) {
  */
 async function sendAgentReplyEmail(ticket, reply, agent, requester) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
-  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
-  const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  // PORTAL DISABLED: Portal links are disabled until re-enabled
+  // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  const ticketUrl = '#'; // Portal disabled - link hidden in template
   const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
@@ -333,8 +337,10 @@ async function sendTicketAssignedEmail(ticket, agent, requester) {
  */
 async function sendStatusChangedEmail(ticket, oldStatus, newStatus, requester) {
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
-  const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
-  const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  // PORTAL DISABLED: Portal links are disabled until re-enabled
+  // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
+  // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
+  const ticketUrl = '#'; // Portal disabled - link hidden in template
   const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
