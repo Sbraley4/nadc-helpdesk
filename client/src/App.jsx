@@ -24,6 +24,7 @@ import TemplatesPage from './pages/TemplatesPage';
 import SatisfactionPage from './pages/SatisfactionPage';
 import SettingsPage from './pages/SettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ReviewPage from './pages/ReviewPage';
 
 // Phase 7 Pages
 import DashboardPage from './pages/dashboard/DashboardPage';
@@ -102,6 +103,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/setup-password/:token" element={<SetupPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+      <Route path="/review/:token" element={<ReviewPage />} />
 
       {/* Protected routes */}
       <Route

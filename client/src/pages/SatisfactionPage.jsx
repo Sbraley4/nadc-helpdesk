@@ -1,33 +1,55 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ThumbsUp,
-  ThumbsDown,
-  Meh,
   Star,
   TrendingUp,
   TrendingDown,
   Calendar,
   User,
   MessageSquare,
-  ExternalLink,
 } from 'lucide-react';
 import { satisfaction, agents } from '../api';
-import { Spinner, Badge, Avatar, Select, Pagination } from '../components/shared';
+import { Spinner, Avatar, Select, Pagination } from '../components/shared';
 
-const ratingIcons = {
-  POSITIVE: { icon: ThumbsUp, color: 'text-green-500', bg: 'bg-green-100' },
-  NEUTRAL: { icon: Meh, color: 'text-yellow-500', bg: 'bg-yellow-100' },
-  NEGATIVE: { icon: ThumbsDown, color: 'text-red-500', bg: 'bg-red-100' },
-};
+// Star rating display component
+function StarRating({ rating, size = 16 }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          size={size}
+          className={
+            star <= rating
+              ? 'text-yellow-400 fill-yellow-400'
+              : 'text-gray-300'
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+// Rating color helper
+function getRatingColor(rating) {
+  if (rating >= 4) return { bg: 'bg-green-100', text: 'text-green-600' };
+  if (rating >= 3) return { bg: 'bg-yellow-100', text: 'text-yellow-600' };
+  return { bg: 'bg-red-100', text: 'text-red-600' };
+}
 
 export default function SatisfactionPage() {
   const navigate = useNavigate();
   const [ratings, setRatings] = useState([]);
+  const [stats, setStats] = useState({
+    total: 0,
+    averageRating: 0,
+    distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+    withComments: 0,
+  });
   const [agentsList, setAgentsList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState('');
-  const [dateRange, setDateRange] = useState('30'); // days
+  const [dateRange, setDateRange] = useState('30');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -52,6 +74,12 @@ export default function SatisfactionPage() {
       ]);
 
       setRatings(ratingsData.ratings || []);
+      setStats({
+        total: ratingsData.total || 0,
+        averageRating: ratingsData.averageRating || 0,
+        distribution: ratingsData.distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        withComments: ratingsData.withComments || 0,
+      });
       setTotalPages(ratingsData.pagination?.totalPages || 1);
       setAgentsList(agentsData.agents || []);
     } catch (error) {
@@ -61,28 +89,6 @@ export default function SatisfactionPage() {
     }
   };
 
-  // Calculate statistics
-  const stats = useMemo(() => {
-    const total = ratings.length;
-    const positive = ratings.filter((r) => r.rating === 'POSITIVE').length;
-    const neutral = ratings.filter((r) => r.rating === 'NEUTRAL').length;
-    const negative = ratings.filter((r) => r.rating === 'NEGATIVE').length;
-    const withComments = ratings.filter((r) => r.comment).length;
-    const redirectedToGoogle = ratings.filter((r) => r.redirectedToGoogle).length;
-
-    const satisfactionScore = total > 0 ? Math.round((positive / total) * 100) : 0;
-
-    return {
-      total,
-      positive,
-      neutral,
-      negative,
-      withComments,
-      redirectedToGoogle,
-      satisfactionScore,
-    };
-  }, [ratings]);
-
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
@@ -90,6 +96,10 @@ export default function SatisfactionPage() {
       year: 'numeric',
     });
   };
+
+  // Calculate satisfaction percentage (4-5 stars = satisfied)
+  const satisfiedCount = stats.distribution[4] + stats.distribution[5];
+  const satisfactionPercent = stats.total > 0 ? Math.round((satisfiedCount / stats.total) * 100) : 0;
 
   if (loading && ratings.length === 0) {
     return (
@@ -105,7 +115,7 @@ export default function SatisfactionPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Customer Satisfaction</h2>
-          <p className="text-sm text-gray-500 mt-1">Track customer feedback and ratings</p>
+          <p className="text-sm text-gray-500 mt-1">Track customer feedback and star ratings</p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -135,68 +145,77 @@ export default function SatisfactionPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Overall Score */}
+        {/* Average Rating */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">Satisfaction Score</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.satisfactionScore}%</p>
+              <p className="text-sm text-gray-500">Average Rating</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-3xl font-bold text-gray-900">{stats.averageRating}</p>
+                <span className="text-gray-400">/5</span>
+              </div>
+            </div>
+            <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+              <Star className="text-yellow-500 fill-yellow-500" size={24} />
+            </div>
+          </div>
+          <div className="mt-2">
+            <StarRating rating={Math.round(stats.averageRating)} size={14} />
+          </div>
+        </div>
+
+        {/* Satisfaction Rate */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Satisfaction Rate</p>
+              <p className="text-3xl font-bold text-gray-900">{satisfactionPercent}%</p>
             </div>
             <div
               className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                stats.satisfactionScore >= 80
+                satisfactionPercent >= 80
                   ? 'bg-green-100'
-                  : stats.satisfactionScore >= 60
+                  : satisfactionPercent >= 60
                   ? 'bg-yellow-100'
                   : 'bg-red-100'
               }`}
             >
-              {stats.satisfactionScore >= 80 ? (
-                <TrendingUp className="text-green-500" size={24} />
-              ) : stats.satisfactionScore >= 60 ? (
-                <Meh className="text-yellow-500" size={24} />
+              {satisfactionPercent >= 60 ? (
+                <TrendingUp
+                  className={satisfactionPercent >= 80 ? 'text-green-500' : 'text-yellow-500'}
+                  size={24}
+                />
               ) : (
                 <TrendingDown className="text-red-500" size={24} />
               )}
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Based on {stats.total} responses</p>
+          <p className="text-xs text-gray-500 mt-2">4-5 star ratings ({satisfiedCount} of {stats.total})</p>
         </div>
 
-        {/* Rating Breakdown */}
+        {/* Rating Distribution */}
         <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-sm text-gray-500 mb-3">Rating Breakdown</p>
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <ThumbsUp size={16} className="text-green-500" />
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-green-500 rounded-full"
-                  style={{ width: stats.total > 0 ? `${(stats.positive / stats.total) * 100}%` : '0%' }}
-                />
+          <p className="text-sm text-gray-500 mb-3">Rating Distribution</p>
+          <div className="space-y-1.5">
+            {[5, 4, 3, 2, 1].map((starNum) => (
+              <div key={starNum} className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 w-3">{starNum}</span>
+                <Star size={12} className="text-yellow-400 fill-yellow-400" />
+                <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-yellow-400 rounded-full"
+                    style={{
+                      width: stats.total > 0
+                        ? `${(stats.distribution[starNum] / stats.total) * 100}%`
+                        : '0%',
+                    }}
+                  />
+                </div>
+                <span className="text-xs font-medium w-6 text-right text-gray-600">
+                  {stats.distribution[starNum]}
+                </span>
               </div>
-              <span className="text-sm font-medium w-8 text-right">{stats.positive}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Meh size={16} className="text-yellow-500" />
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-yellow-500 rounded-full"
-                  style={{ width: stats.total > 0 ? `${(stats.neutral / stats.total) * 100}%` : '0%' }}
-                />
-              </div>
-              <span className="text-sm font-medium w-8 text-right">{stats.neutral}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThumbsDown size={16} className="text-red-500" />
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-red-500 rounded-full"
-                  style={{ width: stats.total > 0 ? `${(stats.negative / stats.total) * 100}%` : '0%' }}
-                />
-              </div>
-              <span className="text-sm font-medium w-8 text-right">{stats.negative}</span>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -212,22 +231,8 @@ export default function SatisfactionPage() {
             </div>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            {stats.total > 0 ? Math.round((stats.withComments / stats.total) * 100) : 0}% response rate
+            {stats.total > 0 ? Math.round((stats.withComments / stats.total) * 100) : 0}% comment rate
           </p>
-        </div>
-
-        {/* Google Reviews */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Google Redirects</p>
-              <p className="text-3xl font-bold text-gray-900">{stats.redirectedToGoogle}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
-              <Star className="text-purple-500" size={24} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">Positive ratings sent to Google</p>
         </div>
       </div>
 
@@ -239,53 +244,43 @@ export default function SatisfactionPage() {
 
         {ratings.length === 0 ? (
           <div className="text-center py-12">
-            <ThumbsUp size={48} className="mx-auto text-gray-400 mb-4" />
+            <Star size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900">No ratings yet</h3>
             <p className="text-gray-500 mt-1">Customer feedback will appear here</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
             {ratings.map((rating) => {
-              const RatingIcon = ratingIcons[rating.rating]?.icon || Meh;
-              const iconColor = ratingIcons[rating.rating]?.color || 'text-gray-500';
-              const iconBg = ratingIcons[rating.rating]?.bg || 'bg-gray-100';
+              const colors = getRatingColor(rating.rating);
 
               return (
                 <div key={rating.id} className="p-4 hover:bg-gray-50">
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-full ${iconBg} flex items-center justify-center flex-shrink-0`}>
-                      <RatingIcon size={20} className={iconColor} />
+                    <div
+                      className={`w-10 h-10 rounded-full ${colors.bg} flex items-center justify-center flex-shrink-0`}
+                    >
+                      <span className={`text-lg font-bold ${colors.text}`}>{rating.rating}</span>
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <button
                           onClick={() => navigate(`/tickets/${rating.ticketId}`)}
                           className="font-medium text-primary hover:underline"
                         >
-                          Ticket #{rating.ticketId}
+                          Ticket #{rating.ticketNumber || rating.ticketId}
                         </button>
-                        <Badge
-                          variant={
-                            rating.rating === 'POSITIVE'
-                              ? 'success'
-                              : rating.rating === 'NEGATIVE'
-                              ? 'danger'
-                              : 'warning'
-                          }
-                        >
-                          {rating.rating}
-                        </Badge>
-                        {rating.redirectedToGoogle && (
-                          <Badge variant="secondary">
-                            <ExternalLink size={10} className="mr-1" />
-                            Google
-                          </Badge>
-                        )}
+                        <StarRating rating={rating.rating} size={14} />
                       </div>
 
+                      {rating.ticketSubject && (
+                        <p className="text-sm text-gray-600 mt-1">{rating.ticketSubject}</p>
+                      )}
+
                       {rating.comment && (
-                        <p className="text-gray-700 mt-2">{rating.comment}</p>
+                        <p className="text-gray-700 mt-2 bg-gray-50 p-3 rounded-lg italic">
+                          "{rating.comment}"
+                        </p>
                       )}
 
                       <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
@@ -297,7 +292,7 @@ export default function SatisfactionPage() {
                         )}
                         <div className="flex items-center gap-1">
                           <Calendar size={14} />
-                          {formatDate(rating.createdAt)}
+                          {formatDate(rating.ratedAt)}
                         </div>
                         {rating.agent && (
                           <div className="flex items-center gap-1">

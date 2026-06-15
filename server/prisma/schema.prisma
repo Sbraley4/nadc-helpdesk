@@ -85,10 +85,6 @@ enum RecurringFrequency {
   QUARTERLY
 }
 
-enum SatisfactionRatingValue {
-  POSITIVE
-  NEGATIVE
-}
 
 // ============================================================================
 // MODELS
@@ -144,7 +140,7 @@ model Contact {
   companyId              String?
   lastReviewRequestedAt  DateTime?
   reviewOptOut           Boolean                  @default(false)
-  reviewRating           SatisfactionRatingValue?
+  reviewRating           Int?                     // Last star rating (1-5)
   createdAt              DateTime                 @default(now())
   updatedAt              DateTime                 @updatedAt
 
@@ -619,14 +615,14 @@ model RecurringSchedule {
   template TicketTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
 }
 
-// SatisfactionRating - customer satisfaction ratings
+// SatisfactionRating - customer satisfaction ratings (1-5 stars)
 model SatisfactionRating {
-  id        String                  @id @default(cuid())
-  ticketId  String                  @unique
+  id        String   @id @default(cuid())
+  ticketId  String   @unique
   contactId String
-  rating    SatisfactionRatingValue
-  feedback  String?
-  ratedAt   DateTime                @default(now())
+  rating    Int      // 1-5 star rating
+  comment   String?  // Optional written comment
+  ratedAt   DateTime @default(now())
 
   // Relations
   ticket  Ticket  @relation(fields: [ticketId], references: [id], onDelete: Cascade)

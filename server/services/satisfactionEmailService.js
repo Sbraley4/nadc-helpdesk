@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
-const { sendReviewRequestEmail, getAppSetting } = require('./emailService');
+const { sendReviewRequestEmail } = require('./emailService');
 
 const prisma = new PrismaClient();
 
@@ -10,24 +10,18 @@ const prisma = new PrismaClient();
 async function sendReviewRequest(ticket, contact) {
   try {
     // Check if contact has opted out
-    if (contact.optedOutOfReviews) {
+    if (contact.optedOutOfReviews || contact.reviewOptOut) {
       console.log(`[Satisfaction] Contact ${contact.email} has opted out of review requests`);
       return { success: false, reason: 'opted_out' };
     }
 
-    // Generate JWT tokens for each action
+    // Generate JWT token for review page
     const tokenPayload = { ticketId: ticket.id, contactId: contact.id };
 
-    const positiveToken = jwt.sign(
-      { ...tokenPayload, rating: 'POSITIVE' },
+    const reviewToken = jwt.sign(
+      tokenPayload,
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    const negativeToken = jwt.sign(
-      { ...tokenPayload, rating: 'NEGATIVE' },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '30d' }
     );
 
     const optOutToken = jwt.sign(
@@ -38,8 +32,7 @@ async function sendReviewRequest(ticket, contact) {
 
     // Send email using the email service
     const result = await sendReviewRequestEmail(contact, ticket, {
-      positiveToken,
-      negativeToken,
+      reviewToken,
       optOutToken,
     });
 

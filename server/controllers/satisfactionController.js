@@ -4,6 +4,9 @@ const { sendReviewRequest } = require('../services/satisfactionEmailService');
 
 const prisma = new PrismaClient();
 
+// Google Business Review URL placeholder - update this in AppSettings
+const GOOGLE_BUSINESS_REVIEW_URL = 'PLACEHOLDER_GOOGLE_REVIEW_URL';
+
 // Schedule review request when ticket is closed
 // Called internally from ticket update when status changes to CLOSED
 async function scheduleReviewRequest(ticket) {
@@ -70,19 +73,14 @@ async function scheduleReviewRequest(ticket) {
   }
 }
 
-// POST /api/satisfaction/:ticketId/rate - PUBLIC
-// Handles the rating submission from email link
-async function submitRating(req, res) {
+// GET /api/satisfaction/review/:token - PUBLIC
+// Returns review request details for the React review page
+async function getReviewDetails(req, res) {
   try {
-    const { ticketId } = req.params;
-    const { rating, token } = req.query;
+    const { token } = req.params;
 
     if (!token) {
-      return res.status(400).send('<h1>Invalid request - missing token</h1>');
-    }
-
-    if (!rating || !['POSITIVE', 'NEGATIVE'].includes(rating)) {
-      return res.status(400).send('<h1>Invalid rating value</h1>');
+      return res.status(400).json({ error: 'Missing token' });
     }
 
     // Verify token
@@ -90,25 +88,34 @@ async function submitRating(req, res) {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(400).send('<h1>Invalid or expired link</h1>');
+      return res.status(400).json({ error: 'Invalid or expired link' });
     }
 
-    // Verify ticketId matches token
-    if (decoded.ticketId !== ticketId) {
-      return res.status(400).send('<h1>Invalid request</h1>');
-    }
+    const { ticketId, contactId } = decoded;
 
     // Get ticket
     const ticket = await prisma.ticket.findUnique({
       where: { id: ticketId },
+      select: {
+        id: true,
+        ticketNumber: true,
+        subject: true,
+        status: true,
+      },
     });
 
     if (!ticket) {
-      return res.status(404).send('<h1>Ticket not found</h1>');
+      return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    if (ticket.status !== 'CLOSED') {
-      return res.status(400).send('<h1>This ticket is not closed</h1>');
+    // Get contact
+    const contact = await prisma.contact.findUnique({
+      where: { id: contactId },
+      select: { id: true, name: true },
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
     }
 
     // Check if already rated
@@ -117,201 +124,42 @@ async function submitRating(req, res) {
     });
 
     if (existingRating) {
-      return res.send('<h1>Thank you - you have already submitted feedback for this ticket.</h1>');
+      return res.status(400).json({ error: 'already_rated', message: 'You have already submitted feedback for this ticket.' });
     }
 
-    // Create rating
-    await prisma.satisfactionRating.create({
-      data: {
-        ticketId,
-        contactId: decoded.contactId,
-        rating,
-      },
+    // Get Google review URL from settings
+    const googleUrlSetting = await prisma.appSetting.findUnique({
+      where: { key: 'google_review_url' },
     });
 
-    // Update contact's reviewRating
-    await prisma.contact.update({
-      where: { id: decoded.contactId },
-      data: { reviewRating: rating },
+    res.json({
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      ticketSubject: ticket.subject,
+      contactName: contact.name,
+      googleReviewUrl: googleUrlSetting?.value || GOOGLE_BUSINESS_REVIEW_URL,
     });
-
-    // Get Google review URL if positive
-    if (rating === 'POSITIVE') {
-      const googleUrlSetting = await prisma.appSetting.findUnique({
-        where: { key: 'google_review_url' },
-      });
-      const googleReviewUrl = googleUrlSetting?.value;
-
-      if (googleReviewUrl) {
-        // Return redirect page with Google review prompt
-        return res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thank You!</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 40px 20px;
-    }
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 8px;
-      padding: 40px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 { color: #22c55e; margin-bottom: 20px; }
-    p { color: #333; line-height: 1.6; margin-bottom: 30px; }
-    .btn {
-      display: inline-block;
-      padding: 15px 40px;
-      background-color: #1B2A4A;
-      color: white;
-      text-decoration: none;
-      border-radius: 8px;
-      font-size: 18px;
-      font-weight: 600;
-    }
-    .btn:hover { background-color: #2d3f5e; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Thank you for your feedback!</h1>
-    <p>We're thrilled you had a great experience. Would you mind taking a moment to leave us a quick Google review? It really helps our team!</p>
-    <a href="${googleReviewUrl}" class="btn" target="_blank">
-      ⭐ Leave a Google Review
-    </a>
-  </div>
-</body>
-</html>
-        `);
-      }
-
-      // No Google URL configured
-      return res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thank You!</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 40px 20px;
-    }
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 8px;
-      padding: 40px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 { color: #22c55e; }
-    p { color: #333; line-height: 1.6; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Thank you for your feedback!</h1>
-    <p>We're glad you had a great experience. Thank you for taking the time to let us know!</p>
-  </div>
-</body>
-</html>
-      `);
-    }
-
-    // NEGATIVE rating - show feedback form
-    return res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>We're Sorry</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 40px 20px;
-    }
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 8px;
-      padding: 40px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 { color: #ef4444; margin-bottom: 20px; }
-    p { color: #333; line-height: 1.6; margin-bottom: 20px; }
-    textarea {
-      width: 100%;
-      min-height: 120px;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      font-size: 16px;
-      margin-bottom: 20px;
-      box-sizing: border-box;
-      resize: vertical;
-    }
-    .btn {
-      display: inline-block;
-      padding: 12px 30px;
-      background-color: #1B2A4A;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .btn:hover { background-color: #2d3f5e; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>We're sorry to hear that</h1>
-    <p>We'd really like to understand what went wrong so we can improve. Could you tell us more?</p>
-    <form action="/api/satisfaction/${ticketId}/feedback" method="POST">
-      <input type="hidden" name="token" value="${token}">
-      <textarea name="feedback" placeholder="Please share what we could do better..." required></textarea>
-      <button type="submit" class="btn">Submit Feedback</button>
-    </form>
-  </div>
-</body>
-</html>
-    `);
   } catch (error) {
-    console.error('Error processing rating:', error);
-    return res.status(500).send('<h1>Something went wrong. Please try again later.</h1>');
+    console.error('Error getting review details:', error);
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 }
 
-// POST /api/satisfaction/:ticketId/feedback - PUBLIC
-// Handles feedback submission from negative rating
-async function submitFeedback(req, res) {
+// POST /api/satisfaction/review/:token - PUBLIC
+// Submits star rating (1-5) and optional comment
+async function submitReview(req, res) {
   try {
-    const { ticketId } = req.params;
-    const { feedback, token } = req.body;
+    const { token } = req.params;
+    const { rating, comment } = req.body;
 
     if (!token) {
-      return res.status(400).send('<h1>Invalid request - missing token</h1>');
+      return res.status(400).json({ error: 'Missing token' });
+    }
+
+    // Validate rating
+    const ratingNum = parseInt(rating, 10);
+    if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
 
     // Verify token
@@ -319,62 +167,58 @@ async function submitFeedback(req, res) {
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(400).send('<h1>Invalid or expired link</h1>');
+      return res.status(400).json({ error: 'Invalid or expired link' });
     }
 
-    // Find the rating
-    const rating = await prisma.satisfactionRating.findUnique({
+    const { ticketId, contactId } = decoded;
+
+    // Get ticket
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Check if already rated
+    const existingRating = await prisma.satisfactionRating.findUnique({
       where: { ticketId },
     });
 
-    if (!rating) {
-      return res.status(404).send('<h1>Rating not found</h1>');
+    if (existingRating) {
+      return res.status(400).json({ error: 'already_rated', message: 'You have already submitted feedback for this ticket.' });
     }
 
-    // Update with feedback
-    await prisma.satisfactionRating.update({
-      where: { ticketId },
-      data: { feedback },
+    // Create rating
+    await prisma.satisfactionRating.create({
+      data: {
+        ticketId,
+        contactId,
+        rating: ratingNum,
+        comment: comment || null,
+      },
     });
 
-    return res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Thank You</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f5f5f5;
-      margin: 0;
-      padding: 40px 20px;
-    }
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-      background: white;
-      border-radius: 8px;
-      padding: 40px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    h1 { color: #1B2A4A; }
-    p { color: #333; line-height: 1.6; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Thank you for your feedback</h1>
-    <p>We appreciate you taking the time to help us improve. We'll be in touch.</p>
-  </div>
-</body>
-</html>
-    `);
+    // Update contact's reviewRating
+    await prisma.contact.update({
+      where: { id: contactId },
+      data: { reviewRating: ratingNum },
+    });
+
+    // Get Google review URL from settings
+    const googleUrlSetting = await prisma.appSetting.findUnique({
+      where: { key: 'google_review_url' },
+    });
+
+    res.json({
+      success: true,
+      message: 'Thank you for your feedback!',
+      googleReviewUrl: googleUrlSetting?.value || GOOGLE_BUSINESS_REVIEW_URL,
+    });
   } catch (error) {
-    console.error('Error processing feedback:', error);
-    return res.status(500).send('<h1>Something went wrong. Please try again later.</h1>');
+    console.error('Error submitting review:', error);
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 }
 
@@ -444,15 +288,18 @@ async function optOut(req, res) {
 }
 
 // GET /api/satisfaction/ratings - ADMIN only
-// Returns all ratings for admin view
+// Returns all ratings for admin view with star rating support
 async function getRatings(req, res, next) {
   try {
-    const { rating, startDate, endDate, page = 1, limit = 25 } = req.query;
+    const { minRating, maxRating, startDate, endDate, agentId, page = 1, limit = 25 } = req.query;
 
     const where = {};
 
-    if (rating) {
-      where.rating = rating;
+    // Filter by rating range
+    if (minRating || maxRating) {
+      where.rating = {};
+      if (minRating) where.rating.gte = parseInt(minRating, 10);
+      if (maxRating) where.rating.lte = parseInt(maxRating, 10);
     }
 
     if (startDate || endDate) {
@@ -461,15 +308,29 @@ async function getRatings(req, res, next) {
       if (endDate) where.ratedAt.lte = new Date(endDate);
     }
 
+    // Filter by agent (ticket assignee)
+    if (agentId) {
+      where.ticket = {
+        assigneeId: agentId,
+      };
+    }
+
     const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
     const take = parseInt(limit, 10);
 
-    const [ratings, total, positiveCount, negativeCount] = await Promise.all([
+    const [ratings, total, aggregation] = await Promise.all([
       prisma.satisfactionRating.findMany({
         where,
         include: {
           ticket: {
-            select: { id: true, ticketNumber: true, subject: true },
+            select: {
+              id: true,
+              ticketNumber: true,
+              subject: true,
+              assignee: {
+                select: { id: true, name: true, avatar: true },
+              },
+            },
           },
           contact: {
             select: { id: true, name: true, email: true },
@@ -480,21 +341,56 @@ async function getRatings(req, res, next) {
         take,
       }),
       prisma.satisfactionRating.count({ where }),
-      prisma.satisfactionRating.count({ where: { ...where, rating: 'POSITIVE' } }),
-      prisma.satisfactionRating.count({ where: { ...where, rating: 'NEGATIVE' } }),
+      prisma.satisfactionRating.aggregate({
+        where,
+        _avg: { rating: true },
+        _count: { rating: true },
+      }),
     ]);
 
-    const positivePercent = total > 0 ? Math.round((positiveCount / total) * 100) : 0;
+    // Calculate rating distribution (1-5 stars)
+    const ratingCounts = await prisma.satisfactionRating.groupBy({
+      by: ['rating'],
+      where,
+      _count: { rating: true },
+    });
+
+    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    ratingCounts.forEach((r) => {
+      distribution[r.rating] = r._count.rating;
+    });
+
+    // Count ratings with comments
+    const withComments = await prisma.satisfactionRating.count({
+      where: {
+        ...where,
+        comment: { not: null },
+      },
+    });
+
+    const averageRating = aggregation._avg.rating ? Math.round(aggregation._avg.rating * 10) / 10 : 0;
 
     res.json({
-      ratings,
+      ratings: ratings.map((r) => ({
+        id: r.id,
+        ticketId: r.ticketId,
+        ticketNumber: r.ticket?.ticketNumber,
+        ticketSubject: r.ticket?.subject,
+        rating: r.rating,
+        comment: r.comment,
+        ratedAt: r.ratedAt,
+        contact: r.contact,
+        agent: r.ticket?.assignee,
+      })),
       total,
-      positiveCount,
-      negativeCount,
-      positivePercent,
-      page: parseInt(page, 10),
-      limit: take,
-      totalPages: Math.ceil(total / take),
+      averageRating,
+      distribution,
+      withComments,
+      pagination: {
+        page: parseInt(page, 10),
+        limit: take,
+        totalPages: Math.ceil(total / take),
+      },
     });
   } catch (error) {
     next(error);
@@ -503,8 +399,8 @@ async function getRatings(req, res, next) {
 
 module.exports = {
   scheduleReviewRequest,
-  submitRating,
-  submitFeedback,
+  getReviewDetails,
+  submitReview,
   optOut,
   getRatings,
 };
