@@ -85,6 +85,8 @@ async function getDashboardStats(req, res, next) {
       materialsThisMonth: materialsData,
     });
   } catch (error) {
+    console.error('[Dashboard] ERROR:', error);
+    console.error('[Dashboard] Stack:', error.stack);
     next(error);
   }
 }
