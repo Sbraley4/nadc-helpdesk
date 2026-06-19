@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal } from '../../components/shared';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
@@ -61,6 +61,7 @@ export default function TicketDetailPage() {
   const [forwardAgentId, setForwardAgentId] = useState('');
   const [threadReplyId, setThreadReplyId] = useState(null);
   const [threadContent, setThreadContent] = useState('');
+  const [replyFiles, setReplyFiles] = useState([]);
 
   // Checklist state
   const [newChecklistItem, setNewChecklistItem] = useState('');
@@ -503,8 +504,13 @@ export default function TicketDetailPage() {
     if (isInternalNote && notifyAgents.length > 0) {
       formData.append('notifyAgentIds', JSON.stringify(notifyAgents));
     }
+    // Append files to FormData
+    replyFiles.forEach((file) => {
+      formData.append('files', file);
+    });
     replyMutation.mutate(formData);
     setNotifyAgents([]);
+    setReplyFiles([]);
     setTimeLogStartTime('');
     setTimeLogFinishTime('');
     setTimeLogBtoType('BTO');
@@ -793,6 +799,26 @@ export default function TicketDetailPage() {
                   <span className="text-sm text-gray-500">{format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</span>
                 </div>
                 <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: ticket.description }} />
+                {/* Ticket-level attachments */}
+                {ticket.attachments?.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Attachments:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {ticket.attachments.map((att) => (
+                        <a
+                          key={att.id}
+                          href={`/api/attachments/${att.id}/download`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200 transition-colors"
+                        >
+                          <Paperclip size={14} />
+                          <span className="truncate max-w-[200px]">{att.filename}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -862,6 +888,26 @@ export default function TicketDetailPage() {
                             </>
                           )}
                         </button>
+                      )}
+                      {/* Attachments */}
+                      {reply.attachments?.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Attachments:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {reply.attachments.map((att) => (
+                              <a
+                                key={att.id}
+                                href={`/api/attachments/${att.id}/download`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200 transition-colors"
+                              >
+                                <Paperclip size={14} />
+                                <span className="truncate max-w-[200px]">{att.filename}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1081,6 +1127,15 @@ export default function TicketDetailPage() {
               minHeight={200}
               autoGrow
             />
+
+            {/* File attachments */}
+            <div className="mt-3">
+              <FileUpload
+                files={replyFiles}
+                onChange={setReplyFiles}
+                disabled={replyMutation.isPending}
+              />
+            </div>
 
             {/* Time Logging Section (collapsed by default) */}
             {isInternalNote && (

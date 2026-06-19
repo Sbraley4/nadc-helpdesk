@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, CalendarRange, X } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, agents, templates, contacts, companies } from '../../api';
-import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput } from '../../components/shared';
+import { tickets, agents, templates, contacts, companies, attachments } from '../../api';
+import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput, FileUpload } from '../../components/shared';
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
@@ -33,6 +33,7 @@ export default function NewTicketPage() {
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
   const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
+  const [ticketFiles, setTicketFiles] = useState([]);
   const templateId = searchParams.get('templateId');
 
   // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
@@ -168,13 +169,22 @@ export default function NewTicketPage() {
   };
 
   const createMutation = useMutation({
-    mutationFn: async (ticketData) => {
+    mutationFn: async ({ ticketData, files }) => {
       // Create the ticket first (without dueDate)
       const createdTicket = await tickets.createTicket(ticketData);
 
       // If dates are set, create a TicketSchedule entry
       if (ticketData._scheduleData) {
         await tickets.createSchedule(createdTicket.id, ticketData._scheduleData);
+      }
+
+      // Upload attachments if any
+      if (files && files.length > 0) {
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append('files', file);
+        });
+        await attachments.uploadAttachment(createdTicket.id, formData);
       }
 
       return createdTicket;
@@ -201,13 +211,16 @@ export default function NewTicketPage() {
     }
 
     createMutation.mutate({
-      subject: data.subject,
-      description: data.description || '',
-      requesterId: data.contactId, // Backend expects requesterId, not contactId
-      priority: data.priority,
-      assigneeId: data.assigneeId || undefined,
-      additionalAssigneeIds: additionalAssigneeIds.length > 0 ? additionalAssigneeIds : undefined,
-      _scheduleData: scheduleData, // Internal field, not sent to ticket API
+      ticketData: {
+        subject: data.subject,
+        description: data.description || '',
+        requesterId: data.contactId, // Backend expects requesterId, not contactId
+        priority: data.priority,
+        assigneeId: data.assigneeId || undefined,
+        additionalAssigneeIds: additionalAssigneeIds.length > 0 ? additionalAssigneeIds : undefined,
+        _scheduleData: scheduleData, // Internal field, not sent to ticket API
+      },
+      files: ticketFiles,
     });
   };
 
@@ -248,6 +261,16 @@ export default function NewTicketPage() {
 
           <Input label="Subject" required {...register('subject')} error={errors.subject?.message} />
           <Textarea label="Description" rows={4} {...register('description')} error={errors.description?.message} />
+
+          {/* File attachments */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+            <FileUpload
+              files={ticketFiles}
+              onChange={setTicketFiles}
+              disabled={createMutation.isPending}
+            />
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Controller

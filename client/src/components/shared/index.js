@@ -8,6 +8,7 @@ export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as ContactTypeahead } from './ContactTypeahead';
 export { default as EmptyState } from './EmptyState';
 export { default as FAB } from './FAB';
+export { default as FileUpload } from './FileUpload';
 export { default as Input } from './Input';
 export { default as Modal } from './Modal';
 export { default as MultiSelectAgents } from './MultiSelectAgents';
