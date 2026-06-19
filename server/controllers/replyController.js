@@ -290,65 +290,96 @@ async function createReply(req, res, next) {
       );
     }
 
-    // Notify ALL assigned agents (primary + additional) when a reply/note is added
-    // Collect all assigned agents, excluding the person making the change
-    console.log('[Reply] Starting agent notification collection...');
-    console.log('[Reply] Current user (excluded from notifications):', req.user.id, req.user.name);
-    console.log('[Reply] ticket.assignee:', ticket.assignee);
-    console.log('[Reply] ticket.additionalAssignees:', JSON.stringify(ticket.additionalAssignees, null, 2));
-    const allAssignedAgents = [];
-    if (ticket.assignee && ticket.assignee.id !== req.user.id && ticket.assignee.email) {
-      allAssignedAgents.push(ticket.assignee);
-    }
-    if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
-      for (const ta of ticket.additionalAssignees) {
-        const agent = ta.user || ta;
-        // Skip the person making the change, and skip duplicates
-        if (agent && agent.email && agent.id !== req.user.id && !allAssignedAgents.some(a => a.id === agent.id)) {
-          allAssignedAgents.push(agent);
+    // Handle agent notifications differently for internal notes vs public replies
+    if (isInternalNote) {
+      // INTERNAL NOTE: Notify agents from notifyAgentIds (user-selected list)
+      console.log('[Reply] Internal note - using notifyAgentIds for email notifications');
+      console.log('[Reply] agentIdsToNotify:', agentIdsToNotify);
+
+      if (agentIdsToNotify && agentIdsToNotify.length > 0) {
+        // Fetch full agent records from database
+        const agentsToNotify = await prisma.user.findMany({
+          where: {
+            id: { in: agentIdsToNotify },
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        });
+
+        console.log(`[Reply] Total agents to notify: ${agentsToNotify.length}`);
+        console.log('[Reply] Agents list:', agentsToNotify.map(a => ({ id: a.id, name: a.name, email: a.email })));
+
+        const author = { id: req.user.id, name: req.user.name };
+
+        for (const agent of agentsToNotify) {
+          // Send email notification to agent (no exclusions - notify everyone selected)
+          console.log(`[Reply] Sending note notification email to agent:`, { id: agent.id, name: agent.name, email: agent.email });
+          console.log(`[Reply] Ticket info:`, { id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject });
+          console.log(`[Reply] Author:`, author);
+
+          if (agent.email) {
+            sendNoteNotificationToAgent(ticket, fullReply, author, agent)
+              .then((result) => console.log(`[Reply] Note email sent to ${agent.email}, result:`, result))
+              .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
+          } else {
+            console.log(`[Reply] Skipping agent ${agent.id} - no email address`);
+          }
+        }
+      } else {
+        console.log('[Reply] No agents selected for notification (agentIdsToNotify is empty)');
+      }
+    } else {
+      // PUBLIC REPLY: Notify assigned agents (primary + additional), excluding the author
+      console.log('[Reply] Public reply - notifying assigned agents');
+      console.log('[Reply] Current user (excluded from notifications):', req.user.id, req.user.name);
+      console.log('[Reply] ticket.assignee:', ticket.assignee);
+      console.log('[Reply] ticket.additionalAssignees:', JSON.stringify(ticket.additionalAssignees, null, 2));
+
+      const allAssignedAgents = [];
+      if (ticket.assignee && ticket.assignee.id !== req.user.id && ticket.assignee.email) {
+        allAssignedAgents.push(ticket.assignee);
+      }
+      if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
+        for (const ta of ticket.additionalAssignees) {
+          const agent = ta.user || ta;
+          // Skip the person making the change, and skip duplicates
+          if (agent && agent.email && agent.id !== req.user.id && !allAssignedAgents.some(a => a.id === agent.id)) {
+            allAssignedAgents.push(agent);
+          }
         }
       }
-    }
 
-    // Notify each assigned agent
-    console.log(`[Reply] Total agents to notify: ${allAssignedAgents.length}`);
-    console.log('[Reply] Agents list:', allAssignedAgents.map(a => ({ id: a.id, name: a.name, email: a.email })));
-    for (const agent of allAssignedAgents) {
-      const notificationType = isInternalNote ? 'note_added' : 'reply_added';
-      const notificationTitle = isInternalNote ? 'New internal note' : 'New reply on your ticket';
-      const notificationMessage = `${req.user.name} added a ${isInternalNote ? 'note' : 'reply'} to ticket #${ticket.ticketNumber || ticketId}`;
+      console.log(`[Reply] Total agents to notify: ${allAssignedAgents.length}`);
+      console.log('[Reply] Agents list:', allAssignedAgents.map(a => ({ id: a.id, name: a.name, email: a.email })));
+
       const author = { id: req.user.id, name: req.user.name };
 
-      // Create in-app notification for agent
-      await prisma.notification.create({
-        data: {
-          userId: agent.id,
-          type: notificationType,
-          title: notificationTitle,
-          message: notificationMessage,
-          relatedTicketId: ticketId,
-        },
-      }).catch((err) => console.error(`[Reply] Failed to create notification for agent ${agent.id}:`, err.message));
+      for (const agent of allAssignedAgents) {
+        // Create in-app notification for agent
+        await prisma.notification.create({
+          data: {
+            userId: agent.id,
+            type: 'reply_added',
+            title: 'New reply on your ticket',
+            message: `${req.user.name} added a reply to ticket #${ticket.ticketNumber || ticketId}`,
+            relatedTicketId: ticketId,
+          },
+        }).catch((err) => console.error(`[Reply] Failed to create notification for agent ${agent.id}:`, err.message));
 
-      // Emit socket notification to agent
-      if (io) {
-        io.to(`user:${agent.id}`).emit('notification:new', {
-          type: notificationType,
-          title: notificationTitle,
-          message: notificationMessage,
-          ticketId,
-        });
-      }
+        // Emit socket notification to agent
+        if (io) {
+          io.to(`user:${agent.id}`).emit('notification:new', {
+            type: 'reply_added',
+            title: 'New reply on your ticket',
+            message: `${req.user.name} added a reply to ticket #${ticket.ticketNumber || ticketId}`,
+            ticketId,
+          });
+        }
 
-      // Send email notification to agent
-      if (isInternalNote) {
-        console.log(`[Reply] Sending note notification email to agent:`, { id: agent.id, name: agent.name, email: agent.email });
-        console.log(`[Reply] Ticket info:`, { id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject });
-        console.log(`[Reply] Author:`, author);
-        sendNoteNotificationToAgent(ticket, fullReply, author, agent)
-          .then((result) => console.log(`[Reply] Note email sent to ${agent.email}, result:`, result))
-          .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
-      } else {
+        // Send email notification to agent
         sendReplyNotificationToAgent(ticket, fullReply, author, agent).catch((err) =>
           console.error(`[Reply] Failed to send reply email to agent ${agent.id}:`, err.message)
         );
