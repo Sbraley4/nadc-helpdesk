@@ -161,13 +161,20 @@ const listTickets = async (req, res, next) => {
     }
 
     if (search) {
-      where.OR = [
+      const searchConditions = [
         { subject: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { ticketNumber: { contains: search, mode: 'insensitive' } },
         { requester: { name: { contains: search, mode: 'insensitive' } } },
         { requester: { company: { name: { contains: search, mode: 'insensitive' } } } },
       ];
+
+      // Only add ticketNumber search if the search term is a valid number
+      const ticketNum = parseInt(search, 10);
+      if (!isNaN(ticketNum)) {
+        searchConditions.push({ ticketNumber: { equals: ticketNum } });
+      }
+
+      where.OR = searchConditions;
     }
 
     if (dueBefore) {
