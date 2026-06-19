@@ -212,10 +212,25 @@ export default function NewTicketPage() {
     mutationFn: async ({ ticketData, files }) => {
       // Create the ticket first (without dueDate)
       const createdTicket = await tickets.createTicket(ticketData);
+      // DEBUG: Log the created ticket response
+      console.log('[NewTicket DEBUG] Ticket created, response:', createdTicket);
 
       // If dates are set, create a TicketSchedule entry
       if (ticketData._scheduleData) {
-        await tickets.createSchedule(createdTicket.id, ticketData._scheduleData);
+        // DEBUG: Log before createSchedule call
+        console.log('[NewTicket DEBUG] About to call createSchedule with:', {
+          ticketId: createdTicket.id,
+          scheduleData: ticketData._scheduleData,
+        });
+        try {
+          const scheduleResult = await tickets.createSchedule(createdTicket.id, ticketData._scheduleData);
+          console.log('[NewTicket DEBUG] createSchedule succeeded:', scheduleResult);
+        } catch (scheduleError) {
+          console.error('[NewTicket DEBUG] createSchedule FAILED:', scheduleError);
+          throw scheduleError; // Re-throw to preserve original behavior
+        }
+      } else {
+        console.log('[NewTicket DEBUG] No _scheduleData found, skipping schedule creation');
       }
 
       // Upload attachments if any
@@ -240,6 +255,14 @@ export default function NewTicketPage() {
   });
 
   const onSubmit = (data) => {
+    // DEBUG: Log schedule field values at submission time
+    console.log('[NewTicket DEBUG] onSubmit called with schedule fields:', {
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+    });
+
     // Build schedule data if start date is set
     let scheduleData = undefined;
     if (startDate) {
@@ -249,6 +272,9 @@ export default function NewTicketPage() {
         : null;
       scheduleData = { scheduledStart, scheduledEnd, isAllDay: false };
     }
+
+    // DEBUG: Log the built scheduleData
+    console.log('[NewTicket DEBUG] Built scheduleData:', scheduleData);
 
     createMutation.mutate({
       ticketData: {
