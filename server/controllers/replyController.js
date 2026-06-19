@@ -292,6 +292,10 @@ async function createReply(req, res, next) {
 
     // Notify ALL assigned agents (primary + additional) when a reply/note is added
     // Collect all assigned agents, excluding the person making the change
+    console.log('[Reply] Starting agent notification collection...');
+    console.log('[Reply] Current user (excluded from notifications):', req.user.id, req.user.name);
+    console.log('[Reply] ticket.assignee:', ticket.assignee);
+    console.log('[Reply] ticket.additionalAssignees:', JSON.stringify(ticket.additionalAssignees, null, 2));
     const allAssignedAgents = [];
     if (ticket.assignee && ticket.assignee.id !== req.user.id && ticket.assignee.email) {
       allAssignedAgents.push(ticket.assignee);
@@ -307,6 +311,8 @@ async function createReply(req, res, next) {
     }
 
     // Notify each assigned agent
+    console.log(`[Reply] Total agents to notify: ${allAssignedAgents.length}`);
+    console.log('[Reply] Agents list:', allAssignedAgents.map(a => ({ id: a.id, name: a.name, email: a.email })));
     for (const agent of allAssignedAgents) {
       const notificationType = isInternalNote ? 'note_added' : 'reply_added';
       const notificationTitle = isInternalNote ? 'New internal note' : 'New reply on your ticket';
@@ -336,9 +342,12 @@ async function createReply(req, res, next) {
 
       // Send email notification to agent
       if (isInternalNote) {
-        sendNoteNotificationToAgent(ticket, fullReply, author, agent).catch((err) =>
-          console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message)
-        );
+        console.log(`[Reply] Sending note notification email to agent:`, { id: agent.id, name: agent.name, email: agent.email });
+        console.log(`[Reply] Ticket info:`, { id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject });
+        console.log(`[Reply] Author:`, author);
+        sendNoteNotificationToAgent(ticket, fullReply, author, agent)
+          .then((result) => console.log(`[Reply] Note email sent to ${agent.email}, result:`, result))
+          .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
       } else {
         sendReplyNotificationToAgent(ticket, fullReply, author, agent).catch((err) =>
           console.error(`[Reply] Failed to send reply email to agent ${agent.id}:`, err.message)

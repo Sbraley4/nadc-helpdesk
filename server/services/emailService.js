@@ -472,6 +472,12 @@ async function sendReplyNotificationToAgent(ticket, reply, author, agent) {
  * Send internal note notification email to assigned agent
  */
 async function sendNoteNotificationToAgent(ticket, note, author, agent) {
+  console.log('[Email Service] sendNoteNotificationToAgent CALLED');
+  console.log('[Email Service] Recipient:', { email: agent?.email, name: agent?.name });
+  console.log('[Email Service] Ticket:', { id: ticket?.id, ticketNumber: ticket?.ticketNumber, subject: ticket?.subject });
+  console.log('[Email Service] Author:', author);
+  console.log('[Email Service] Note body length:', note?.body?.length || 0);
+
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const ticketUrl = `${helpdeskUrl}/tickets/${ticket.id}`;
@@ -482,6 +488,9 @@ async function sendNoteNotificationToAgent(ticket, note, author, agent) {
   const notePreview = noteText.length < note.body.replace(/<[^>]*>/g, '').length
     ? noteText + '...'
     : noteText;
+
+  console.log('[Email Service] About to call sendTemplatedEmail for note notification');
+  console.log('[Email Service] Template: ticket-note-agent, To:', agent.email, 'Subject:', `Ticket #${displayNumber} - New Internal Note`);
 
   return await sendTemplatedEmail({
     to: agent.email,
