@@ -156,6 +156,8 @@ model Company {
   id              String   @id @default(cuid())
   name            String
   domain          String?
+  phone           String?
+  address         String?
   notes           String?
   assignedAgentId String?
   createdAt       DateTime @default(now())

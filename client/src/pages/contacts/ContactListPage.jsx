@@ -13,6 +13,7 @@ export default function ContactListPage() {
   const [showInlineCompanyForm, setShowInlineCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [newCompanyAddress, setNewCompanyAddress] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', companyId: '' });
@@ -79,6 +80,7 @@ export default function ContactListPage() {
       }
       setNewCompanyName('');
       setNewCompanyDomain('');
+      setNewCompanyAddress('');
       toast.success('Company created and selected');
     },
     onError: (error) => {
@@ -94,6 +96,7 @@ export default function ContactListPage() {
     createCompanyMutation.mutate({
       name: newCompanyName.trim(),
       domain: newCompanyDomain.trim() || undefined,
+      address: newCompanyAddress.trim() || undefined,
     });
   };
 
@@ -133,6 +136,7 @@ export default function ContactListPage() {
     setShowEditInlineCompanyForm(false);
     setNewCompanyName('');
     setNewCompanyDomain('');
+    setNewCompanyAddress('');
     setShowEditModal(true);
   };
 
@@ -397,6 +401,12 @@ export default function ContactListPage() {
                   onChange={(e) => setNewCompanyDomain(e.target.value)}
                   placeholder="e.g., example.com"
                 />
+                <Input
+                  label="Address"
+                  value={newCompanyAddress}
+                  onChange={(e) => setNewCompanyAddress(e.target.value)}
+                  placeholder="Enter address"
+                />
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -414,6 +424,7 @@ export default function ContactListPage() {
                       setShowInlineCompanyForm(false);
                       setNewCompanyName('');
                       setNewCompanyDomain('');
+                      setNewCompanyAddress('');
                     }}
                   >
                     Cancel
@@ -489,6 +500,12 @@ export default function ContactListPage() {
                   onChange={(e) => setNewCompanyDomain(e.target.value)}
                   placeholder="e.g., example.com"
                 />
+                <Input
+                  label="Address"
+                  value={newCompanyAddress}
+                  onChange={(e) => setNewCompanyAddress(e.target.value)}
+                  placeholder="Enter address"
+                />
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -506,6 +523,7 @@ export default function ContactListPage() {
                       setShowEditInlineCompanyForm(false);
                       setNewCompanyName('');
                       setNewCompanyDomain('');
+                      setNewCompanyAddress('');
                     }}
                   >
                     Cancel

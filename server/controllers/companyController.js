@@ -140,7 +140,7 @@ async function getCompany(req, res, next) {
  */
 async function createCompany(req, res, next) {
   try {
-    const { name, domain, notes, assignedAgentId } = req.body;
+    const { name, domain, phone, address, notes, assignedAgentId } = req.body;
 
     // Validate required fields
     if (!name || name.trim() === '') {
@@ -160,6 +160,8 @@ async function createCompany(req, res, next) {
       data: {
         name: name.trim(),
         domain: domain?.trim() || null,
+        phone: phone?.trim() || null,
+        address: address?.trim() || null,
         notes: notes?.trim() || null,
         assignedAgentId: assignedAgentId || null,
       },
@@ -188,7 +190,7 @@ async function createCompany(req, res, next) {
 async function updateCompany(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, domain, notes, assignedAgentId } = req.body;
+    const { name, domain, phone, address, notes, assignedAgentId } = req.body;
 
     // Check company exists
     const existing = await prisma.company.findUnique({
@@ -224,6 +226,14 @@ async function updateCompany(req, res, next) {
 
     if (domain !== undefined) {
       updateData.domain = domain?.trim() || null;
+    }
+
+    if (phone !== undefined) {
+      updateData.phone = phone?.trim() || null;
+    }
+
+    if (address !== undefined) {
+      updateData.address = address?.trim() || null;
     }
 
     if (notes !== undefined) {
