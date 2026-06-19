@@ -94,6 +94,9 @@ function transformTicket(ticket) {
  */
 const listTickets = async (req, res, next) => {
   try {
+    // DEBUG: Log full query params
+    console.log('[DEBUG listTickets] req.query:', JSON.stringify(req.query, null, 2));
+
     const {
       page = 1,
       limit = 25,
@@ -111,6 +114,9 @@ const listTickets = async (req, res, next) => {
       sortBy = 'updatedAt',
       order = 'desc',
     } = req.query;
+
+    // DEBUG: Log extracted search value
+    console.log('[DEBUG listTickets] search variable:', search, '| type:', typeof search);
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -202,6 +208,9 @@ const listTickets = async (req, res, next) => {
       orderBy = { [sortField]: sortOrder };
     }
 
+    // DEBUG: Log final where clause
+    console.log('[DEBUG listTickets] where clause:', JSON.stringify(where, null, 2));
+
     // Execute queries
     const [tickets, total] = await Promise.all([
       prisma.ticket.findMany({
@@ -213,6 +222,9 @@ const listTickets = async (req, res, next) => {
       }),
       prisma.ticket.count({ where }),
     ]);
+
+    // DEBUG: Log results count
+    console.log('[DEBUG listTickets] Prisma returned:', tickets.length, 'tickets, total:', total);
 
     const transformedTickets = tickets.map(transformTicket);
 
