@@ -293,9 +293,6 @@ async function createReply(req, res, next) {
     // Handle agent notifications differently for internal notes vs public replies
     if (isInternalNote) {
       // INTERNAL NOTE: Notify agents from notifyAgentIds (user-selected list)
-      console.log('[Reply] Internal note - using notifyAgentIds for email notifications');
-      console.log('[Reply] agentIdsToNotify:', agentIdsToNotify);
-
       if (agentIdsToNotify && agentIdsToNotify.length > 0) {
         // Fetch full agent records from database
         const agentsToNotify = await prisma.user.findMany({
@@ -309,35 +306,17 @@ async function createReply(req, res, next) {
           },
         });
 
-        console.log(`[Reply] Total agents to notify: ${agentsToNotify.length}`);
-        console.log('[Reply] Agents list:', agentsToNotify.map(a => ({ id: a.id, name: a.name, email: a.email })));
-
         const author = { id: req.user.id, name: req.user.name };
 
         for (const agent of agentsToNotify) {
-          // Send email notification to agent (no exclusions - notify everyone selected)
-          console.log(`[Reply] Sending note notification email to agent:`, { id: agent.id, name: agent.name, email: agent.email });
-          console.log(`[Reply] Ticket info:`, { id: ticket.id, ticketNumber: ticket.ticketNumber, subject: ticket.subject });
-          console.log(`[Reply] Author:`, author);
-
           if (agent.email) {
             sendNoteNotificationToAgent(ticket, fullReply, author, agent)
-              .then((result) => console.log(`[Reply] Note email sent to ${agent.email}, result:`, result))
               .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
-          } else {
-            console.log(`[Reply] Skipping agent ${agent.id} - no email address`);
           }
         }
-      } else {
-        console.log('[Reply] No agents selected for notification (agentIdsToNotify is empty)');
       }
     } else {
       // PUBLIC REPLY: Notify assigned agents (primary + additional), excluding the author
-      console.log('[Reply] Public reply - notifying assigned agents');
-      console.log('[Reply] Current user (excluded from notifications):', req.user.id, req.user.name);
-      console.log('[Reply] ticket.assignee:', ticket.assignee);
-      console.log('[Reply] ticket.additionalAssignees:', JSON.stringify(ticket.additionalAssignees, null, 2));
-
       const allAssignedAgents = [];
       if (ticket.assignee && ticket.assignee.id !== req.user.id && ticket.assignee.email) {
         allAssignedAgents.push(ticket.assignee);
@@ -351,9 +330,6 @@ async function createReply(req, res, next) {
           }
         }
       }
-
-      console.log(`[Reply] Total agents to notify: ${allAssignedAgents.length}`);
-      console.log('[Reply] Agents list:', allAssignedAgents.map(a => ({ id: a.id, name: a.name, email: a.email })));
 
       const author = { id: req.user.id, name: req.user.name };
 
