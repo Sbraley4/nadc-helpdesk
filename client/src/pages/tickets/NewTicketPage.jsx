@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, CalendarRange, X } from 'lucide-react';
+import { ArrowLeft, Calendar, CalendarRange, X, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents, templates, contacts, companies, attachments } from '../../api';
 import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput, FileUpload } from '../../components/shared';
@@ -73,6 +73,12 @@ export default function NewTicketPage() {
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientCompanyId, setNewClientCompanyId] = useState('');
 
+  // Inline company creation state
+  const [showInlineCompanyForm, setShowInlineCompanyForm] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [newCompanyAddress, setNewCompanyAddress] = useState('');
+
   const { register, handleSubmit, control, setValue, watch, formState: { errors } } = useForm({
     resolver: zodResolver(ticketSchema),
     defaultValues: {
@@ -133,6 +139,10 @@ export default function NewTicketPage() {
       setNewClientEmail('');
       setNewClientPhone('');
       setNewClientCompanyId('');
+      setShowInlineCompanyForm(false);
+      setNewCompanyName('');
+      setNewCompanyDomain('');
+      setNewCompanyAddress('');
       toast.success('Client created successfully');
     },
     onError: (error) => {
@@ -142,6 +152,36 @@ export default function NewTicketPage() {
       toast.error(errorMessage);
     },
   });
+
+  // Create company mutation (inline from new client modal)
+  const createCompanyMutation = useMutation({
+    mutationFn: companies.createCompany,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+      const newCompanyId = data.company?.id || data.id;
+      setNewClientCompanyId(newCompanyId);
+      setShowInlineCompanyForm(false);
+      setNewCompanyName('');
+      setNewCompanyDomain('');
+      setNewCompanyAddress('');
+      toast.success('Company created and selected');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to create company');
+    },
+  });
+
+  const handleCreateCompanyInline = () => {
+    if (!newCompanyName.trim()) {
+      toast.error('Company name is required');
+      return;
+    }
+    createCompanyMutation.mutate({
+      name: newCompanyName.trim(),
+      domain: newCompanyDomain.trim() || undefined,
+      address: newCompanyAddress.trim() || undefined,
+    });
+  };
 
   const handleCreateNewClient = () => {
     console.log('[CreateContact] handleCreateNewClient called');
@@ -406,6 +446,10 @@ export default function NewTicketPage() {
                   setNewClientEmail('');
                   setNewClientPhone('');
                   setNewClientCompanyId('');
+                  setShowInlineCompanyForm(false);
+                  setNewCompanyName('');
+                  setNewCompanyDomain('');
+                  setNewCompanyAddress('');
                 }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
@@ -449,17 +493,74 @@ export default function NewTicketPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-                <Select
-                  value={newClientCompanyId}
-                  onChange={(e) => setNewClientCompanyId(e.target.value)}
-                  options={[
-                    { value: '', label: 'No company' },
-                    ...(companiesData?.companies || []).map((c) => ({
-                      value: c.id,
-                      label: c.name,
-                    })),
-                  ]}
-                />
+                {!showInlineCompanyForm ? (
+                  <>
+                    <Select
+                      value={newClientCompanyId}
+                      onChange={(e) => setNewClientCompanyId(e.target.value)}
+                      options={[
+                        { value: '', label: 'No company' },
+                        ...(companiesData?.companies || []).map((c) => ({
+                          value: c.id,
+                          label: c.name,
+                        })),
+                      ]}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowInlineCompanyForm(true)}
+                      className="mt-2 text-sm text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Plus size={14} />
+                      Create new company
+                    </button>
+                  </>
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                    <Input
+                      label="Company Name"
+                      required
+                      value={newCompanyName}
+                      onChange={(e) => setNewCompanyName(e.target.value)}
+                      placeholder="Enter company name"
+                    />
+                    <Input
+                      label="Domain"
+                      value={newCompanyDomain}
+                      onChange={(e) => setNewCompanyDomain(e.target.value)}
+                      placeholder="e.g., example.com"
+                    />
+                    <Input
+                      label="Address"
+                      value={newCompanyAddress}
+                      onChange={(e) => setNewCompanyAddress(e.target.value)}
+                      placeholder="Enter address"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleCreateCompanyInline}
+                        isLoading={createCompanyMutation.isPending}
+                      >
+                        Create Company
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowInlineCompanyForm(false);
+                          setNewCompanyName('');
+                          setNewCompanyDomain('');
+                          setNewCompanyAddress('');
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <Button
@@ -471,6 +572,10 @@ export default function NewTicketPage() {
                     setNewClientEmail('');
                     setNewClientPhone('');
                     setNewClientCompanyId('');
+                    setShowInlineCompanyForm(false);
+                    setNewCompanyName('');
+                    setNewCompanyDomain('');
+                    setNewCompanyAddress('');
                   }}
                 >
                   Cancel
