@@ -246,13 +246,21 @@ async function reinitialize() {
  * Send new ticket confirmation to requester
  */
 async function sendTicketConfirmation(ticket, requester) {
+  // ===========================================
+  // TEMPORARILY DISABLED - Client-facing email
+  // To re-enable: uncomment the code below and remove the stub return
+  // ===========================================
+  const displayNumber = ticket.ticketNumber || ticket.id;
+  console.log(`[Email Service] DISABLED: Would send ticket confirmation for #${displayNumber} to ${requester?.email}`);
+  return { success: true, messageId: `disabled-${Date.now()}`, disabled: true };
+
+  /*
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   // PORTAL DISABLED: Portal links are disabled until re-enabled
   // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
   const ticketUrl = '#'; // Portal disabled - link hidden in template
   const agentName = ticket.assignee?.name || 'our team';
-  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
@@ -267,18 +275,27 @@ async function sendTicketConfirmation(ticket, requester) {
       agent_name: agentName,
     },
   });
+  */
 }
 
 /**
  * Send agent reply notification to requester
  */
 async function sendAgentReplyEmail(ticket, reply, agent, requester) {
+  // ===========================================
+  // TEMPORARILY DISABLED - Client-facing email
+  // To re-enable: uncomment the code below and remove the stub return
+  // ===========================================
+  const displayNumber = ticket.ticketNumber || ticket.id;
+  console.log(`[Email Service] DISABLED: Would send agent reply notification for #${displayNumber} to ${requester?.email}`);
+  return { success: true, messageId: `disabled-${Date.now()}`, disabled: true };
+
+  /*
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   // PORTAL DISABLED: Portal links are disabled until re-enabled
   // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
   const ticketUrl = '#'; // Portal disabled - link hidden in template
-  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
@@ -294,6 +311,7 @@ async function sendAgentReplyEmail(ticket, reply, agent, requester) {
       company_name: companyName,
     },
   });
+  */
 }
 
 /**
@@ -336,12 +354,20 @@ async function sendTicketAssignedEmail(ticket, agent, requester) {
  * Send ticket status changed notification to requester
  */
 async function sendStatusChangedEmail(ticket, oldStatus, newStatus, requester) {
+  // ===========================================
+  // TEMPORARILY DISABLED - Client-facing email
+  // To re-enable: uncomment the code below and remove the stub return
+  // ===========================================
+  const displayNumber = ticket.ticketNumber || ticket.id;
+  console.log(`[Email Service] DISABLED: Would send status change (${oldStatus} -> ${newStatus}) for #${displayNumber} to ${requester?.email}`);
+  return { success: true, messageId: `disabled-${Date.now()}`, disabled: true };
+
+  /*
   const companyName = (await getAppSetting('company_name')) || 'NADC Helpdesk';
   // PORTAL DISABLED: Portal links are disabled until re-enabled
   // const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   // const ticketUrl = `${helpdeskUrl}/portal/tickets/${ticket.id}`;
   const ticketUrl = '#'; // Portal disabled - link hidden in template
-  const displayNumber = ticket.ticketNumber || ticket.id;
 
   return await sendTemplatedEmail({
     to: requester.email,
@@ -357,6 +383,7 @@ async function sendStatusChangedEmail(ticket, oldStatus, newStatus, requester) {
       company_name: companyName,
     },
   });
+  */
 }
 
 /**
