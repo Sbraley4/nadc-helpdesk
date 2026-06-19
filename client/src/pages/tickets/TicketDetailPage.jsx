@@ -46,7 +46,7 @@ export default function TicketDetailPage() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const [replyContent, setReplyContent] = useState('');
-  const [isInternalNote, setIsInternalNote] = useState(false);
+  const [isInternalNote, setIsInternalNote] = useState(true);
   const [typingUsers, setTypingUsers] = useState([]);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
