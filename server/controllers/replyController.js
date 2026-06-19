@@ -367,6 +367,10 @@ async function createReply(req, res, next) {
 
     res.status(201).json(replyWithUrls);
   } catch (error) {
+    // Log the full error for debugging
+    console.error('[Reply] CAUGHT ERROR:', error);
+    console.error('[Reply] Error stack:', error.stack);
+
     // Clean up uploaded files on error
     if (req.files) {
       for (const file of req.files) {
