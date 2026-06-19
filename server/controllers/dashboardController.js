@@ -85,8 +85,6 @@ async function getDashboardStats(req, res, next) {
       materialsThisMonth: materialsData,
     });
   } catch (error) {
-    console.error('[Dashboard] ERROR:', error);
-    console.error('[Dashboard] Stack:', error.stack);
     next(error);
   }
 }
@@ -335,8 +333,8 @@ async function getRecentActivity() {
 async function getSatisfactionSummary() {
   const [total, positive, negative] = await Promise.all([
     prisma.satisfactionRating.count(),
-    prisma.satisfactionRating.count({ where: { rating: 'POSITIVE' } }),
-    prisma.satisfactionRating.count({ where: { rating: 'NEGATIVE' } }),
+    prisma.satisfactionRating.count({ where: { rating: { gte: 4 } } }), // 4-5 stars
+    prisma.satisfactionRating.count({ where: { rating: { lte: 2 } } }), // 1-2 stars
   ]);
 
   return {
