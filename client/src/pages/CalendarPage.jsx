@@ -417,7 +417,7 @@ export default function CalendarPage() {
   // Convert tickets and events to FullCalendar format
   const calendarEvents_FC = useMemo(() => {
     const fcEvents = [];
-    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
     // Map tickets to FullCalendar events
     tickets.forEach((ticket) => {
@@ -434,7 +434,7 @@ export default function CalendarPage() {
         const start = new Date(startTime);
         const end = new Date(ticket.scheduledEnd);
         const durationMs = end.getTime() - start.getTime();
-        if (durationMs > TWELVE_HOURS_MS) {
+        if (durationMs > EIGHT_HOURS_MS) {
           isAllDay = true;
         }
       }
@@ -471,11 +471,23 @@ export default function CalendarPage() {
       const firstAssignee = event.assignees?.[0];
       const eventColor = event.color || getAgentColor(firstAssignee);
 
+      // Check if event should be all-day (from DB or duration > 12 hours)
+      let isAllDay = event.isAllDay || false;
+      if (!isAllDay && event.endTime) {
+        const start = new Date(event.startTime);
+        const end = new Date(event.endTime);
+        const durationMs = end.getTime() - start.getTime();
+        if (durationMs > EIGHT_HOURS_MS) {
+          isAllDay = true;
+        }
+      }
+
       fcEvents.push({
         id: `event-${event.id}`,
         title: event.title,
         start: event.startTime,
         end: event.endTime || undefined,
+        allDay: isAllDay,
         backgroundColor: `${eventColor}30`,
         borderColor: eventColor,
         textColor: eventColor,
