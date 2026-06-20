@@ -62,6 +62,23 @@ const getAllAgentColors = (ticket) => {
   return colors;
 };
 
+// Helper to build diagonal stripe gradient for multiple agents
+const buildStripeGradient = (colors) => {
+  if (!colors || colors.length <= 1) return null;
+
+  const stripeWidth = 10; // pixels per stripe
+  const stops = [];
+
+  colors.forEach((color, i) => {
+    const start = i * stripeWidth;
+    const end = (i + 1) * stripeWidth;
+    stops.push(`${color} ${start}px`);
+    stops.push(`${color} ${end}px`);
+  });
+
+  return `repeating-linear-gradient(45deg, ${stops.join(', ')})`;
+};
+
 // Helper to format date as YYYY-MM-DD in local timezone
 const formatLocalDate = (date) => {
   const y = date.getFullYear();
@@ -424,11 +441,12 @@ export default function CalendarPage() {
       const startTime = ticket.scheduledStart || ticket.dueDate;
       if (!startTime) return;
 
-      const agentColor = getPrimaryAgentColor(ticket);
+      const agentColors = getAllAgentColors(ticket);
+      const primaryColor = agentColors[0];
       const statusColor = statusStripeColors[ticket.status] || '#6B7280';
       const companyName = ticket.company?.name || ticket.requester?.company?.name || '';
 
-      // Calculate duration and auto-promote to all-day if > 12 hours
+      // Calculate duration and auto-promote to all-day if > 8 hours
       let isAllDay = ticket.isAllDay || false;
       if (!isAllDay && ticket.scheduledEnd) {
         const start = new Date(startTime);
@@ -445,7 +463,7 @@ export default function CalendarPage() {
         start: startTime,
         end: ticket.scheduledEnd || undefined,
         allDay: isAllDay,
-        backgroundColor: agentColor,
+        backgroundColor: primaryColor,
         borderColor: statusColor,
         textColor: '#ffffff',
         extendedProps: {
@@ -462,6 +480,7 @@ export default function CalendarPage() {
           statusColor: statusColor,
           scheduledStart: startTime,
           scheduledEnd: ticket.scheduledEnd,
+          agentColors: agentColors,
         },
       });
     });
@@ -707,20 +726,27 @@ export default function CalendarPage() {
     const props = eventInfo.event.extendedProps;
 
     if (props.type === 'ticket') {
+      const agentColors = props.agentColors || [eventInfo.event.backgroundColor];
+      const hasMultipleAgents = agentColors.length > 1;
+      const stripeGradient = hasMultipleAgents ? buildStripeGradient(agentColors) : null;
+
       return (
-        <div className="w-full h-full overflow-hidden p-0.5">
+        <div
+          className="w-full h-full overflow-hidden p-0.5 rounded"
+          style={stripeGradient ? { background: stripeGradient } : {}}
+        >
           <div
             className="h-1 w-full rounded-t"
             style={{ backgroundColor: props.statusColor }}
           />
-          <div className="text-[11px] leading-tight truncate font-medium px-1">
+          <div className="text-[11px] leading-tight truncate font-medium px-1 text-white drop-shadow-sm">
             #{props.ticketNumber}
           </div>
-          <div className="text-[10px] leading-tight truncate px-1 opacity-90">
+          <div className="text-[10px] leading-tight truncate px-1 text-white opacity-90 drop-shadow-sm">
             {props.subject}
           </div>
           {props.company && (
-            <div className="text-[9px] leading-tight truncate px-1 opacity-75">
+            <div className="text-[9px] leading-tight truncate px-1 text-white opacity-75 drop-shadow-sm">
               {props.company}
             </div>
           )}
