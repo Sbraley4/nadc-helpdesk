@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -90,6 +90,139 @@ const formatDateTimeLocal = (date) => {
   return `${year}-${month}-${day}T${hours}:${mins}`;
 };
 
+// Reschedule Modal Component
+function RescheduleModal({ isOpen, onClose, ticket, onRescheduled }) {
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('10:00');
+  const [saving, setSaving] = useState(false);
+
+  // Initialize form when ticket changes
+  useEffect(() => {
+    if (ticket && isOpen) {
+      if (ticket.scheduledStart) {
+        const start = new Date(ticket.scheduledStart);
+        setStartDate(formatLocalDate(start));
+        setStartTime(`${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`);
+      } else {
+        const now = new Date();
+        setStartDate(formatLocalDate(now));
+        setStartTime('09:00');
+      }
+      if (ticket.scheduledEnd) {
+        const end = new Date(ticket.scheduledEnd);
+        setEndDate(formatLocalDate(end));
+        setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+      } else {
+        const now = new Date();
+        setEndDate(formatLocalDate(now));
+        setEndTime('10:00');
+      }
+    }
+  }, [ticket, isOpen]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!ticket?.scheduleId) return;
+
+    setSaving(true);
+    try {
+      const [startY, startM, startD] = startDate.split('-').map(Number);
+      const [startH, startMin] = startTime.split(':').map(Number);
+      const scheduledStart = new Date(startY, startM - 1, startD, startH, startMin);
+
+      let scheduledEnd = null;
+      if (endDate && endTime) {
+        const [endY, endM, endD] = endDate.split('-').map(Number);
+        const [endH, endMin] = endTime.split(':').map(Number);
+        scheduledEnd = new Date(endY, endM - 1, endD, endH, endMin);
+      }
+
+      await ticketsApi.updateSchedule(ticket.ticketId, ticket.scheduleId, {
+        scheduledStart: scheduledStart.toISOString(),
+        scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
+      });
+
+      toast.success('Schedule updated');
+      onRescheduled();
+    } catch (error) {
+      console.error('Failed to reschedule:', error);
+      toast.error('Failed to reschedule ticket');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen || !ticket) return null;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`Reschedule #${ticket.ticketNumber}`} size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="text-sm text-gray-600 mb-4 truncate">
+          {ticket.subject}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                if (!endDate || e.target.value > endDate) {
+                  setEndDate(e.target.value);
+                }
+              }}
+              className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
+          <Button type="button" variant="outline" onClick={onClose} className="w-full sm:w-auto">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+            {saving ? <Spinner size="sm" /> : 'Update Schedule'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export default function CalendarPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -118,7 +251,7 @@ export default function CalendarPage() {
     companyId: '',
   });
 
-  // Context menu state
+  // Context menu state (for both empty slot clicks and event clicks)
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -126,7 +259,15 @@ export default function CalendarPage() {
     date: null,
     time: '09:00',
     targetItem: null,
+    // For event context menu
+    menuType: 'slot', // 'slot' for empty slot, 'ticket' for ticket click, 'event' for calendar event click
+    clickedTicket: null, // { ticketId, scheduleId, ticketNumber, subject }
+    clickedEvent: null, // { eventId, title, ... }
   });
+
+  // Reschedule modal state
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [rescheduleTicket, setRescheduleTicket] = useState(null); // { ticketId, scheduleId, ticketNumber, subject, currentStart, currentEnd }
 
   // New ticket modal state
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -276,6 +417,7 @@ export default function CalendarPage() {
   // Convert tickets and events to FullCalendar format
   const calendarEvents_FC = useMemo(() => {
     const fcEvents = [];
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 
     // Map tickets to FullCalendar events
     tickets.forEach((ticket) => {
@@ -286,12 +428,23 @@ export default function CalendarPage() {
       const statusColor = statusStripeColors[ticket.status] || '#6B7280';
       const companyName = ticket.company?.name || ticket.requester?.company?.name || '';
 
+      // Calculate duration and auto-promote to all-day if > 12 hours
+      let isAllDay = ticket.isAllDay || false;
+      if (!isAllDay && ticket.scheduledEnd) {
+        const start = new Date(startTime);
+        const end = new Date(ticket.scheduledEnd);
+        const durationMs = end.getTime() - start.getTime();
+        if (durationMs > TWELVE_HOURS_MS) {
+          isAllDay = true;
+        }
+      }
+
       fcEvents.push({
         id: `ticket-${ticket.id}`,
         title: `#${ticket.ticketNumber} ${ticket.subject}`,
         start: startTime,
         end: ticket.scheduledEnd || undefined,
-        allDay: ticket.isAllDay || false,
+        allDay: isAllDay,
         backgroundColor: agentColor,
         borderColor: statusColor,
         textColor: '#ffffff',
@@ -307,6 +460,8 @@ export default function CalendarPage() {
           additionalAssignees: ticket.additionalAssignees,
           company: companyName,
           statusColor: statusColor,
+          scheduledStart: startTime,
+          scheduledEnd: ticket.scheduledEnd,
         },
       });
     });
@@ -407,30 +562,63 @@ export default function CalendarPage() {
       endTime: endTime,
       endDate: endDate,
       targetItem: null,
+      menuType: 'slot',
+      clickedTicket: null,
+      clickedEvent: null,
     });
   };
 
-  // Handle clicking on an existing event
+  // Handle clicking on an existing event - show context menu
   const handleEventClick = (clickInfo) => {
     const event = clickInfo.event;
     const props = event.extendedProps;
+    const jsEvent = clickInfo.jsEvent;
+
+    // Keep menu within viewport
+    const menuWidth = 200;
+    const menuHeight = 120;
+    let x = jsEvent?.clientX || 200;
+    let y = jsEvent?.clientY || 200;
+
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 10;
+    }
 
     if (props.type === 'ticket') {
-      navigate(`/tickets/${props.ticketId}`);
+      setContextMenu({
+        visible: true,
+        x,
+        y,
+        date: null,
+        time: null,
+        targetItem: null,
+        menuType: 'ticket',
+        clickedTicket: {
+          ticketId: props.ticketId,
+          scheduleId: props.scheduleId,
+          ticketNumber: props.ticketNumber,
+          subject: props.subject,
+          scheduledStart: props.scheduledStart,
+          scheduledEnd: props.scheduledEnd,
+        },
+        clickedEvent: null,
+      });
     } else if (props.type === 'event') {
-      // Open event edit modal
       const originalEvent = events.find(e => e.id === props.eventId);
-      if (originalEvent) {
-        setEditingEvent(originalEvent);
-        setEventForm({
-          title: originalEvent.title,
-          description: originalEvent.description || '',
-          startTime: formatDateTimeLocal(new Date(originalEvent.startTime)),
-          endTime: originalEvent.endTime ? formatDateTimeLocal(new Date(originalEvent.endTime)) : '',
-          assigneeIds: originalEvent.assignees?.map(a => a.id) || [],
-        });
-        setShowEventModal(true);
-      }
+      setContextMenu({
+        visible: true,
+        x,
+        y,
+        date: null,
+        time: null,
+        targetItem: null,
+        menuType: 'event',
+        clickedTicket: null,
+        clickedEvent: originalEvent,
+      });
     }
   };
 
@@ -542,7 +730,82 @@ export default function CalendarPage() {
 
   // Hide context menu
   const hideContextMenu = () => {
-    setContextMenu(prev => ({ ...prev, visible: false, targetItem: null }));
+    setContextMenu(prev => ({ ...prev, visible: false, targetItem: null, clickedTicket: null, clickedEvent: null, menuType: 'slot' }));
+  };
+
+  // Ticket context menu handlers
+  const handleViewTicket = () => {
+    if (contextMenu.clickedTicket) {
+      navigate(`/tickets/${contextMenu.clickedTicket.ticketId}`);
+    }
+    hideContextMenu();
+  };
+
+  const handleRescheduleTicket = () => {
+    if (contextMenu.clickedTicket) {
+      setRescheduleTicket(contextMenu.clickedTicket);
+      setShowRescheduleModal(true);
+    }
+    hideContextMenu();
+  };
+
+  const handleDeleteSchedule = async () => {
+    if (!contextMenu.clickedTicket?.scheduleId) {
+      toast.error('No schedule to delete');
+      hideContextMenu();
+      return;
+    }
+    if (!window.confirm('Are you sure you want to remove this ticket from the calendar?')) {
+      hideContextMenu();
+      return;
+    }
+
+    try {
+      await ticketsApi.deleteSchedule(contextMenu.clickedTicket.ticketId, contextMenu.clickedTicket.scheduleId);
+      toast.success('Schedule removed');
+      fetchCalendarData();
+    } catch (error) {
+      console.error('Failed to delete schedule:', error);
+      toast.error('Failed to remove schedule');
+    }
+    hideContextMenu();
+  };
+
+  // Calendar event context menu handlers
+  const handleEditEvent = () => {
+    if (contextMenu.clickedEvent) {
+      setEditingEvent(contextMenu.clickedEvent);
+      setEventForm({
+        title: contextMenu.clickedEvent.title,
+        description: contextMenu.clickedEvent.description || '',
+        startTime: formatDateTimeLocal(new Date(contextMenu.clickedEvent.startTime)),
+        endTime: contextMenu.clickedEvent.endTime ? formatDateTimeLocal(new Date(contextMenu.clickedEvent.endTime)) : '',
+        assigneeIds: contextMenu.clickedEvent.assignees?.map(a => a.id) || [],
+      });
+      setShowEventModal(true);
+    }
+    hideContextMenu();
+  };
+
+  const handleDeleteEventFromMenu = async () => {
+    if (!contextMenu.clickedEvent) {
+      hideContextMenu();
+      return;
+    }
+    if (!window.confirm('Are you sure you want to delete this event?')) {
+      hideContextMenu();
+      return;
+    }
+
+    try {
+      await calendarEvents.deleteEvent(contextMenu.clickedEvent.id);
+      toast.success('Event deleted');
+      fetchCalendarData();
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      toast.error('Failed to delete event');
+    }
+    hideContextMenu();
   };
 
   // Context menu handlers
@@ -962,27 +1225,87 @@ export default function CalendarPage() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleContextNewTicket}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
-          >
-            <Ticket size={16} className="text-primary flex-shrink-0" />
-            <span>New Ticket</span>
-          </button>
-          <button
-            onClick={handleContextAddExistingTicket}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
-          >
-            <Search size={16} className="text-green-600 flex-shrink-0" />
-            <span>Add Existing Ticket</span>
-          </button>
-          <button
-            onClick={handleContextNewEvent}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
-          >
-            <CalendarDays size={16} className="text-purple-600 flex-shrink-0" />
-            <span>New Calendar Entry</span>
-          </button>
+          {/* Empty slot context menu */}
+          {contextMenu.menuType === 'slot' && (
+            <>
+              <button
+                onClick={handleContextNewTicket}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <Ticket size={16} className="text-primary flex-shrink-0" />
+                <span>New Ticket</span>
+              </button>
+              <button
+                onClick={handleContextAddExistingTicket}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <Search size={16} className="text-green-600 flex-shrink-0" />
+                <span>Add Existing Ticket</span>
+              </button>
+              <button
+                onClick={handleContextNewEvent}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <CalendarDays size={16} className="text-purple-600 flex-shrink-0" />
+                <span>New Calendar Entry</span>
+              </button>
+            </>
+          )}
+
+          {/* Ticket context menu */}
+          {contextMenu.menuType === 'ticket' && contextMenu.clickedTicket && (
+            <>
+              <div className="px-4 py-2 border-b border-gray-100">
+                <div className="text-xs text-gray-500">Ticket #{contextMenu.clickedTicket.ticketNumber}</div>
+                <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{contextMenu.clickedTicket.subject}</div>
+              </div>
+              <button
+                onClick={handleViewTicket}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <Eye size={16} className="text-primary flex-shrink-0" />
+                <span>View Ticket</span>
+              </button>
+              <button
+                onClick={handleRescheduleTicket}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <RotateCcw size={16} className="text-blue-600 flex-shrink-0" />
+                <span>Reschedule</span>
+              </button>
+              <button
+                onClick={handleDeleteSchedule}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-50 transition-colors text-red-600"
+              >
+                <Trash2 size={16} className="flex-shrink-0" />
+                <span>Delete Schedule</span>
+              </button>
+            </>
+          )}
+
+          {/* Calendar event context menu */}
+          {contextMenu.menuType === 'event' && contextMenu.clickedEvent && (
+            <>
+              <div className="px-4 py-2 border-b border-gray-100">
+                <div className="text-xs text-gray-500">Calendar Event</div>
+                <div className="text-sm font-medium text-gray-900 truncate max-w-[200px]">{contextMenu.clickedEvent.title}</div>
+              </div>
+              <button
+                onClick={handleEditEvent}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
+              >
+                <Pencil size={16} className="text-primary flex-shrink-0" />
+                <span>Edit Event</span>
+              </button>
+              <button
+                onClick={handleDeleteEventFromMenu}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-50 transition-colors text-red-600"
+              >
+                <Trash2 size={16} className="flex-shrink-0" />
+                <span>Delete Event</span>
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -1338,6 +1661,21 @@ export default function CalendarPage() {
         onTicketScheduled={() => {
           fetchCalendarData();
           setShowTicketSearchModal(false);
+        }}
+      />
+
+      {/* Reschedule Ticket Modal */}
+      <RescheduleModal
+        isOpen={showRescheduleModal}
+        onClose={() => {
+          setShowRescheduleModal(false);
+          setRescheduleTicket(null);
+        }}
+        ticket={rescheduleTicket}
+        onRescheduled={() => {
+          fetchCalendarData();
+          setShowRescheduleModal(false);
+          setRescheduleTicket(null);
         }}
       />
 
