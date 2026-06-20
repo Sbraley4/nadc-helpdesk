@@ -1,47 +1,14 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-
-const priorityColors = {
-  LOW: 'bg-gray-100 text-gray-700 border-gray-300',
-  MEDIUM: 'bg-blue-100 text-blue-700 border-blue-300',
-  HIGH: 'bg-orange-100 text-orange-700 border-orange-300',
-  URGENT: 'bg-red-100 text-red-700 border-red-300',
-};
-
-// Status colors for calendar backgrounds (lighter versions)
-const statusColors = {
-  OPEN: 'bg-yellow-100',
-  PENDING: 'bg-gray-100',
-  RESOLVED: 'bg-slate-100',
-  INVOICED: 'bg-green-100',
-  POSTED: 'bg-pink-100',
-  CLOSED: 'bg-gray-200',
-};
-
-// Status dot colors (solid)
-const statusDotColors = {
-  OPEN: 'bg-yellow-500',
-  PENDING: 'bg-gray-500',
-  RESOLVED: 'bg-slate-500',
-  INVOICED: 'bg-green-500',
-  POSTED: 'bg-pink-500',
-  CLOSED: 'bg-gray-700',
-};
-
-// Status text colors
-const statusTextColors = {
-  OPEN: 'text-yellow-800',
-  PENDING: 'text-gray-700',
-  RESOLVED: 'text-slate-700',
-  INVOICED: 'text-green-800',
-  POSTED: 'text-pink-800',
-  CLOSED: 'text-gray-600',
-};
 
 // Status stripe colors (hex for inline styles)
 const statusStripeColors = {
@@ -64,8 +31,18 @@ const UNASSIGNED_COLOR = '#6B7280'; // Grey
 // Helper to get agent color by name or from agent object
 const getAgentColor = (agent) => {
   if (!agent) return UNASSIGNED_COLOR;
-  // First try the database color, then fallback to hardcoded by name
   return agent.color || AGENT_COLORS[agent.name] || UNASSIGNED_COLOR;
+};
+
+// Helper to get primary agent color for a ticket
+const getPrimaryAgentColor = (ticket) => {
+  if (ticket.assignee) {
+    return getAgentColor(ticket.assignee);
+  }
+  if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
+    return getAgentColor(ticket.additionalAssignees[0]);
+  }
+  return UNASSIGNED_COLOR;
 };
 
 // Helper to get all agent colors for a ticket (primary + additional)
@@ -79,40 +56,45 @@ const getAllAgentColors = (ticket) => {
       colors.push(getAgentColor(assignee));
     });
   }
-  // If no assignees, use unassigned color
   if (colors.length === 0) {
     colors.push(UNASSIGNED_COLOR);
   }
   return colors;
 };
 
-// Generate CSS background for agent colors (solid or diagonal stripes)
-const getAgentBackground = (colors) => {
-  if (colors.length === 1) {
-    return { backgroundColor: colors[0] };
-  }
+// Helper to format date as YYYY-MM-DD in local timezone
+const formatLocalDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
-  // Multiple colors: create diagonal stripe pattern with equal distribution
-  const stripeWidth = 22; // ~6-8 stripes visible across a block
-  const gradientStops = [];
+// Helper to get Monday and Friday of a week containing the given date
+const getWeekBoundsFromDate = (date) => {
+  const day = date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  return { monday, friday };
+};
 
-  // Build gradient stops using absolute pixel positions for equal stripe sizes
-  colors.forEach((color, index) => {
-    const startPx = index * stripeWidth;
-    const endPx = (index + 1) * stripeWidth;
-    gradientStops.push(`${color} ${startPx}px`);
-    gradientStops.push(`${color} ${endPx}px`);
-  });
-
-  return {
-    backgroundImage: `repeating-linear-gradient(135deg, ${gradientStops.join(', ')})`,
-  };
+// Format date for datetime-local input
+const formatDateTimeLocal = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const mins = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${mins}`;
 };
 
 export default function CalendarPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [view, setView] = useState('week'); // month, week, day
+  const calendarRef = useRef(null);
+  const [view, setView] = useState('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
@@ -124,7 +106,7 @@ export default function CalendarPage() {
   const [showUnscheduledSidebar, setShowUnscheduledSidebar] = useState(false);
   const [unscheduledTickets, setUnscheduledTickets] = useState([]);
   const [loadingUnscheduled, setLoadingUnscheduled] = useState(false);
-  const [scheduleTicket, setScheduleTicket] = useState(null); // Ticket being scheduled from sidebar
+  const [scheduleTicket, setScheduleTicket] = useState(null);
 
   // New client modal state
   const [showNewClientModal, setShowNewClientModal] = useState(false);
@@ -136,21 +118,15 @@ export default function CalendarPage() {
     companyId: '',
   });
 
-  // Context menu state (when clicking anywhere on time grid)
+  // Context menu state
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
     y: 0,
     date: null,
     time: '09:00',
-    targetItem: null, // { type: 'ticket' | 'event', item: object } or null
+    targetItem: null,
   });
-
-  // Legacy choice popup state - now replaced by context menu
-  const [showChoicePopup, setShowChoicePopup] = useState(false);
-  const [choicePopupPosition, setChoicePopupPosition] = useState({ x: 0, y: 0 });
-  const [selectedSlotDate, setSelectedSlotDate] = useState(null);
-  const [selectedSlotTime, setSelectedSlotTime] = useState('09:00');
 
   // New ticket modal state
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
@@ -180,7 +156,7 @@ export default function CalendarPage() {
     assigneeIds: [],
   });
 
-  // Ticket search modal state (for adding existing tickets to calendar)
+  // Ticket search modal state
   const [showTicketSearchModal, setShowTicketSearchModal] = useState(false);
   const [ticketSearchDate, setTicketSearchDate] = useState(null);
   const [ticketSearchTime, setTicketSearchTime] = useState('09:00');
@@ -197,7 +173,6 @@ export default function CalendarPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries(['contacts']);
       queryClient.invalidateQueries(['contacts-search']);
-      // Auto-populate the contact selector with the new contact
       const newContact = data.contact || data;
       setNewTicketForm(prev => ({ ...prev, contactId: newContact.id }));
       setShowNewClientModal(false);
@@ -275,17 +250,13 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchCalendarData();
-  }, [dateRange.start, dateRange.end, selectedAgent]);
+  }, [dateRange.start.toISOString(), dateRange.end.toISOString(), selectedAgent]);
 
   // Fetch unscheduled tickets when sidebar opens
   const fetchUnscheduledTickets = async () => {
     setLoadingUnscheduled(true);
     try {
-      // Fetch tickets with no dueDate (unscheduled)
-      const data = await ticketsApi.getTickets({
-        limit: 100,
-      });
-      // Filter to only tickets without a dueDate
+      const data = await ticketsApi.getTickets({ limit: 100 });
       const unscheduled = (data.tickets || []).filter(t => !t.dueDate);
       setUnscheduledTickets(unscheduled);
     } catch (error) {
@@ -302,6 +273,76 @@ export default function CalendarPage() {
     }
   }, [showUnscheduledSidebar]);
 
+  // Convert tickets and events to FullCalendar format
+  const calendarEvents_FC = useMemo(() => {
+    const fcEvents = [];
+
+    // Map tickets to FullCalendar events
+    tickets.forEach((ticket) => {
+      const startTime = ticket.scheduledStart || ticket.dueDate;
+      if (!startTime) return;
+
+      const agentColor = getPrimaryAgentColor(ticket);
+      const statusColor = statusStripeColors[ticket.status] || '#6B7280';
+      const companyName = ticket.company?.name || ticket.requester?.company?.name || '';
+
+      fcEvents.push({
+        id: `ticket-${ticket.id}`,
+        title: `#${ticket.ticketNumber} ${ticket.subject}`,
+        start: startTime,
+        end: ticket.scheduledEnd || undefined,
+        allDay: ticket.isAllDay || false,
+        backgroundColor: agentColor,
+        borderColor: statusColor,
+        textColor: '#ffffff',
+        extendedProps: {
+          type: 'ticket',
+          ticketId: ticket.id,
+          scheduleId: ticket.scheduleId,
+          ticketNumber: ticket.ticketNumber,
+          subject: ticket.subject,
+          status: ticket.status,
+          priority: ticket.priority,
+          assignee: ticket.assignee,
+          additionalAssignees: ticket.additionalAssignees,
+          company: companyName,
+          statusColor: statusColor,
+        },
+      });
+    });
+
+    // Map calendar events to FullCalendar events
+    events.forEach((event) => {
+      const firstAssignee = event.assignees?.[0];
+      const eventColor = event.color || getAgentColor(firstAssignee);
+
+      fcEvents.push({
+        id: `event-${event.id}`,
+        title: event.title,
+        start: event.startTime,
+        end: event.endTime || undefined,
+        backgroundColor: `${eventColor}30`,
+        borderColor: eventColor,
+        textColor: eventColor,
+        extendedProps: {
+          type: 'event',
+          eventId: event.id,
+          description: event.description,
+          assignees: event.assignees,
+        },
+      });
+    });
+
+    return fcEvents;
+  }, [tickets, events]);
+
+  // FullCalendar view mapping
+  const fcViewMap = {
+    month: 'dayGridMonth',
+    week: 'timeGridWeek',
+    day: 'timeGridDay',
+  };
+
   const navigate_date = (direction) => {
     const newDate = new Date(currentDate);
     if (view === 'month') {
@@ -312,10 +353,30 @@ export default function CalendarPage() {
       newDate.setDate(newDate.getDate() + direction);
     }
     setCurrentDate(newDate);
+
+    // Also update FullCalendar
+    if (calendarRef.current) {
+      const api = calendarRef.current.getApi();
+      if (direction > 0) {
+        api.next();
+      } else {
+        api.prev();
+      }
+    }
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
+    if (calendarRef.current) {
+      calendarRef.current.getApi().today();
+    }
+  };
+
+  const handleViewChange = (newView) => {
+    setView(newView);
+    if (calendarRef.current) {
+      calendarRef.current.getApi().changeView(fcViewMap[newView]);
+    }
   };
 
   const formatDateHeader = () => {
@@ -326,316 +387,157 @@ export default function CalendarPage() {
     return currentDate.toLocaleDateString('en-US', options);
   };
 
-  // Group tickets by date
-  // Uses scheduledStart from TicketSchedule or falls back to dueDate for backwards compatibility
-  const ticketsByDate = useMemo(() => {
-    const grouped = {};
-    tickets.forEach((ticket) => {
-      const dateKey = ticket.scheduledStart
-        ? new Date(ticket.scheduledStart).toDateString()
-        : ticket.dueDate
-        ? new Date(ticket.dueDate).toDateString()
-        : null;
-      if (dateKey) {
-        if (!grouped[dateKey]) grouped[dateKey] = [];
-        grouped[dateKey].push(ticket);
-      }
+  // Handle clicking on an empty date/time slot (create new)
+  const handleDateSelect = (selectInfo) => {
+    const startDate = selectInfo.start;
+    const endDate = selectInfo.end;
+
+    // For day/week view, use the actual time; for month view, default to 9am
+    const isAllDay = selectInfo.allDay;
+    const startTime = isAllDay ? '09:00' : `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+    const endTime = isAllDay ? '10:00' : `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+
+    // Show context menu at mouse position
+    setContextMenu({
+      visible: true,
+      x: selectInfo.jsEvent?.clientX || 200,
+      y: selectInfo.jsEvent?.clientY || 200,
+      date: startDate,
+      time: startTime,
+      endTime: endTime,
+      endDate: endDate,
+      targetItem: null,
     });
-    return grouped;
-  }, [tickets]);
-
-  // Group events by date
-  const eventsByDate = useMemo(() => {
-    const grouped = {};
-    events.forEach((event) => {
-      const dateKey = new Date(event.startTime).toDateString();
-      if (!grouped[dateKey]) grouped[dateKey] = [];
-      grouped[dateKey].push(event);
-    });
-    return grouped;
-  }, [events]);
-
-  // Generate calendar days for month view
-  const calendarDays = useMemo(() => {
-    if (view !== 'month') return [];
-
-    const days = [];
-    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-    const startPadding = firstDay.getDay();
-
-    // Previous month padding
-    for (let i = startPadding - 1; i >= 0; i--) {
-      const date = new Date(firstDay);
-      date.setDate(date.getDate() - i - 1);
-      days.push({ date, isCurrentMonth: false });
-    }
-
-    // Current month
-    for (let d = 1; d <= lastDay.getDate(); d++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), d);
-      days.push({ date, isCurrentMonth: true });
-    }
-
-    // Next month padding
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      const date = new Date(lastDay);
-      date.setDate(date.getDate() + i);
-      days.push({ date, isCurrentMonth: false });
-    }
-
-    return days;
-  }, [currentDate, view]);
-
-  // Generate week days
-  const weekDays = useMemo(() => {
-    if (view !== 'week') return [];
-
-    const days = [];
-    const start = new Date(currentDate);
-    const day = start.getDay();
-    start.setDate(start.getDate() - day);
-
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(start);
-      date.setDate(date.getDate() + i);
-      days.push(date);
-    }
-
-    return days;
-  }, [currentDate, view]);
-
-  const isToday = (date) => {
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const renderTicketPill = (ticket) => {
-    // Get all agent colors and generate background
-    const agentColors = getAllAgentColors(ticket);
-    const agentBgStyle = getAgentBackground(agentColors);
-    const statusStripe = statusStripeColors[ticket.status] || '#6B7280';
-
-    // Build assignee names for tooltip
-    const assigneeNames = [
-      ticket.assignee?.name,
-      ...(ticket.additionalAssignees || []).map(a => a.name)
-    ].filter(Boolean).join(', ');
-
-    return (
-      <button
-        key={`ticket-${ticket.id}`}
-        onClick={(e) => { e.stopPropagation(); navigate(`/tickets/${ticket.id}`); }}
-        className="w-full text-left text-xs rounded overflow-hidden mb-0.5 hover:opacity-90 transition-opacity"
-        style={agentBgStyle}
-        title={`${ticket.subject}${assigneeNames ? ` - ${assigneeNames}` : ''}`}
-      >
-        {/* Status stripe at top */}
-        <div className="h-1" style={{ backgroundColor: statusStripe }} />
-        {/* Content with white text */}
-        <div className="p-1 text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-          <span className="font-bold">#{ticket.ticketNumber}</span> {ticket.subject}
-        </div>
-      </button>
-    );
-  };
-
-  const renderEventPill = (event) => {
-    // Use first agent's color via helper, fallback to unassigned color
-    const firstAssignee = event.assignees?.[0];
-    const eventColor = event.color || getAgentColor(firstAssignee);
-    const assigneeNames = event.assignees?.map(a => a.name).join(', ') || '';
-
-    // Generate light background color from agent color
-    const bgStyle = {
-      borderLeftColor: eventColor,
-      backgroundColor: `${eventColor}15`, // 15 = ~8% opacity in hex
-    };
-
-    return (
-      <button
-        key={`event-${event.id}`}
-        onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
-        className="w-full text-left text-xs p-1 rounded border-l-4 truncate mb-0.5 hover:opacity-80 transition-opacity"
-        style={bgStyle}
-        title={`${event.title}${assigneeNames ? ` - ${assigneeNames}` : ''}`}
-      >
-        <CalendarDays size={10} className="inline mr-1" style={{ color: eventColor }} />
-        <span style={{ color: eventColor }}>{event.title}</span>
-      </button>
-    );
-  };
-
-  // Navigate to day view when clicking a day in month view
-  const handleDayClick = (date) => {
-    setCurrentDate(date);
-    setView('day');
-  };
-
-  // Show choice popup when clicking a time slot in day/week view
-  const handleTimeSlotClick = (e, date, hour) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const time = `${hour.toString().padStart(2, '0')}:00`;
-
-    setSelectedSlotDate(date);
-    setSelectedSlotTime(time);
-    setChoicePopupPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    });
-    setShowChoicePopup(true);
-  };
-
-  // Handle choosing "New Ticket" from popup
-  const handleChooseNewTicket = () => {
-    setShowChoicePopup(false);
-    setNewTicketDate(selectedSlotDate);
-    setNewTicketEndDate(selectedSlotDate);
-    setNewTicketTime(selectedSlotTime);
-    // Calculate default end time (1 hour after start)
-    const [startHour, startMin] = selectedSlotTime.split(':').map(Number);
-    const endHour = startHour + 1;
-    setNewTicketEndTime(`${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`);
-    setNewTicketForm({
-      subject: '',
-      description: '',
-      priority: 'MEDIUM',
-      contactId: '',
-      companyId: '',
-      assigneeId: '',
-      additionalAssigneeIds: [],
-    });
-    setShowNewTicketModal(true);
-  };
-
-  // Handle choosing "Calendar Event" from popup
-  const handleChooseNewEvent = () => {
-    setShowChoicePopup(false);
-    setEditingEvent(null);
-
-    // Create datetime string for the selected slot
-    const startDateTime = new Date(selectedSlotDate);
-    const [hours, minutes] = selectedSlotTime.split(':');
-    startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-
-    // Default end time is 1 hour later
-    const endDateTime = new Date(startDateTime);
-    endDateTime.setHours(endDateTime.getHours() + 1);
-
-    setEventForm({
-      title: '',
-      description: '',
-      startTime: formatDateTimeLocal(startDateTime),
-      endTime: formatDateTimeLocal(endDateTime),
-      assigneeIds: [],
-    });
-    setShowEventModal(true);
   };
 
   // Handle clicking on an existing event
-  const handleEventClick = (event) => {
-    setEditingEvent(event);
-    setEventForm({
-      title: event.title,
-      description: event.description || '',
-      startTime: formatDateTimeLocal(new Date(event.startTime)),
-      endTime: event.endTime ? formatDateTimeLocal(new Date(event.endTime)) : '',
-      assigneeIds: event.assignees?.map(a => a.id) || [],
-    });
-    setShowEventModal(true);
-  };
+  const handleEventClick = (clickInfo) => {
+    const event = clickInfo.event;
+    const props = event.extendedProps;
 
-  // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
-  const formatLocalDate = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-  };
-
-  // Helper to get Monday and Friday of a week containing the given date
-  const getWeekBoundsFromDate = (date) => {
-    const day = date.getDay();
-    const monday = new Date(date);
-    monday.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
-    const friday = new Date(monday);
-    friday.setDate(monday.getDate() + 4); // +4 days from Monday = Friday
-    return { monday, friday };
-  };
-
-  // "All Week" button handler for new ticket modal
-  const handleAllWeekNewTicket = () => {
-    const { monday, friday } = getWeekBoundsFromDate(newTicketDate || new Date());
-    setNewTicketDate(monday);
-    setNewTicketEndDate(friday);
-    setNewTicketTime('08:00');
-    setNewTicketEndTime('17:00');
-  };
-
-  // Format date for datetime-local input
-  const formatDateTimeLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const mins = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${mins}`;
-  };
-
-  // Show context menu on time grid click
-  const showContextMenu = (e, date, hour, items = []) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const time = `${hour.toString().padStart(2, '0')}:00`;
-
-    // Find if click is on/near an item based on click position
-    // We'll check all items in this time slot
-    let targetItem = null;
-    const clickY = e.clientY;
-    const clickX = e.clientX;
-
-    // Check if any item was directly clicked (target has data-item attribute)
-    let target = e.target;
-    while (target && target !== e.currentTarget) {
-      if (target.dataset && target.dataset.itemType) {
-        const itemType = target.dataset.itemType;
-        const itemId = target.dataset.itemId;
-        if (itemType === 'ticket') {
-          const ticket = tickets.find(t => t.id === itemId);
-          if (ticket) targetItem = { type: 'ticket', item: ticket };
-        } else if (itemType === 'event') {
-          const event = events.find(ev => ev.id === itemId);
-          if (event) targetItem = { type: 'event', item: event };
-        }
-        break;
+    if (props.type === 'ticket') {
+      navigate(`/tickets/${props.ticketId}`);
+    } else if (props.type === 'event') {
+      // Open event edit modal
+      const originalEvent = events.find(e => e.id === props.eventId);
+      if (originalEvent) {
+        setEditingEvent(originalEvent);
+        setEventForm({
+          title: originalEvent.title,
+          description: originalEvent.description || '',
+          startTime: formatDateTimeLocal(new Date(originalEvent.startTime)),
+          endTime: originalEvent.endTime ? formatDateTimeLocal(new Date(originalEvent.endTime)) : '',
+          assigneeIds: originalEvent.assignees?.map(a => a.id) || [],
+        });
+        setShowEventModal(true);
       }
-      target = target.parentElement;
     }
+  };
 
-    // Keep popup within viewport
-    const menuWidth = 220;
-    const menuHeight = targetItem ? 140 : 100;
-    let x = clickX;
-    let y = clickY;
+  // Handle drag-and-drop of events
+  const handleEventDrop = async (dropInfo) => {
+    const event = dropInfo.event;
+    const props = event.extendedProps;
 
-    if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 10;
+    if (props.type === 'ticket' && props.scheduleId) {
+      try {
+        await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
+          scheduledStart: event.start.toISOString(),
+          scheduledEnd: event.end ? event.end.toISOString() : null,
+        });
+        toast.success('Schedule updated');
+        fetchCalendarData();
+      } catch (error) {
+        console.error('Failed to update schedule:', error);
+        toast.error('Failed to update schedule');
+        dropInfo.revert();
+      }
+    } else if (props.type === 'event') {
+      try {
+        await calendarEvents.updateEvent(props.eventId, {
+          startTime: event.start.toISOString(),
+          endTime: event.end ? event.end.toISOString() : null,
+        });
+        toast.success('Event updated');
+        fetchCalendarData();
+      } catch (error) {
+        console.error('Failed to update event:', error);
+        toast.error('Failed to update event');
+        dropInfo.revert();
+      }
     }
-    if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 10;
-    }
+  };
 
-    setContextMenu({
-      visible: true,
-      x,
-      y,
-      date,
-      time,
-      targetItem,
-    });
+  // Handle resizing of events
+  const handleEventResize = async (resizeInfo) => {
+    const event = resizeInfo.event;
+    const props = event.extendedProps;
+
+    if (props.type === 'ticket' && props.scheduleId) {
+      try {
+        await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
+          scheduledStart: event.start.toISOString(),
+          scheduledEnd: event.end.toISOString(),
+        });
+        toast.success('Schedule updated');
+        fetchCalendarData();
+      } catch (error) {
+        console.error('Failed to update schedule:', error);
+        toast.error('Failed to update schedule');
+        resizeInfo.revert();
+      }
+    } else if (props.type === 'event') {
+      try {
+        await calendarEvents.updateEvent(props.eventId, {
+          startTime: event.start.toISOString(),
+          endTime: event.end.toISOString(),
+        });
+        toast.success('Event updated');
+        fetchCalendarData();
+      } catch (error) {
+        console.error('Failed to update event:', error);
+        toast.error('Failed to update event');
+        resizeInfo.revert();
+      }
+    }
+  };
+
+  // Custom event rendering
+  const renderEventContent = (eventInfo) => {
+    const props = eventInfo.event.extendedProps;
+
+    if (props.type === 'ticket') {
+      return (
+        <div className="w-full h-full overflow-hidden p-0.5">
+          <div
+            className="h-1 w-full rounded-t"
+            style={{ backgroundColor: props.statusColor }}
+          />
+          <div className="text-[11px] leading-tight truncate font-medium px-1">
+            #{props.ticketNumber}
+          </div>
+          <div className="text-[10px] leading-tight truncate px-1 opacity-90">
+            {props.subject}
+          </div>
+          {props.company && (
+            <div className="text-[9px] leading-tight truncate px-1 opacity-75">
+              {props.company}
+            </div>
+          )}
+        </div>
+      );
+    } else {
+      return (
+        <div className="w-full h-full overflow-hidden p-1">
+          <div className="flex items-center gap-1">
+            <CalendarDays size={10} />
+            <span className="text-[11px] leading-tight truncate font-medium">
+              {eventInfo.event.title}
+            </span>
+          </div>
+        </div>
+      );
+    }
   };
 
   // Hide context menu
@@ -643,28 +545,13 @@ export default function CalendarPage() {
     setContextMenu(prev => ({ ...prev, visible: false, targetItem: null }));
   };
 
-  // Context menu: View existing item
-  const handleContextViewItem = () => {
-    if (contextMenu.targetItem) {
-      if (contextMenu.targetItem.type === 'ticket') {
-        navigate(`/tickets/${contextMenu.targetItem.item.id}`);
-      } else if (contextMenu.targetItem.type === 'event') {
-        handleEventClick(contextMenu.targetItem.item);
-      }
-    }
-    hideContextMenu();
-  };
-
-  // Context menu: Create new ticket
+  // Context menu handlers
   const handleContextNewTicket = () => {
     hideContextMenu();
     setNewTicketDate(contextMenu.date);
-    setNewTicketEndDate(contextMenu.date);
+    setNewTicketEndDate(contextMenu.endDate || contextMenu.date);
     setNewTicketTime(contextMenu.time);
-    // Calculate default end time (1 hour after start)
-    const [startHour, startMin] = contextMenu.time.split(':').map(Number);
-    const endHour = Math.min(startHour + 1, 23);
-    setNewTicketEndTime(`${String(endHour).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`);
+    setNewTicketEndTime(contextMenu.endTime || '10:00');
     setNewTicketForm({
       subject: '',
       description: '',
@@ -677,7 +564,6 @@ export default function CalendarPage() {
     setShowNewTicketModal(true);
   };
 
-  // Context menu: Create new calendar event
   const handleContextNewEvent = () => {
     hideContextMenu();
     setEditingEvent(null);
@@ -686,8 +572,10 @@ export default function CalendarPage() {
     const [hours, minutes] = contextMenu.time.split(':');
     startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-    const endDateTime = new Date(startDateTime);
-    endDateTime.setHours(endDateTime.getHours() + 1);
+    const endDateTime = contextMenu.endDate ? new Date(contextMenu.endDate) : new Date(startDateTime);
+    if (!contextMenu.endDate) {
+      endDateTime.setHours(endDateTime.getHours() + 1);
+    }
 
     setEventForm({
       title: '',
@@ -699,7 +587,6 @@ export default function CalendarPage() {
     setShowEventModal(true);
   };
 
-  // Context menu: Add existing ticket to calendar
   const handleContextAddExistingTicket = () => {
     hideContextMenu();
     setTicketSearchDate(contextMenu.date);
@@ -718,7 +605,6 @@ export default function CalendarPage() {
       }
     };
 
-    // Add listener with slight delay to prevent immediate close
     const timer = setTimeout(() => {
       document.addEventListener('click', handleClickOutside);
     }, 10);
@@ -729,6 +615,15 @@ export default function CalendarPage() {
     };
   }, [contextMenu.visible]);
 
+  // "All Week" button handler for new ticket modal
+  const handleAllWeekNewTicket = () => {
+    const { monday, friday } = getWeekBoundsFromDate(newTicketDate || new Date());
+    setNewTicketDate(monday);
+    setNewTicketEndDate(friday);
+    setNewTicketTime('08:00');
+    setNewTicketEndTime('17:00');
+  };
+
   // Create ticket from modal
   const handleCreateTicket = async (e) => {
     e.preventDefault();
@@ -738,12 +633,10 @@ export default function CalendarPage() {
     }
     setSaving(true);
     try {
-      // Combine date and time for scheduledStart
       const scheduledStart = new Date(newTicketDate);
       const [hours, minutes] = newTicketTime.split(':');
       scheduledStart.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      // Combine end date and end time for scheduledEnd
       let scheduledEnd = null;
       if (newTicketEndTime) {
         scheduledEnd = new Date(newTicketEndDate || newTicketDate);
@@ -751,7 +644,6 @@ export default function CalendarPage() {
         scheduledEnd.setHours(parseInt(endHours), parseInt(endMinutes), 0, 0);
       }
 
-      // Check if this is a multi-day schedule (All Week or spanning multiple days)
       const isMultiDay = newTicketEndDate &&
         formatLocalDate(newTicketDate) !== formatLocalDate(newTicketEndDate);
 
@@ -765,23 +657,19 @@ export default function CalendarPage() {
         additionalAssigneeIds: newTicketForm.additionalAssigneeIds.length > 0 ? newTicketForm.additionalAssigneeIds : undefined,
       };
 
-      // Create the ticket first
       const result = await ticketsApi.createTicket(ticketData);
 
-      // Create a TicketSchedule entry for the calendar
       if (newTicketDate) {
         await ticketsApi.createSchedule(result.id, {
           scheduledStart: scheduledStart.toISOString(),
           scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
-          isAllDay: isMultiDay, // Mark as all-day for multi-day spans
+          isAllDay: isMultiDay,
         });
       }
 
       toast.success('Ticket created successfully');
       setShowNewTicketModal(false);
-      // Refresh calendar data
       await fetchCalendarData();
-      // Navigate to the new ticket
       navigate(`/tickets/${result.id}`);
     } catch (error) {
       console.error('Failed to create ticket:', error);
@@ -846,674 +734,9 @@ export default function CalendarPage() {
     }
   };
 
-  // Ref to track if popup was just opened (to prevent immediate close from same click)
-  const popupJustOpenedRef = useRef(false);
-
-  // Close choice popup when clicking outside
-  useEffect(() => {
-    if (!showChoicePopup) {
-      popupJustOpenedRef.current = false;
-      return;
-    }
-
-    // Mark that popup was just opened
-    popupJustOpenedRef.current = true;
-
-    const handleClickOutside = (e) => {
-      // Ignore the first click that opened the popup
-      if (popupJustOpenedRef.current) {
-        popupJustOpenedRef.current = false;
-        return;
-      }
-      // Don't close if clicking inside the popup
-      const popup = document.querySelector('[data-choice-popup]');
-      if (popup && popup.contains(e.target)) return;
-      setShowChoicePopup(false);
-    };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [showChoicePopup]);
-
-  const renderMonthView = () => (
-    <div className="grid grid-cols-7 gap-px bg-gray-200 rounded-lg overflow-hidden">
-      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-        <div key={day} className="bg-gray-50 p-2 text-center text-xs font-medium text-gray-500">
-          {day}
-        </div>
-      ))}
-      {calendarDays.map(({ date, isCurrentMonth }, idx) => {
-        const dayTickets = ticketsByDate[date.toDateString()] || [];
-        const dayEvents = eventsByDate[date.toDateString()] || [];
-        const allItems = [...dayEvents, ...dayTickets];
-        return (
-          <div
-            key={idx}
-            onClick={() => handleDayClick(date)}
-            className={`bg-white p-2 min-h-[70px] md:min-h-[100px] cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation ${
-              !isCurrentMonth ? 'opacity-50' : ''
-            }`}
-            title="Click to view day schedule"
-          >
-            <div
-              className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
-                isToday(date)
-                  ? 'bg-primary text-white'
-                  : 'text-gray-700'
-              }`}
-            >
-              {date.getDate()}
-            </div>
-            <div className="space-y-0.5 overflow-hidden max-h-[60px] md:max-h-[80px]">
-              {dayEvents.slice(0, 1).map(renderEventPill)}
-              {dayTickets.slice(0, 2).map(renderTicketPill)}
-              {allItems.length > 3 && (
-                <div className="text-xs text-gray-500 pl-1">
-                  +{allItems.length - 3} more
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // Week view constants
-  const WEEK_START_HOUR = 7; // 7 AM
-  const WEEK_END_HOUR = 19; // 7 PM
-  const WEEK_HOURS = Array.from({ length: WEEK_END_HOUR - WEEK_START_HOUR + 1 }, (_, i) => i + WEEK_START_HOUR);
-  const WEEK_HOUR_HEIGHT = 60; // 60px per hour
-
-  // Helper to get the end time for an item (tickets use scheduledEnd, events use endTime)
-  const getItemEndTime = (item) => {
-    if (item.type === 'ticket') {
-      return item.scheduledEnd;
-    }
-    return item.endTime;
-  };
-
-  // Helper to check if a ticket/event spans multiple days
-  const isMultiDay = (item) => {
-    const start = new Date(item.startTime || item.scheduledDate || item.dueDate);
-    const endValue = getItemEndTime(item);
-    const end = endValue ? new Date(endValue) : null;
-    if (!end) return false;
-    return start.toDateString() !== end.toDateString();
-  };
-
-  // Helper to calculate position within the week time grid
-  const getWeekTimePosition = (startTime, endTime) => {
-    const start = new Date(startTime);
-    const startHour = start.getHours() + start.getMinutes() / 60;
-    const clampedStart = Math.max(startHour, WEEK_START_HOUR);
-    const top = (clampedStart - WEEK_START_HOUR) * WEEK_HOUR_HEIGHT;
-
-    let height = WEEK_HOUR_HEIGHT; // Default 1 hour
-    if (endTime) {
-      const end = new Date(endTime);
-      const endHour = end.getHours() + end.getMinutes() / 60;
-      const clampedEnd = Math.min(endHour, WEEK_END_HOUR + 1);
-      const duration = clampedEnd - clampedStart;
-      height = Math.max(duration * WEEK_HOUR_HEIGHT, 24); // Minimum 24px
-    }
-
-    return { top: Math.max(0, top), height };
-  };
-
-  // Helper to detect overlapping items and assign columns
-  const assignOverlapColumns = (items) => {
-    if (!items.length) return [];
-
-    // Sort by start time
-    const sorted = [...items].sort((a, b) => {
-      const aTime = new Date(a.startTime || a.scheduledDate || a.dueDate).getTime();
-      const bTime = new Date(b.startTime || b.scheduledDate || b.dueDate).getTime();
-      return aTime - bTime;
-    });
-
-    const columns = []; // Array of columns, each column is an array of items
-    const itemPlacements = new Map(); // item id -> { column, totalColumns }
-
-    sorted.forEach((item) => {
-      const startTime = new Date(item.startTime || item.scheduledDate || item.dueDate);
-      const itemEndValue = getItemEndTime(item);
-      const endTime = itemEndValue ? new Date(itemEndValue) : new Date(startTime.getTime() + 60 * 60 * 1000);
-      const itemStart = startTime.getTime();
-      const itemEnd = endTime.getTime();
-
-      // Find first column where item doesn't overlap
-      let placed = false;
-      for (let col = 0; col < columns.length; col++) {
-        const lastInCol = columns[col][columns[col].length - 1];
-        const lastEndValue = getItemEndTime(lastInCol);
-        const lastEnd = lastEndValue
-          ? new Date(lastEndValue).getTime()
-          : new Date(lastInCol.startTime || lastInCol.scheduledDate || lastInCol.dueDate).getTime() + 60 * 60 * 1000;
-
-        if (itemStart >= lastEnd) {
-          columns[col].push(item);
-          itemPlacements.set(item.id, { column: col });
-          placed = true;
-          break;
-        }
-      }
-
-      if (!placed) {
-        columns.push([item]);
-        itemPlacements.set(item.id, { column: columns.length - 1 });
-      }
-    });
-
-    // Update total columns for each item
-    const totalColumns = columns.length;
-    sorted.forEach((item) => {
-      const placement = itemPlacements.get(item.id);
-      if (placement) {
-        placement.totalColumns = totalColumns;
-      }
-    });
-
-    return sorted.map((item) => ({
-      item,
-      ...itemPlacements.get(item.id),
-    }));
-  };
-
-  // Get multi-day items and single-day items for week view
-  // Now uses scheduledStart/scheduledEnd from TicketSchedule table
-  const { multiDayItems, singleDayItemsByDate } = useMemo(() => {
-    if (view !== 'week') return { multiDayItems: [], singleDayItemsByDate: {} };
-
-    const multiDay = [];
-    const singleDay = {};
-
-    // Process tickets (from TicketSchedule records)
-    tickets.forEach((ticket) => {
-      // Use scheduledStart first (new TicketSchedule), then fall back to dueDate
-      const ticketTime = ticket.scheduledStart || ticket.dueDate;
-      if (!ticketTime) return;
-
-      const ticketEnd = ticket.scheduledEnd;
-      // Show as multi-day banner if isAllDay is true OR spans multiple days
-      const shouldShowAsMultiDay = ticket.isAllDay ||
-        (ticketEnd && isMultiDay({ type: 'ticket', startTime: ticketTime, scheduledEnd: ticketEnd }));
-
-      if (shouldShowAsMultiDay) {
-        multiDay.push({ type: 'ticket', ...ticket, startTime: ticketTime, scheduledEnd: ticketEnd || ticketTime });
-      } else {
-        const dateKey = new Date(ticketTime).toDateString();
-        if (!singleDay[dateKey]) singleDay[dateKey] = [];
-        singleDay[dateKey].push({ type: 'ticket', ...ticket, startTime: ticketTime });
-      }
-    });
-
-    // Process events
-    events.forEach((event) => {
-      if (isMultiDay(event)) {
-        multiDay.push({ type: 'event', ...event });
-      } else {
-        const dateKey = new Date(event.startTime).toDateString();
-        if (!singleDay[dateKey]) singleDay[dateKey] = [];
-        singleDay[dateKey].push({ type: 'event', ...event });
-      }
-    });
-
-    return { multiDayItems: multiDay, singleDayItemsByDate: singleDay };
-  }, [tickets, events, view]);
-
-  // Calculate which days a multi-day item spans
-  // Uses date-string comparison (YYYY-MM-DD) to avoid UTC/local timezone issues
-  const getMultiDaySpan = (item, weekDays) => {
-    const endValue = getItemEndTime(item);
-
-    // Extract date portions from ISO strings to avoid timezone conversion issues
-    // ISO format: "2024-01-05T17:00:00.000Z" -> "2024-01-05"
-    const startDateStr = typeof item.startTime === 'string'
-      ? item.startTime.substring(0, 10)
-      : formatLocalDate(new Date(item.startTime));
-    const endDateStr = typeof endValue === 'string'
-      ? endValue.substring(0, 10)
-      : formatLocalDate(new Date(endValue));
-
-    let startCol = -1;
-    let endCol = -1;
-
-    weekDays.forEach((day, idx) => {
-      // Get YYYY-MM-DD string for this weekday column
-      const dayDateStr = formatLocalDate(day);
-
-      // Compare date strings: item spans this day if start <= day <= end
-      if (startDateStr <= dayDateStr && dayDateStr <= endDateStr) {
-        if (startCol === -1) startCol = idx;
-        endCol = idx;
-      }
-    });
-
-    return { startCol, endCol, span: endCol - startCol + 1 };
-  };
-
-  // Current time for the time indicator
-  const [currentTime, setCurrentTime] = useState(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000); // Update every minute
-    return () => clearInterval(timer);
-  }, []);
-
-  const renderWeekView = () => {
-    const gridHeight = WEEK_HOURS.length * WEEK_HOUR_HEIGHT;
-
-    // Filter multi-day items to only those visible in the current week
-    const visibleMultiDayItems = multiDayItems.filter((item) => {
-      const { startCol } = getMultiDaySpan(item, weekDays);
-      return startCol !== -1;
-    });
-
-    return (
-      <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="min-w-[700px] md:min-w-0 bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {/* Multi-day event banners - only shown when there are visible multi-day items */}
-          {visibleMultiDayItems.length > 0 && (
-            <div className="border-b border-gray-200 bg-gray-50">
-              {/* Header row for multi-day section */}
-              <div className="grid grid-cols-[60px_repeat(7,1fr)]">
-                <div className="p-1 text-xs text-gray-400 text-center"></div>
-                {weekDays.map((date, idx) => (
-                  <div key={idx} className="relative border-l border-gray-100 min-h-[28px]" />
-                ))}
-              </div>
-              {/* Multi-day items */}
-              <div className="relative grid grid-cols-[60px_repeat(7,1fr)]" style={{ minHeight: visibleMultiDayItems.length * 26 + 4 }}>
-                <div />
-                {visibleMultiDayItems.map((item, itemIdx) => {
-                  const { startCol, endCol, span } = getMultiDaySpan(item, weekDays);
-                  if (startCol === -1) return null;
-
-                  const agentColors = item.type === 'ticket' ? getAllAgentColors(item) :
-                    [item.color || getAgentColor(item.assignees?.[0])];
-                  const bgStyle = getAgentBackground(agentColors);
-
-                  // Calculate position based on grid
-                  const leftPercent = (startCol / 7) * 100;
-                  const widthPercent = (span / 7) * 100;
-
-                  return (
-                    <button
-                      key={`multi-${item.type}-${item.id}`}
-                      onClick={() => item.type === 'ticket' ? navigate(`/tickets/${item.id}`) : handleEventClick(item)}
-                      className="absolute text-left text-xs rounded overflow-hidden hover:opacity-90 transition-opacity"
-                      style={{
-                        ...bgStyle,
-                        left: `calc(60px + ${leftPercent}%)`,
-                        width: `calc(${widthPercent}% - 8px)`,
-                        top: `${itemIdx * 26 + 2}px`,
-                        height: '24px',
-                      }}
-                    >
-                      <div className="px-2 py-1 text-white truncate flex items-center gap-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                        {item.type === 'ticket' && <span className="font-bold">#{item.ticketNumber}</span>}
-                        <span className="truncate">{item.type === 'ticket' ? item.subject : item.title}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Day headers */}
-          <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-gray-200 sticky top-0 bg-white z-20">
-            <div className="p-2 text-xs text-gray-400 text-center border-r border-gray-100" />
-            {weekDays.map((date, idx) => (
-              <div
-                key={idx}
-                className={`text-center p-2 border-l border-gray-100 ${
-                  isToday(date) ? 'bg-primary/10' : ''
-                }`}
-              >
-                <div className="text-xs text-gray-500">{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                <div className={`text-lg font-semibold ${isToday(date) ? 'text-primary' : 'text-gray-900'}`}>
-                  {date.getDate()}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Time grid */}
-          <div className="grid grid-cols-[60px_repeat(7,1fr)]" style={{ height: gridHeight }}>
-            {/* Time labels column */}
-            <div className="border-r border-gray-100 relative">
-              {WEEK_HOURS.map((hour, idx) => (
-                <div
-                  key={hour}
-                  className="absolute w-full text-right pr-2 text-xs text-gray-500"
-                  style={{ top: idx * WEEK_HOUR_HEIGHT - 6 }}
-                >
-                  {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
-                </div>
-              ))}
-            </div>
-
-            {/* Day columns */}
-            {weekDays.map((date, dayIdx) => {
-              const dateKey = date.toDateString();
-              const dayItems = singleDayItemsByDate[dateKey] || [];
-              const itemsWithColumns = assignOverlapColumns(dayItems);
-              const todayColumn = isToday(date);
-
-              // Calculate current time indicator position
-              let currentTimeTop = null;
-              if (todayColumn) {
-                const now = currentTime;
-                const nowHour = now.getHours() + now.getMinutes() / 60;
-                if (nowHour >= WEEK_START_HOUR && nowHour <= WEEK_END_HOUR) {
-                  currentTimeTop = (nowHour - WEEK_START_HOUR) * WEEK_HOUR_HEIGHT;
-                }
-              }
-
-              // Handle click on column background - calculate hour from Y position
-              const handleColumnClick = (e) => {
-                // Get click position relative to column
-                const rect = e.currentTarget.getBoundingClientRect();
-                const clickY = e.clientY - rect.top;
-                const hourIndex = Math.floor(clickY / WEEK_HOUR_HEIGHT);
-                const clickedHour = WEEK_START_HOUR + hourIndex;
-                if (clickedHour >= WEEK_START_HOUR && clickedHour <= WEEK_END_HOUR) {
-                  showContextMenu(e, date, clickedHour, singleDayItemsByDate[dateKey] || []);
-                }
-              };
-
-              return (
-                <div
-                  key={dayIdx}
-                  className={`border-l border-gray-100 relative cursor-pointer ${todayColumn ? 'bg-yellow-50/30' : ''}`}
-                  onClick={handleColumnClick}
-                >
-                  {/* Hour gridlines - visual only, click is on parent */}
-                  {WEEK_HOURS.map((hour, idx) => (
-                    <div
-                      key={hour}
-                      className="absolute w-full border-t border-gray-100 pointer-events-none"
-                      style={{ top: idx * WEEK_HOUR_HEIGHT, height: WEEK_HOUR_HEIGHT }}
-                    >
-                      {/* Half-hour line */}
-                      <div
-                        className="absolute w-full border-t border-gray-50"
-                        style={{ top: WEEK_HOUR_HEIGHT / 2 }}
-                      />
-                    </div>
-                  ))}
-
-                  {/* Current time indicator */}
-                  {currentTimeTop !== null && (
-                    <div
-                      className="absolute left-0 right-0 z-30 pointer-events-none"
-                      style={{ top: currentTimeTop }}
-                    >
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
-                        <div className="flex-1 h-0.5 bg-red-500" />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Positioned items */}
-                  {itemsWithColumns.map(({ item, column, totalColumns }) => {
-                    // Use scheduledEnd for tickets, endTime for events
-                    const itemEndTime = item.type === 'ticket' ? item.scheduledEnd : item.endTime;
-                    const { top, height } = getWeekTimePosition(
-                      item.startTime || item.scheduledDate || item.dueDate,
-                      itemEndTime
-                    );
-
-                    // Calculate width and left position based on columns
-                    const colWidth = 100 / totalColumns;
-                    const leftPercent = column * colWidth;
-                    const widthPercent = colWidth;
-
-                    if (item.type === 'ticket') {
-                      const agentColors = getAllAgentColors(item);
-                      const agentBgStyle = getAgentBackground(agentColors);
-                      const statusStripe = statusStripeColors[item.status] || '#6B7280';
-
-                      // Format display: "10am Company: Subject #123"
-                      const startDate = new Date(item.startTime || item.scheduledDate || item.dueDate);
-                      const timeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(':00', '');
-                      const companyName = item.company?.name || item.requester?.company?.name || '';
-                      const contactName = item.requester?.name || '';
-                      const displayName = companyName || contactName;
-
-                      return (
-                        <div
-                          key={`ticket-${item.id}`}
-                          data-item-type="ticket"
-                          data-item-id={item.id}
-                          className="absolute text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10 cursor-pointer"
-                          style={{
-                            ...agentBgStyle,
-                            top: `${top}px`,
-                            height: `${height}px`,
-                            left: `${leftPercent}%`,
-                            width: `calc(${widthPercent}% - 2px)`,
-                          }}
-                          title={`${item.subject} - ${displayName || 'No contact'} #${item.ticketNumber}`}
-                        >
-                          <div className="h-1 pointer-events-none" style={{ backgroundColor: statusStripe }} />
-                          <div className="p-1 text-white overflow-hidden pointer-events-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-                            <div className="text-[10px] leading-tight truncate">
-                              <span className="font-medium">{timeStr}</span>
-                              {displayName && <span className="ml-1">{displayName}:</span>}
-                            </div>
-                            <div className="text-[11px] leading-tight truncate font-medium">{item.subject}</div>
-                            <div className="text-[10px] leading-tight opacity-80">#{item.ticketNumber}</div>
-                          </div>
-                        </div>
-                      );
-                    } else {
-                      // Calendar event
-                      const firstAssignee = item.assignees?.[0];
-                      const eventColor = item.color || getAgentColor(firstAssignee);
-                      const startDate = new Date(item.startTime);
-                      const timeStr = startDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(':00', '');
-
-                      return (
-                        <div
-                          key={`event-${item.id}`}
-                          data-item-type="event"
-                          data-item-id={item.id}
-                          className="absolute text-left rounded border-l-2 overflow-hidden hover:opacity-80 transition-opacity z-10 cursor-pointer"
-                          style={{
-                            top: `${top}px`,
-                            height: `${height}px`,
-                            left: `${leftPercent}%`,
-                            width: `calc(${widthPercent}% - 2px)`,
-                            borderLeftColor: eventColor,
-                            backgroundColor: `${eventColor}20`,
-                          }}
-                          title={item.title}
-                        >
-                          <div className="p-1 overflow-hidden pointer-events-none" style={{ color: eventColor }}>
-                            <div className="text-[10px] leading-tight truncate font-medium">{timeStr}</div>
-                            <div className="text-[11px] leading-tight truncate">{item.title}</div>
-                          </div>
-                        </div>
-                      );
-                    }
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderDayView = () => {
-    const dayTickets = ticketsByDate[currentDate.toDateString()] || [];
-    const dayEvents = eventsByDate[currentDate.toDateString()] || [];
-    const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
-    const START_HOUR = 8; // Grid starts at 8 AM
-    const HOUR_HEIGHT = 64; // 64px per hour (h-16 = 4rem = 64px)
-
-    // Calculate position and height for a timed item
-    const getTimePosition = (startTime, endTime) => {
-      const start = new Date(startTime);
-      const startHour = start.getHours() + start.getMinutes() / 60;
-      const top = (startHour - START_HOUR) * HOUR_HEIGHT;
-
-      let height = HOUR_HEIGHT; // Default 1 hour
-      if (endTime) {
-        const end = new Date(endTime);
-        const endHour = end.getHours() + end.getMinutes() / 60;
-        const duration = endHour - startHour;
-        height = Math.max(duration * HOUR_HEIGHT, 32); // Minimum 32px
-      }
-
-      return { top: Math.max(0, top), height };
-    };
-
-    return (
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="grid grid-cols-[80px_1fr] divide-x divide-gray-200">
-          <div className="divide-y divide-gray-100">
-            {hours.map((hour) => (
-              <div key={hour} className="h-16 p-2 text-xs text-gray-500">
-                {hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}
-              </div>
-            ))}
-          </div>
-          <div
-            className="relative cursor-pointer"
-            style={{ height: hours.length * HOUR_HEIGHT }}
-            onClick={(e) => {
-              // Calculate clicked hour from Y position
-              const rect = e.currentTarget.getBoundingClientRect();
-              const clickY = e.clientY - rect.top;
-              const hourIndex = Math.floor(clickY / HOUR_HEIGHT);
-              const clickedHour = START_HOUR + hourIndex;
-              if (clickedHour >= START_HOUR && clickedHour < START_HOUR + hours.length) {
-                showContextMenu(e, currentDate, clickedHour, [...dayEvents, ...dayTickets]);
-              }
-            }}
-          >
-            {/* Time slot gridlines - visual only */}
-            <div className="absolute inset-0 divide-y divide-gray-100 pointer-events-none">
-              {hours.map((hour) => (
-                <div
-                  key={hour}
-                  className="h-16"
-                  title={`Click to add at ${hour > 12 ? `${hour - 12} PM` : hour === 12 ? '12 PM' : `${hour} AM`}`}
-                />
-              ))}
-            </div>
-            {/* Calendar Events - positioned by time */}
-            {dayEvents.map((event) => {
-              const firstAssignee = event.assignees?.[0];
-              const eventColor = event.color || getAgentColor(firstAssignee);
-              const { top, height } = getTimePosition(event.startTime, event.endTime);
-
-              return (
-                <div
-                  key={`event-${event.id}`}
-                  data-item-type="event"
-                  data-item-id={event.id}
-                  className="absolute left-1 right-1 text-left p-2 rounded border-l-4 overflow-hidden hover:opacity-80 transition-opacity z-10 cursor-pointer"
-                  style={{
-                    top: `${top}px`,
-                    height: `${height}px`,
-                    borderLeftColor: eventColor,
-                    backgroundColor: `${eventColor}20`,
-                  }}
-                >
-                  <div className="flex items-center gap-2 pointer-events-none">
-                    <CalendarDays size={14} style={{ color: eventColor }} />
-                    <span className="font-medium text-sm" style={{ color: eventColor }}>{event.title}</span>
-                  </div>
-                  {height > 50 && event.description && (
-                    <div className="text-xs truncate mt-1 pointer-events-none" style={{ color: eventColor, opacity: 0.8 }}>{event.description}</div>
-                  )}
-                  {height > 70 && event.assignees?.length > 0 && (
-                    <div className="flex items-center gap-1 mt-1 text-xs flex-wrap pointer-events-none" style={{ color: eventColor, opacity: 0.75 }}>
-                      <User size={12} />
-                      {event.assignees.map((assignee, idx) => (
-                        <span key={assignee.id} className="flex items-center">
-                          <span
-                            className="w-2 h-2 rounded-full mr-1"
-                            style={{ backgroundColor: getAgentColor(assignee) }}
-                          />
-                          {assignee.name}{idx < event.assignees.length - 1 ? ',' : ''}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="text-xs mt-1 pointer-events-none" style={{ color: eventColor, opacity: 0.7 }}>
-                    {new Date(event.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                    {event.endTime && ` - ${new Date(event.endTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`}
-                  </div>
-                </div>
-              );
-            })}
-            {/* Tickets - positioned by time */}
-            {dayTickets.map((ticket) => {
-              // Get all agent colors and generate background
-              const agentColors = getAllAgentColors(ticket);
-              const agentBgStyle = getAgentBackground(agentColors);
-              const statusStripe = statusStripeColors[ticket.status] || '#6B7280';
-
-              // Build assignee names for display
-              const allAssignees = [
-                ticket.assignee,
-                ...(ticket.additionalAssignees || [])
-              ].filter(Boolean);
-
-              // Use dueDate or scheduledDate for positioning, scheduledEnd for duration
-              const ticketTime = ticket.scheduledDate || ticket.dueDate;
-              const { top, height } = getTimePosition(ticketTime, ticket.scheduledEnd);
-
-              return (
-                <div
-                  key={`ticket-${ticket.id}`}
-                  data-item-type="ticket"
-                  data-item-id={ticket.id}
-                  className="absolute left-1 right-1 text-left rounded overflow-hidden hover:opacity-90 transition-opacity z-10 cursor-pointer"
-                  style={{ top: `${top}px`, height: `${height}px`, ...agentBgStyle }}
-                >
-                  {/* Status stripe at top */}
-                  <div className="h-1.5 pointer-events-none" style={{ backgroundColor: statusStripe }} />
-                  {/* Content with white text */}
-                  <div className="p-2 text-white pointer-events-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
-                    <div className="flex items-center gap-2">
-                      <Ticket size={14} />
-                      <span className="font-bold text-sm">#{ticket.ticketNumber}</span>
-                    </div>
-                    <div className="text-sm truncate mt-0.5">{ticket.subject}</div>
-                    {allAssignees.length > 0 && (
-                      <div className="flex items-center gap-1 mt-1 text-xs opacity-90">
-                        <User size={12} />
-                        <span className="truncate">
-                          {allAssignees.map(a => a.name).join(', ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {dayTickets.length === 0 && dayEvents.length === 0 && (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-500 pointer-events-none">
-                Click a time slot to add a ticket or event
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4 w-full max-w-full overflow-hidden">
-      {/* Header Controls - responsive */}
+      {/* Header Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-6">
         <div className="flex items-center gap-2 md:gap-4">
           <div className="flex items-center gap-1">
@@ -1539,9 +762,8 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* View toggle and agent filter wrapper */}
+        {/* View toggle and agent filter */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          {/* View toggle - horizontal scroll on mobile */}
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-1 px-1">
             {[
               { key: 'month', label: 'Month', icon: Grid3X3 },
@@ -1550,7 +772,7 @@ export default function CalendarPage() {
             ].map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
-                onClick={() => setView(key)}
+                onClick={() => handleViewChange(key)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium min-h-[40px] touch-manipulation whitespace-nowrap ${
                   view === key
                     ? 'bg-primary text-white'
@@ -1581,7 +803,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Unscheduled tickets toggle - floating on mobile */}
+      {/* Unscheduled tickets toggle */}
       <button
         onClick={() => setShowUnscheduledSidebar(!showUnscheduledSidebar)}
         className="fixed bottom-20 right-4 md:static md:bottom-auto md:right-auto z-20 p-3 bg-white shadow-lg rounded-full md:rounded-lg md:shadow-sm md:border md:border-gray-200 min-w-[48px] min-h-[48px] flex items-center justify-center touch-manipulation"
@@ -1600,12 +822,10 @@ export default function CalendarPage() {
         {/* Unscheduled Tickets Sidebar/Bottom Sheet */}
         {showUnscheduledSidebar && (
           <>
-            {/* Mobile backdrop */}
             <div
               className="md:hidden fixed inset-0 bg-black/50 z-40"
               onClick={() => setShowUnscheduledSidebar(false)}
             />
-            {/* Sidebar/Bottom sheet content */}
             <div className="fixed inset-x-0 bottom-0 md:static md:inset-auto md:w-72 bg-white rounded-t-2xl md:rounded-lg shadow-lg md:shadow-sm md:border md:border-gray-200 z-50 max-h-[70vh] md:max-h-none overflow-hidden flex flex-col safe-bottom">
               <div className="flex items-center justify-between p-4 border-b border-gray-200 md:hidden">
                 <h3 className="font-semibold text-gray-900">Unscheduled Tickets</h3>
@@ -1616,7 +836,6 @@ export default function CalendarPage() {
                   <X size={20} />
                 </button>
               </div>
-              {/* Desktop header - hidden on mobile */}
               <div className="hidden md:flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
                 <h3 className="font-semibold text-gray-900">Unscheduled Tickets</h3>
                 <button
@@ -1627,7 +846,6 @@ export default function CalendarPage() {
                 </button>
               </div>
 
-              {/* Sidebar Content */}
               <div className="overflow-y-auto flex-1">
                 {loadingUnscheduled ? (
                   <div className="flex items-center justify-center py-8">
@@ -1643,12 +861,8 @@ export default function CalendarPage() {
                     {unscheduledTickets.map((ticket) => {
                       const agentColor = getAgentColor(ticket.assignee);
                       return (
-                        <div
-                          key={ticket.id}
-                          className="p-3 hover:bg-gray-50 transition-colors"
-                        >
+                        <div key={ticket.id} className="p-3 hover:bg-gray-50 transition-colors">
                           <div className="flex items-start gap-2">
-                            {/* Agent color indicator */}
                             <span
                               className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
                               style={{ backgroundColor: agentColor }}
@@ -1689,16 +903,55 @@ export default function CalendarPage() {
               <Spinner size="lg" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              {view === 'month' && renderMonthView()}
-              {view === 'week' && renderWeekView()}
-              {view === 'day' && renderDayView()}
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden fullcalendar-wrapper">
+              <FullCalendar
+                ref={calendarRef}
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView={fcViewMap[view]}
+                initialDate={currentDate}
+                events={calendarEvents_FC}
+                headerToolbar={false}
+                height="auto"
+                contentHeight={view === 'month' ? 'auto' : 600}
+                slotMinTime="07:00:00"
+                slotMaxTime="20:00:00"
+                slotDuration="00:30:00"
+                snapDuration="00:15:00"
+                allDaySlot={true}
+                nowIndicator={true}
+                selectable={true}
+                selectMirror={true}
+                editable={true}
+                eventResizableFromStart={true}
+                select={handleDateSelect}
+                eventClick={handleEventClick}
+                eventDrop={handleEventDrop}
+                eventResize={handleEventResize}
+                eventContent={renderEventContent}
+                dayMaxEvents={3}
+                moreLinkClick="popover"
+                weekends={true}
+                firstDay={0}
+                eventTimeFormat={{
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  meridiem: 'short',
+                }}
+                slotLabelFormat={{
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  meridiem: 'short',
+                }}
+                datesSet={(dateInfo) => {
+                  setCurrentDate(dateInfo.start);
+                }}
+              />
             </div>
           )}
         </div>
       </div>
 
-      {/* Context Menu for time slot clicks */}
+      {/* Context Menu */}
       {contextMenu.visible && (
         <div
           data-context-menu
@@ -1709,26 +962,6 @@ export default function CalendarPage() {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Show "View" option if an item was clicked */}
-          {contextMenu.targetItem && (
-            <button
-              onClick={handleContextViewItem}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
-            >
-              {contextMenu.targetItem.type === 'ticket' ? (
-                <>
-                  <Ticket size={16} className="text-primary flex-shrink-0" />
-                  <span className="truncate">View: {contextMenu.targetItem.item.subject || `#${contextMenu.targetItem.item.ticketNumber}`}</span>
-                </>
-              ) : (
-                <>
-                  <CalendarDays size={16} className="text-purple-600 flex-shrink-0" />
-                  <span className="truncate">View: {contextMenu.targetItem.item.title}</span>
-                </>
-              )}
-            </button>
-          )}
-          {contextMenu.targetItem && <div className="border-t border-gray-100 my-1" />}
           <button
             onClick={handleContextNewTicket}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors text-gray-700"
@@ -1769,11 +1002,9 @@ export default function CalendarPage() {
                 type="date"
                 value={newTicketDate ? `${newTicketDate.getFullYear()}-${String(newTicketDate.getMonth() + 1).padStart(2, '0')}-${String(newTicketDate.getDate()).padStart(2, '0')}` : ''}
                 onChange={(e) => {
-                  // Parse date as local time to avoid timezone offset issues
                   const [year, month, day] = e.target.value.split('-').map(Number);
                   const newDate = new Date(year, month - 1, day);
                   setNewTicketDate(newDate);
-                  // Update end date if it's before start date
                   if (!newTicketEndDate || newDate > newTicketEndDate) {
                     setNewTicketEndDate(newDate);
                   }
@@ -1788,7 +1019,6 @@ export default function CalendarPage() {
                 value={newTicketTime}
                 onChange={(e) => {
                   setNewTicketTime(e.target.value);
-                  // Auto-update end time to 1 hour later when start time changes
                   const [h, m] = e.target.value.split(':').map(Number);
                   const endH = Math.min(h + 1, 23);
                   setNewTicketEndTime(`${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
@@ -2110,6 +1340,91 @@ export default function CalendarPage() {
           setShowTicketSearchModal(false);
         }}
       />
+
+      {/* Custom styles for FullCalendar */}
+      <style>{`
+        .fullcalendar-wrapper .fc {
+          font-family: inherit;
+        }
+        .fullcalendar-wrapper .fc-theme-standard td,
+        .fullcalendar-wrapper .fc-theme-standard th {
+          border-color: #e5e7eb;
+        }
+        .fullcalendar-wrapper .fc-theme-standard .fc-scrollgrid {
+          border-color: #e5e7eb;
+        }
+        .fullcalendar-wrapper .fc-col-header-cell {
+          padding: 12px 4px;
+          background-color: #f9fafb;
+        }
+        .fullcalendar-wrapper .fc-col-header-cell-cushion {
+          color: #374151;
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+        .fullcalendar-wrapper .fc-daygrid-day-number {
+          color: #374151;
+          font-weight: 500;
+          padding: 8px;
+        }
+        .fullcalendar-wrapper .fc-day-today {
+          background-color: rgba(59, 130, 246, 0.05) !important;
+        }
+        .fullcalendar-wrapper .fc-day-today .fc-daygrid-day-number {
+          background-color: #3b82f6;
+          color: white;
+          border-radius: 9999px;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .fullcalendar-wrapper .fc-timegrid-slot {
+          height: 48px;
+        }
+        .fullcalendar-wrapper .fc-timegrid-slot-label {
+          font-size: 0.75rem;
+          color: #6b7280;
+        }
+        .fullcalendar-wrapper .fc-event {
+          border-radius: 4px;
+          border-width: 0;
+          border-left-width: 3px;
+          cursor: pointer;
+        }
+        .fullcalendar-wrapper .fc-event:hover {
+          opacity: 0.9;
+        }
+        .fullcalendar-wrapper .fc-timegrid-event {
+          border-radius: 4px;
+        }
+        .fullcalendar-wrapper .fc-daygrid-event {
+          border-radius: 4px;
+          padding: 2px 4px;
+        }
+        .fullcalendar-wrapper .fc-more-link {
+          color: #3b82f6;
+          font-weight: 500;
+        }
+        .fullcalendar-wrapper .fc-timegrid-now-indicator-line {
+          border-color: #ef4444;
+        }
+        .fullcalendar-wrapper .fc-timegrid-now-indicator-arrow {
+          border-color: #ef4444;
+          border-top-color: transparent;
+          border-bottom-color: transparent;
+        }
+        .fullcalendar-wrapper .fc-highlight {
+          background-color: rgba(59, 130, 246, 0.1);
+        }
+        .fullcalendar-wrapper .fc-daygrid-day-events {
+          margin-top: 4px;
+        }
+        .fullcalendar-wrapper .fc-v-event .fc-event-main {
+          padding: 0;
+        }
+      `}</style>
     </div>
   );
 }
