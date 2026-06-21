@@ -457,11 +457,20 @@ export default function CalendarPage() {
         }
       }
 
+      // For all-day events, FullCalendar treats end date as exclusive
+      // So we need to add 1 day to make it display through the actual end date
+      let adjustedEnd = ticket.scheduledEnd || undefined;
+      if (isAllDay && ticket.scheduledEnd) {
+        const endDate = new Date(ticket.scheduledEnd);
+        endDate.setDate(endDate.getDate() + 1);
+        adjustedEnd = endDate.toISOString();
+      }
+
       fcEvents.push({
         id: `ticket-${ticket.id}`,
         title: `#${ticket.ticketNumber} ${ticket.subject}`,
         start: startTime,
-        end: ticket.scheduledEnd || undefined,
+        end: adjustedEnd,
         allDay: isAllDay,
         backgroundColor: primaryColor,
         borderColor: statusColor,
@@ -501,11 +510,20 @@ export default function CalendarPage() {
         }
       }
 
+      // For all-day events, FullCalendar treats end date as exclusive
+      // So we need to add 1 day to make it display through the actual end date
+      let adjustedEventEnd = event.endTime || undefined;
+      if (isAllDay && event.endTime) {
+        const endDate = new Date(event.endTime);
+        endDate.setDate(endDate.getDate() + 1);
+        adjustedEventEnd = endDate.toISOString();
+      }
+
       fcEvents.push({
         id: `event-${event.id}`,
         title: event.title,
         start: event.startTime,
-        end: event.endTime || undefined,
+        end: adjustedEventEnd,
         allDay: isAllDay,
         backgroundColor: `${eventColor}30`,
         borderColor: eventColor,
