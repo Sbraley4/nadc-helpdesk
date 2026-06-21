@@ -94,7 +94,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
-            <img src="/nadclogo.png" alt="NADC" className="mx-auto h-16 w-auto" />
+            <img src="/nadclogo.png" alt="NADC" className="mx-auto h-20 w-auto" />
             <h2 className="mt-6 text-3xl font-bold text-gray-900">
               Check Your Email
             </h2>
@@ -126,7 +126,7 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
-            <img src="/nadclogo.png" alt="NADC" className="mx-auto h-16 w-auto" />
+            <img src="/nadclogo.png" alt="NADC" className="mx-auto h-20 w-auto" />
             <h2 className="mt-6 text-3xl font-bold text-gray-900">
               Reset Password
             </h2>
@@ -175,9 +175,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         {/* Logo and title */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-primary rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">N</span>
-          </div>
+<img src="/nadclogo.png" alt="NADC" className="mx-auto h-20 w-auto" />
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             NADC Helpdesk
           </h2>

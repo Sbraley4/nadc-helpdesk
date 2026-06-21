@@ -65,7 +65,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       {/* Logo */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
         {(!collapsed || isMobile) && (
-          <img src="/nadclogo.png" alt="NADC" className="h-8 w-auto" />
+          <img src="/nadclogo.png" alt="NADC" className="h-12 w-auto" />
         )}
         {isMobile ? (
           <button
