@@ -814,6 +814,7 @@ export default function CalendarPage() {
 
   // Handle resizing of events
   const handleEventResize = async (resizeInfo) => {
+    console.log('eventResize fired', resizeInfo);
     const event = resizeInfo.event;
     const props = event.extendedProps;
 
@@ -1359,6 +1360,7 @@ export default function CalendarPage() {
                 selectable={true}
                 selectMirror={true}
                 editable={true}
+                eventDurationEditable={true}
                 eventResizableFromStart={true}
                 longPressDelay={150}
                 eventLongPressDelay={150}
