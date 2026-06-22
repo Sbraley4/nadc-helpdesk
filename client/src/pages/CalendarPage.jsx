@@ -1242,6 +1242,9 @@ export default function CalendarPage() {
                 selectMirror={true}
                 editable={true}
                 eventResizableFromStart={true}
+                longPressDelay={0}
+                eventLongPressDelay={0}
+                selectLongPressDelay={0}
                 select={handleDateSelect}
                 eventClick={handleEventClick}
                 eventDrop={handleEventDrop}
