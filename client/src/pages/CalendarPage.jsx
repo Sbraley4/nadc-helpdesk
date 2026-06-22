@@ -448,13 +448,17 @@ export default function CalendarPage() {
       const companyName = ticket.company?.name || ticket.requester?.company?.name || '';
 
       // Calculate duration and auto-promote to all-day if > 8 hours
-      let isAllDay = ticket.isAllDay || false;
+      // Track if this is a "true" all-day event from DB vs auto-promoted
+      const dbIsAllDay = ticket.isAllDay || false;
+      let isAllDay = dbIsAllDay;
+      let promotedToAllDay = false;
       if (!isAllDay && ticket.scheduledEnd) {
         const start = new Date(startTime);
         const end = new Date(ticket.scheduledEnd);
         const durationMs = end.getTime() - start.getTime();
         if (durationMs > EIGHT_HOURS_MS) {
           isAllDay = true;
+          promotedToAllDay = true; // Auto-promoted, not truly all-day in DB
         }
       }
 
@@ -496,6 +500,7 @@ export default function CalendarPage() {
           scheduledStart: startTime,
           scheduledEnd: ticket.scheduledEnd,
           agentColors: agentColors,
+          promotedToAllDay: promotedToAllDay, // true if auto-promoted due to duration > 8h
         },
       });
     });
@@ -505,14 +510,18 @@ export default function CalendarPage() {
       const firstAssignee = event.assignees?.[0];
       const eventColor = event.color || getAgentColor(firstAssignee);
 
-      // Check if event should be all-day (from DB or duration > 12 hours)
-      let isAllDay = event.isAllDay || false;
+      // Check if event should be all-day (from DB or duration > 8 hours)
+      // Track if this is a "true" all-day event from DB vs auto-promoted
+      const dbIsAllDay = event.isAllDay || false;
+      let isAllDay = dbIsAllDay;
+      let promotedToAllDay = false;
       if (!isAllDay && event.endTime) {
         const start = new Date(event.startTime);
         const end = new Date(event.endTime);
         const durationMs = end.getTime() - start.getTime();
         if (durationMs > EIGHT_HOURS_MS) {
           isAllDay = true;
+          promotedToAllDay = true; // Auto-promoted, not truly all-day in DB
         }
       }
 
@@ -544,6 +553,7 @@ export default function CalendarPage() {
           eventId: event.id,
           description: event.description,
           assignees: event.assignees,
+          promotedToAllDay: promotedToAllDay, // true if auto-promoted due to duration > 8h
         },
       });
     });
@@ -762,11 +772,22 @@ export default function CalendarPage() {
 
     dragStartInfoRef.current = null;
 
+    // For truly all-day events (not auto-promoted), FullCalendar uses exclusive end dates
+    // (we added +1 day when mapping), so we need to subtract 1 day when saving back.
+    // Auto-promoted events (promotedToAllDay=true) store datetimes in DB, so no adjustment needed.
+    let endDateToSave = event.end;
+    const isTrulyAllDay = event.allDay && !props.promotedToAllDay;
+    if (isTrulyAllDay && event.end) {
+      const adjustedEnd = new Date(event.end);
+      adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+      endDateToSave = adjustedEnd;
+    }
+
     if (props.type === 'ticket' && props.scheduleId) {
       try {
         await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
           scheduledStart: event.start.toISOString(),
-          scheduledEnd: event.end ? event.end.toISOString() : null,
+          scheduledEnd: endDateToSave ? endDateToSave.toISOString() : null,
         });
         toast.success('Schedule updated');
         fetchCalendarData();
@@ -779,7 +800,7 @@ export default function CalendarPage() {
       try {
         await calendarEvents.updateEvent(props.eventId, {
           startTime: event.start.toISOString(),
-          endTime: event.end ? event.end.toISOString() : null,
+          endTime: endDateToSave ? endDateToSave.toISOString() : null,
         });
         toast.success('Event updated');
         fetchCalendarData();
@@ -796,10 +817,12 @@ export default function CalendarPage() {
     const event = resizeInfo.event;
     const props = event.extendedProps;
 
-    // For all-day events, FullCalendar uses exclusive end dates (we added +1 day when mapping),
-    // so we need to subtract 1 day when saving back to the database
+    // For truly all-day events (not auto-promoted), FullCalendar uses exclusive end dates
+    // (we added +1 day when mapping), so we need to subtract 1 day when saving back.
+    // Auto-promoted events (promotedToAllDay=true) store datetimes in DB, so no adjustment needed.
     let endDateToSave = event.end;
-    if (event.allDay && event.end) {
+    const isTrulyAllDay = event.allDay && !props.promotedToAllDay;
+    if (isTrulyAllDay && event.end) {
       const adjustedEnd = new Date(event.end);
       adjustedEnd.setDate(adjustedEnd.getDate() - 1);
       endDateToSave = adjustedEnd;
