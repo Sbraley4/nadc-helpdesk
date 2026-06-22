@@ -796,11 +796,20 @@ export default function CalendarPage() {
     const event = resizeInfo.event;
     const props = event.extendedProps;
 
+    // For all-day events, FullCalendar uses exclusive end dates (we added +1 day when mapping),
+    // so we need to subtract 1 day when saving back to the database
+    let endDateToSave = event.end;
+    if (event.allDay && event.end) {
+      const adjustedEnd = new Date(event.end);
+      adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+      endDateToSave = adjustedEnd;
+    }
+
     if (props.type === 'ticket' && props.scheduleId) {
       try {
         await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
           scheduledStart: event.start.toISOString(),
-          scheduledEnd: event.end.toISOString(),
+          scheduledEnd: endDateToSave.toISOString(),
         });
         toast.success('Schedule updated');
         fetchCalendarData();
@@ -813,7 +822,7 @@ export default function CalendarPage() {
       try {
         await calendarEvents.updateEvent(props.eventId, {
           startTime: event.start.toISOString(),
-          endTime: event.end.toISOString(),
+          endTime: endDateToSave.toISOString(),
         });
         toast.success('Event updated');
         fetchCalendarData();
@@ -1328,9 +1337,9 @@ export default function CalendarPage() {
                 selectMirror={true}
                 editable={true}
                 eventResizableFromStart={true}
-                longPressDelay={0}
-                eventLongPressDelay={0}
-                selectLongPressDelay={0}
+                longPressDelay={150}
+                eventLongPressDelay={150}
+                selectLongPressDelay={150}
                 select={handleDateSelect}
                 eventClick={handleEventClick}
                 eventDragStart={handleEventDragStart}
