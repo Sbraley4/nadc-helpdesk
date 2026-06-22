@@ -16,15 +16,39 @@ exports.getEvents = async (req, res) => {
 
     const where = {};
 
-    // Filter by date range
-    if (startDate || endDate) {
-      where.startTime = {};
-      if (startDate) {
-        where.startTime.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.startTime.lte = new Date(endDate);
-      }
+    // Filter by date range - must handle events that overlap the range:
+    // - startTime is within range, OR
+    // - endTime is within range, OR
+    // - event spans the entire range (starts before, ends after)
+    if (startDate && endDate) {
+      const rangeStart = new Date(startDate);
+      const rangeEnd = new Date(endDate);
+      where.OR = [
+        {
+          startTime: {
+            gte: rangeStart,
+            lte: rangeEnd,
+          },
+        },
+        {
+          endTime: {
+            gte: rangeStart,
+            lte: rangeEnd,
+          },
+        },
+        {
+          AND: [
+            { startTime: { lt: rangeStart } },
+            { endTime: { gt: rangeEnd } },
+          ],
+        },
+      ];
+    } else if (startDate) {
+      // Only start date provided - get events that start on or after
+      where.startTime = { gte: new Date(startDate) };
+    } else if (endDate) {
+      // Only end date provided - get events that start on or before
+      where.startTime = { lte: new Date(endDate) };
     }
 
     // Filter by assignee (check if any assignee matches)
