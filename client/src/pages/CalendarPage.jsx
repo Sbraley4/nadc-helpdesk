@@ -244,6 +244,7 @@ export default function CalendarPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const calendarRef = useRef(null);
+  const dragStartInfoRef = useRef(null); // Track drag start position for tap vs drag detection
   const [view, setView] = useState('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
@@ -457,20 +458,25 @@ export default function CalendarPage() {
         }
       }
 
-      // For all-day events, FullCalendar treats end date as exclusive
-      // So we need to add 1 day to make it display through the actual end date
-      let adjustedEnd = ticket.scheduledEnd || undefined;
-      if (isAllDay && ticket.scheduledEnd) {
-        const endDate = new Date(ticket.scheduledEnd);
-        endDate.setDate(endDate.getDate() + 1);
-        adjustedEnd = endDate.toISOString();
+      // For all-day events, FullCalendar expects date-only strings (YYYY-MM-DD)
+      // and treats end date as exclusive, so we add 1 day
+      let fcStart = startTime;
+      let fcEnd = ticket.scheduledEnd || undefined;
+      if (isAllDay) {
+        // Convert to date-only format for all-day events
+        fcStart = new Date(startTime).toISOString().split('T')[0];
+        if (ticket.scheduledEnd) {
+          const endDate = new Date(ticket.scheduledEnd);
+          endDate.setDate(endDate.getDate() + 1);
+          fcEnd = endDate.toISOString().split('T')[0];
+        }
       }
 
       fcEvents.push({
         id: `ticket-${ticket.id}`,
         title: `#${ticket.ticketNumber} ${ticket.subject}`,
-        start: startTime,
-        end: adjustedEnd,
+        start: fcStart,
+        end: fcEnd,
         allDay: isAllDay,
         backgroundColor: primaryColor,
         borderColor: statusColor,
@@ -510,20 +516,25 @@ export default function CalendarPage() {
         }
       }
 
-      // For all-day events, FullCalendar treats end date as exclusive
-      // So we need to add 1 day to make it display through the actual end date
-      let adjustedEventEnd = event.endTime || undefined;
-      if (isAllDay && event.endTime) {
-        const endDate = new Date(event.endTime);
-        endDate.setDate(endDate.getDate() + 1);
-        adjustedEventEnd = endDate.toISOString();
+      // For all-day events, FullCalendar expects date-only strings (YYYY-MM-DD)
+      // and treats end date as exclusive, so we add 1 day
+      let fcStart = event.startTime;
+      let fcEnd = event.endTime || undefined;
+      if (isAllDay) {
+        // Convert to date-only format for all-day events
+        fcStart = new Date(event.startTime).toISOString().split('T')[0];
+        if (event.endTime) {
+          const endDate = new Date(event.endTime);
+          endDate.setDate(endDate.getDate() + 1);
+          fcEnd = endDate.toISOString().split('T')[0];
+        }
       }
 
       fcEvents.push({
         id: `event-${event.id}`,
         title: event.title,
-        start: event.startTime,
-        end: adjustedEventEnd,
+        start: fcStart,
+        end: fcEnd,
         allDay: isAllDay,
         backgroundColor: `${eventColor}30`,
         borderColor: eventColor,
@@ -671,10 +682,85 @@ export default function CalendarPage() {
     }
   };
 
+  // Track drag start for tap vs drag detection on mobile
+  const handleEventDragStart = (dragInfo) => {
+    dragStartInfoRef.current = {
+      eventId: dragInfo.event.id,
+      start: dragInfo.event.start?.getTime(),
+      end: dragInfo.event.end?.getTime(),
+      jsEvent: dragInfo.jsEvent,
+    };
+  };
+
   // Handle drag-and-drop of events
   const handleEventDrop = async (dropInfo) => {
     const event = dropInfo.event;
     const props = event.extendedProps;
+    const dragStart = dragStartInfoRef.current;
+
+    // Check if event actually moved - if not, treat as a tap (show context menu)
+    if (dragStart && dragStart.eventId === event.id) {
+      const startMoved = event.start?.getTime() !== dragStart.start;
+      const endMoved = event.end?.getTime() !== dragStart.end;
+
+      if (!startMoved && !endMoved) {
+        // Event didn't move - this was a tap, not a drag
+        // Simulate an eventClick by showing the context menu
+        dragStartInfoRef.current = null;
+        dropInfo.revert();
+
+        // Build context menu position from the original touch/click
+        const jsEvent = dragStart.jsEvent;
+        const menuWidth = 200;
+        const menuHeight = 120;
+        let x = jsEvent?.clientX || jsEvent?.touches?.[0]?.clientX || 200;
+        let y = jsEvent?.clientY || jsEvent?.touches?.[0]?.clientY || 200;
+
+        if (x + menuWidth > window.innerWidth) {
+          x = window.innerWidth - menuWidth - 10;
+        }
+        if (y + menuHeight > window.innerHeight) {
+          y = window.innerHeight - menuHeight - 10;
+        }
+
+        if (props.type === 'ticket') {
+          setContextMenu({
+            visible: true,
+            x,
+            y,
+            date: null,
+            time: null,
+            targetItem: null,
+            menuType: 'ticket',
+            clickedTicket: {
+              ticketId: props.ticketId,
+              scheduleId: props.scheduleId,
+              ticketNumber: props.ticketNumber,
+              subject: props.subject,
+              scheduledStart: props.scheduledStart,
+              scheduledEnd: props.scheduledEnd,
+            },
+            clickedEvent: null,
+          });
+        } else if (props.type === 'event') {
+          const originalEvent = events.find(e => e.id === props.eventId);
+          setContextMenu({
+            visible: true,
+            x,
+            y,
+            date: null,
+            time: null,
+            targetItem: null,
+            menuType: 'event',
+            clickedTicket: null,
+            clickedEvent: originalEvent,
+          });
+        }
+        return;
+      }
+    }
+
+    dragStartInfoRef.current = null;
 
     if (props.type === 'ticket' && props.scheduleId) {
       try {
@@ -1247,6 +1333,7 @@ export default function CalendarPage() {
                 selectLongPressDelay={0}
                 select={handleDateSelect}
                 eventClick={handleEventClick}
+                eventDragStart={handleEventDragStart}
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
                 eventContent={renderEventContent}
