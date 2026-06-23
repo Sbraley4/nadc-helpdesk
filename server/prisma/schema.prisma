@@ -689,3 +689,16 @@ model TicketSchedule {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
+
+// InventoryItem - standalone inventory management
+model InventoryItem {
+  id        String   @id @default(cuid())
+  name      String
+  category  String?
+  quantity  Int      @default(0)
+  threshold Int      @default(0)
+  notes     String?
+  isLow     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

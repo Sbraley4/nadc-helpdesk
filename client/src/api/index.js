@@ -215,6 +215,13 @@ export const search = {
 
 // Phase 8 APIs
 
+export const inventory = {
+  getItems: (params) => client.get('/api/inventory', { params }).then((r) => r.data),
+  createItem: (data) => client.post('/api/inventory', data).then((r) => r.data),
+  updateItem: (id, data) => client.put('/api/inventory/' + id, data).then((r) => r.data),
+  deleteItem: (id) => client.delete('/api/inventory/' + id).then((r) => r.data),
+};
+
 export const kb = {
   // Categories
   getCategories: () => client.get('/api/kb/categories').then((r) => r.data),

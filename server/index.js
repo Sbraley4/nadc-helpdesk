@@ -163,6 +163,10 @@ app.use('/api/search', searchRoutes);
 const importRoutes = require('./routes/import');
 app.use('/api/import', importRoutes);
 
+// Inventory routes
+const inventoryRoutes = require('./routes/inventory');
+app.use('/api/inventory', inventoryRoutes);
+
 // ============================================================================
 // Route imports - Phase 8 (Client Portal & Knowledge Base)
 // ============================================================================

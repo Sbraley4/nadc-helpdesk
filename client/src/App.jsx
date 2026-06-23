@@ -20,6 +20,7 @@ import CompanyDetailPage from './pages/companies/CompanyDetailPage';
 import CalendarPage from './pages/CalendarPage';
 import WorkloadPage from './pages/WorkloadPage';
 import DevicesPage from './pages/DevicesPage';
+import InventoryPage from './pages/inventory/InventoryPage';
 import TemplatesPage from './pages/TemplatesPage';
 import SatisfactionPage from './pages/SatisfactionPage';
 import SettingsPage from './pages/SettingsPage';
@@ -129,6 +130,7 @@ function App() {
         <Route path="workload" element={<WorkloadPage />} />
         <Route path="devices" element={<DevicesPage />} />
         <Route path="devices/:id" element={<DevicesPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="satisfaction" element={<SatisfactionPage />} />
         <Route path="settings" element={<SettingsPage />} />
