@@ -816,67 +816,76 @@ export default function CalendarPage() {
   // Handle resizing of events
   const handleEventResize = async (resizeInfo) => {
     console.log('eventResize fired', resizeInfo);
-    const event = resizeInfo.event;
-    const props = event?.extendedProps || {};
-    console.log('handleEventResize - props:', props);
+    try {
+      console.log('step 1 - getting event');
+      const event = resizeInfo.event;
+      console.log('step 2 - event:', event);
 
-    // DEBUG: Log props.type and props.scheduleId
-    console.log('handleEventResize - props.type:', props.type);
-    console.log('handleEventResize - props.scheduleId:', props.scheduleId);
-    console.log('handleEventResize - props.ticketId:', props.ticketId);
-    console.log('handleEventResize - props.eventId:', props.eventId);
+      console.log('step 3 - getting extendedProps');
+      const props = event?.extendedProps || {};
+      console.log('step 4 - props:', props);
 
-    // For truly all-day events (not auto-promoted), FullCalendar uses exclusive end dates
-    // (we added +1 day when mapping), so we need to subtract 1 day when saving back.
-    // Auto-promoted events (promotedToAllDay=true) store datetimes in DB, so no adjustment needed.
-    let endDateToSave = event.end;
-    const isTrulyAllDay = event.allDay && !props.promotedToAllDay;
-    if (isTrulyAllDay && event.end) {
-      const adjustedEnd = new Date(event.end);
-      adjustedEnd.setDate(adjustedEnd.getDate() - 1);
-      endDateToSave = adjustedEnd;
-    }
+      console.log('step 5 - props.type:', props.type);
+      console.log('step 6 - props.scheduleId:', props.scheduleId);
+      console.log('step 7 - props.ticketId:', props.ticketId);
+      console.log('step 8 - props.eventId:', props.eventId);
 
-    if (props.type === 'ticket' && props.scheduleId) {
-      console.log('handleEventResize - TICKET BRANCH - About to call updateSchedule');
-      console.log('handleEventResize - scheduledStart:', event.start.toISOString());
-      console.log('handleEventResize - scheduledEnd:', endDateToSave.toISOString());
-      try {
+      console.log('step 9 - getting endDateToSave');
+      let endDateToSave = event?.end;
+      console.log('step 10 - endDateToSave:', endDateToSave);
+
+      console.log('step 11 - checking isTrulyAllDay');
+      const isTrulyAllDay = event?.allDay && !props.promotedToAllDay;
+      console.log('step 12 - isTrulyAllDay:', isTrulyAllDay);
+
+      if (isTrulyAllDay && event?.end) {
+        console.log('step 13 - adjusting end date for all-day event');
+        const adjustedEnd = new Date(event.end);
+        adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+        endDateToSave = adjustedEnd;
+        console.log('step 14 - adjusted endDateToSave:', endDateToSave);
+      }
+
+      console.log('step 15 - checking branch conditions');
+      if (props.type === 'ticket' && props.scheduleId) {
+        console.log('step 16 - TICKET BRANCH');
+        console.log('step 17 - scheduledStart:', event?.start?.toISOString?.());
+        console.log('step 18 - scheduledEnd:', endDateToSave?.toISOString?.());
+
+        console.log('step 19 - calling ticketsApi.updateSchedule');
         const result = await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
           scheduledStart: event.start.toISOString(),
           scheduledEnd: endDateToSave.toISOString(),
         });
-        console.log('handleEventResize - updateSchedule result:', result);
+        console.log('step 20 - updateSchedule result:', result);
         toast.success('Schedule updated');
         fetchCalendarData();
-      } catch (error) {
-        console.error('handleEventResize - CATCH ERROR:', error);
-        console.error('handleEventResize - error.message:', error.message);
-        console.error('handleEventResize - error.response:', error.response);
-        toast.error('Failed to update schedule');
-        resizeInfo.revert();
-      }
-    } else if (props.type === 'event') {
-      console.log('handleEventResize - EVENT BRANCH - About to call updateEvent');
-      console.log('handleEventResize - startTime:', event.start.toISOString());
-      console.log('handleEventResize - endTime:', endDateToSave.toISOString());
-      try {
+
+      } else if (props.type === 'event') {
+        console.log('step 16 - EVENT BRANCH');
+        console.log('step 17 - startTime:', event?.start?.toISOString?.());
+        console.log('step 18 - endTime:', endDateToSave?.toISOString?.());
+
+        console.log('step 19 - calling calendarEvents.updateEvent');
         const result = await calendarEvents.updateEvent(props.eventId, {
           startTime: event.start.toISOString(),
           endTime: endDateToSave.toISOString(),
         });
-        console.log('handleEventResize - updateEvent result:', result);
+        console.log('step 20 - updateEvent result:', result);
         toast.success('Event updated');
         fetchCalendarData();
-      } catch (error) {
-        console.error('handleEventResize - CATCH ERROR:', error);
-        console.error('handleEventResize - error.message:', error.message);
-        console.error('handleEventResize - error.response:', error.response);
-        toast.error('Failed to update event');
-        resizeInfo.revert();
+
+      } else {
+        console.log('step 16 - NO BRANCH MATCHED');
+        console.log('props.type:', props.type, 'props.scheduleId:', props.scheduleId);
       }
-    } else {
-      console.log('handleEventResize - NO BRANCH MATCHED! Neither ticket+scheduleId nor event');
+
+      console.log('step 21 - handleEventResize completed successfully');
+    } catch (err) {
+      console.error('handleEventResize ERROR:', err);
+      console.error('handleEventResize ERROR stack:', err?.stack);
+      toast.error('Failed to resize event');
+      resizeInfo.revert();
     }
   };
 
