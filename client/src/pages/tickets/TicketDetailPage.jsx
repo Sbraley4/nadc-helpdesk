@@ -112,6 +112,7 @@ export default function TicketDetailPage() {
   // Mileage state
   const [localMileage, setLocalMileage] = useState('');
   const [localMileageNotes, setLocalMileageNotes] = useState('');
+  const [localDestinationAddress, setLocalDestinationAddress] = useState('');
   const [isCalculatingMileage, setIsCalculatingMileage] = useState(false);
   const [showMileage, setShowMileage] = useState(true);
 
@@ -339,14 +340,22 @@ export default function TicketDetailPage() {
     if (ticketData) {
       setLocalMileage(ticketData.mileage?.toString() || '');
       setLocalMileageNotes(ticketData.mileageNotes || '');
+      // Pre-populate destination address from company address if available
+      if (ticketData.company?.address && !localDestinationAddress) {
+        setLocalDestinationAddress(ticketData.company.address);
+      }
     }
-  }, [ticketData?.id, ticketData?.mileage, ticketData?.mileageNotes]);
+  }, [ticketData?.id, ticketData?.mileage, ticketData?.mileageNotes, ticketData?.company?.address]);
 
   // Handle calculate mileage
   const handleCalculateMileage = async () => {
+    if (!localDestinationAddress.trim()) {
+      toast.error('Please enter a destination address');
+      return;
+    }
     setIsCalculatingMileage(true);
     try {
-      const result = await tickets.calculateMileage(id);
+      const result = await tickets.calculateMileage(id, localDestinationAddress.trim());
       setLocalMileage(result.mileage?.toString() || '');
       queryClient.invalidateQueries(['ticket', id]);
       toast.success(`Mileage calculated: ${result.mileage} miles`);
@@ -1869,7 +1878,19 @@ export default function TicketDetailPage() {
               <div className="mt-3 space-y-3">
                 <p className="text-xs text-gray-500">Round trip from office</p>
 
-                {/* Current mileage display */}
+                {/* Destination Address */}
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Destination Address</label>
+                  <input
+                    type="text"
+                    value={localDestinationAddress}
+                    onChange={(e) => setLocalDestinationAddress(e.target.value)}
+                    placeholder="Enter destination address..."
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                {/* Mileage input with calculate button */}
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
                     <label className="block text-xs text-gray-500 mb-1">Miles</label>
@@ -1885,9 +1906,9 @@ export default function TicketDetailPage() {
                   <div className="pt-5">
                     <button
                       onClick={handleCalculateMileage}
-                      disabled={isCalculatingMileage || !ticket.company?.id}
+                      disabled={isCalculatingMileage || !localDestinationAddress.trim()}
                       className="p-2 text-primary hover:bg-primary/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={ticket.company?.id ? 'Calculate from company address' : 'No company address available'}
+                      title={localDestinationAddress.trim() ? 'Calculate mileage' : 'Enter a destination address first'}
                     >
                       {isCalculatingMileage ? (
                         <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />

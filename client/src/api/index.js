@@ -30,7 +30,7 @@ export const tickets = {
   updateSchedule: (ticketId, scheduleId, data) => client.put('/api/tickets/' + ticketId + '/schedules/' + scheduleId, data).then((r) => r.data),
   deleteSchedule: (ticketId, scheduleId) => client.delete('/api/tickets/' + ticketId + '/schedules/' + scheduleId).then((r) => r.data),
   // Mileage
-  calculateMileage: (ticketId) => client.post('/api/tickets/' + ticketId + '/calculate-mileage').then((r) => r.data),
+  calculateMileage: (ticketId, address) => client.post('/api/tickets/' + ticketId + '/calculate-mileage', { address }).then((r) => r.data),
 };
 
 export const replies = {

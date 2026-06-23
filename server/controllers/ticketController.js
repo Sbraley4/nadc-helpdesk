@@ -1344,10 +1344,12 @@ const updateTicketSchedule = async (req, res, next) => {
 /**
  * POST /api/tickets/:id/calculate-mileage
  * Calculate round-trip mileage from office to ticket's company/contact address
+ * Accepts optional address in request body to override company address
  */
 const calculateMileage = async (req, res, next) => {
   try {
     const { id } = req.params;
+    const { address: manualAddress } = req.body;
 
     // Get ticket with company and requester info
     const ticket = await prisma.ticket.findUnique({
@@ -1362,12 +1364,12 @@ const calculateMileage = async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    // Get destination address from company
-    const destinationAddress = ticket.company?.address;
+    // Use manual address if provided, otherwise fall back to company address
+    const destinationAddress = manualAddress || ticket.company?.address;
 
     if (!destinationAddress) {
       return res.status(400).json({
-        error: 'No address found. Please add an address to the company.'
+        error: 'No address provided. Please enter a destination address.'
       });
     }
 
