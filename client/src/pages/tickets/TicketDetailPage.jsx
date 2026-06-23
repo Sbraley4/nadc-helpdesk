@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, replies, agents, kb, templates, checklist, timeEntries } from '../../api';
+import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory } from '../../api';
 import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
@@ -102,6 +102,12 @@ export default function TicketDetailPage() {
   // Schedule entries state
   const [scheduleEntries, setScheduleEntries] = useState([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
+
+  // Inventory deductions state
+  const [ticketDeductions, setTicketDeductions] = useState([]);
+  const [loadingDeductions, setLoadingDeductions] = useState(false);
+  const [processingDeduction, setProcessingDeduction] = useState(null);
+  const [showInventory, setShowInventory] = useState(true);
 
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
@@ -283,8 +289,44 @@ export default function TicketDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch ticket inventory deductions
+  const { data: deductionsData, refetch: refetchDeductions } = useQuery({
+    queryKey: ['ticket-deductions', id],
+    queryFn: () => inventory.getTicketDeductions(id),
+    enabled: !!id,
+  });
+
   const checklistItems = checklistData?.items || [];
   const schedulesList = schedulesData?.schedules || [];
+  const deductionsList = deductionsData?.deductions || [];
+
+  // Handle approve deduction
+  const handleApproveDeduction = async (deductionId) => {
+    setProcessingDeduction(deductionId);
+    try {
+      await inventory.approveDeduction(deductionId);
+      toast.success('Deduction approved');
+      refetchDeductions();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve');
+    } finally {
+      setProcessingDeduction(null);
+    }
+  };
+
+  // Handle reject deduction
+  const handleRejectDeduction = async (deductionId) => {
+    setProcessingDeduction(deductionId);
+    try {
+      await inventory.rejectDeduction(deductionId);
+      toast.success('Deduction rejected');
+      refetchDeductions();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject');
+    } finally {
+      setProcessingDeduction(null);
+    }
+  };
 
   // Delete schedule mutation
   const deleteScheduleMutation = useMutation({
@@ -1787,6 +1829,85 @@ export default function TicketDetailPage() {
               </div>
             </div>
           </div>
+
+        {/* Inventory Deductions Section */}
+        {deductionsList.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <button
+              onClick={() => setShowInventory(!showInventory)}
+              className="w-full flex items-center justify-between"
+            >
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Package size={16} />
+                Inventory
+                <span className="text-xs text-gray-500">
+                  ({deductionsList.filter(d => d.status === 'PENDING').length} pending)
+                </span>
+              </h3>
+              {showInventory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {showInventory && (
+              <div className="mt-3 space-y-2">
+                {deductionsList.map((deduction) => (
+                  <div
+                    key={deduction.id}
+                    className={`p-2 rounded-lg border ${
+                      deduction.status === 'PENDING'
+                        ? 'bg-yellow-50 border-yellow-200'
+                        : deduction.status === 'APPROVED'
+                        ? 'bg-green-50 border-green-200'
+                        : 'bg-red-50 border-red-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900">
+                          {deduction.quantity}x {deduction.itemName}
+                        </p>
+                        {deduction.inventoryItem && (
+                          <p className="text-xs text-gray-500">
+                            → {deduction.inventoryItem.name}
+                          </p>
+                        )}
+                      </div>
+                      {deduction.status === 'PENDING' ? (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleRejectDeduction(deduction.id)}
+                            disabled={processingDeduction === deduction.id}
+                            className="p-1 text-red-500 hover:bg-red-100 rounded"
+                            title="Reject"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleApproveDeduction(deduction.id)}
+                            disabled={processingDeduction === deduction.id || !deduction.inventoryItem}
+                            className="p-1 text-green-500 hover:bg-green-100 rounded disabled:opacity-50"
+                            title={deduction.inventoryItem ? 'Approve' : 'No match - cannot approve'}
+                          >
+                            <CheckCircle size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className={`text-xs font-medium ${
+                          deduction.status === 'APPROVED' ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {deduction.status === 'APPROVED' ? (
+                            <CheckCircle size={14} className="inline" />
+                          ) : (
+                            <XCircle size={14} className="inline" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Checklist Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">

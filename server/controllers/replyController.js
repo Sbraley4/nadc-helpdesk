@@ -6,6 +6,7 @@ const {
   sendNoteNotificationToAgent,
 } = require('../services/emailService');
 const { runAutomations } = require('../services/automationEngine');
+const { processNoteForInventory, hasUsedSection } = require('../services/inventoryAiService');
 
 const prisma = new PrismaClient();
 
@@ -379,6 +380,13 @@ async function createReply(req, res, next) {
       } catch (automationError) {
         console.error('[Automation] Error running automations:', automationError.message);
       }
+    }
+
+    // Process internal notes for inventory deductions (fire-and-forget)
+    if (isInternalNote && hasUsedSection(body)) {
+      processNoteForInventory(body, ticketId, result.reply.id).catch((err) =>
+        console.error('[InventoryAI] Failed to process note:', err.message)
+      );
     }
 
     res.status(201).json(replyWithUrls);

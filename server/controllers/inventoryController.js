@@ -151,9 +151,175 @@ async function deleteItem(req, res, next) {
   }
 }
 
+// GET /api/inventory/deductions
+// Get all PENDING deductions with ticket and item info
+async function getPendingDeductions(req, res, next) {
+  try {
+    const deductions = await prisma.inventoryDeduction.findMany({
+      where: { status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        ticket: {
+          select: {
+            id: true,
+            ticketNumber: true,
+            subject: true,
+          },
+        },
+        inventoryItem: {
+          select: {
+            id: true,
+            name: true,
+            quantity: true,
+            category: true,
+          },
+        },
+      },
+    });
+
+    res.json({ deductions });
+  } catch (error) {
+    next(error);
+  }
+}
+
+// PUT /api/inventory/deductions/:id/approve
+// Approve a deduction and deduct from inventory
+async function approveDeduction(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    // Find the deduction
+    const deduction = await prisma.inventoryDeduction.findUnique({
+      where: { id },
+      include: { inventoryItem: true },
+    });
+
+    if (!deduction) {
+      return res.status(404).json({ error: 'Deduction not found' });
+    }
+
+    if (deduction.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Deduction has already been processed' });
+    }
+
+    // Use transaction to update deduction status and deduct from inventory
+    const result = await prisma.$transaction(async (tx) => {
+      // Update deduction status
+      const updatedDeduction = await tx.inventoryDeduction.update({
+        where: { id },
+        data: { status: 'APPROVED' },
+        include: {
+          ticket: {
+            select: {
+              id: true,
+              ticketNumber: true,
+              subject: true,
+            },
+          },
+          inventoryItem: true,
+        },
+      });
+
+      // If matched to an inventory item, deduct the quantity
+      if (deduction.inventoryItemId) {
+        const newQuantity = Math.max(0, deduction.inventoryItem.quantity - deduction.quantity);
+        const newThreshold = deduction.inventoryItem.threshold;
+        const isLow = newQuantity <= newThreshold;
+
+        await tx.inventoryItem.update({
+          where: { id: deduction.inventoryItemId },
+          data: {
+            quantity: newQuantity,
+            isLow,
+          },
+        });
+      }
+
+      return updatedDeduction;
+    });
+
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// PUT /api/inventory/deductions/:id/reject
+// Reject a deduction
+async function rejectDeduction(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    // Find the deduction
+    const deduction = await prisma.inventoryDeduction.findUnique({
+      where: { id },
+    });
+
+    if (!deduction) {
+      return res.status(404).json({ error: 'Deduction not found' });
+    }
+
+    if (deduction.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Deduction has already been processed' });
+    }
+
+    // Update deduction status
+    const updatedDeduction = await prisma.inventoryDeduction.update({
+      where: { id },
+      data: { status: 'REJECTED' },
+      include: {
+        ticket: {
+          select: {
+            id: true,
+            ticketNumber: true,
+            subject: true,
+          },
+        },
+        inventoryItem: true,
+      },
+    });
+
+    res.json(updatedDeduction);
+  } catch (error) {
+    next(error);
+  }
+}
+
+// GET /api/tickets/:ticketId/inventory-deductions
+// Get all deductions for a specific ticket
+async function getTicketDeductions(req, res, next) {
+  try {
+    const { ticketId } = req.params;
+
+    const deductions = await prisma.inventoryDeduction.findMany({
+      where: { ticketId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        inventoryItem: {
+          select: {
+            id: true,
+            name: true,
+            quantity: true,
+            category: true,
+          },
+        },
+      },
+    });
+
+    res.json({ deductions });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   getItems,
   createItem,
   updateItem,
   deleteItem,
+  getPendingDeductions,
+  approveDeduction,
+  rejectDeduction,
+  getTicketDeductions,
 };

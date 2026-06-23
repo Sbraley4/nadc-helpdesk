@@ -19,6 +19,7 @@ const {
   deleteTicketSchedule,
   updateTicketSchedule,
 } = require('../controllers/ticketController');
+const { getTicketDeductions } = require('../controllers/inventoryController');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/requireRole');
 const { validate, createTicketValidation, updateTicketValidation } = require('../middleware/validate');
@@ -67,5 +68,8 @@ router.get('/:id/schedules', getTicketSchedules);
 router.post('/:id/schedules', createTicketSchedule);
 router.put('/:id/schedules/:scheduleId', updateTicketSchedule);
 router.delete('/:id/schedules/:scheduleId', deleteTicketSchedule);
+
+// Inventory deductions for this ticket
+router.get('/:id/inventory-deductions', getTicketDeductions);
 
 module.exports = router;

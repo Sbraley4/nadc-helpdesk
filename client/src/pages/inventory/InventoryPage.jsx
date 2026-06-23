@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Package,
@@ -6,7 +7,12 @@ import {
   Trash2,
   AlertTriangle,
   Search,
+  CheckCircle,
+  XCircle,
+  Sparkles,
+  ExternalLink,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { inventory } from '../../api';
 import {
   Button,
@@ -34,6 +40,11 @@ export default function InventoryPage() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // Pending deductions state
+  const [pendingDeductions, setPendingDeductions] = useState([]);
+  const [loadingDeductions, setLoadingDeductions] = useState(true);
+  const [processingDeduction, setProcessingDeduction] = useState(null);
+
   const [form, setForm] = useState({
     name: '',
     category: '',
@@ -44,7 +55,47 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchItems();
+    fetchPendingDeductions();
   }, [search, categoryFilter, page]);
+
+  const fetchPendingDeductions = async () => {
+    setLoadingDeductions(true);
+    try {
+      const data = await inventory.getPendingDeductions();
+      setPendingDeductions(data.deductions || []);
+    } catch (error) {
+      console.error('Failed to fetch pending deductions:', error);
+    } finally {
+      setLoadingDeductions(false);
+    }
+  };
+
+  const handleApproveDeduction = async (deductionId) => {
+    setProcessingDeduction(deductionId);
+    try {
+      await inventory.approveDeduction(deductionId);
+      toast.success('Deduction approved and inventory updated');
+      fetchPendingDeductions();
+      fetchItems(); // Refresh inventory to show updated quantities
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve deduction');
+    } finally {
+      setProcessingDeduction(null);
+    }
+  };
+
+  const handleRejectDeduction = async (deductionId) => {
+    setProcessingDeduction(deductionId);
+    try {
+      await inventory.rejectDeduction(deductionId);
+      toast.success('Deduction rejected');
+      fetchPendingDeductions();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject deduction');
+    } finally {
+      setProcessingDeduction(null);
+    }
+  };
 
   const fetchItems = async () => {
     setLoading(true);
@@ -190,6 +241,97 @@ export default function InventoryPage() {
           className="w-full md:w-48"
         />
       </div>
+
+      {/* Pending Suggestions Section */}
+      {!loadingDeductions && pendingDeductions.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg border border-amber-200 p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles size={20} className="text-amber-600" />
+            <h3 className="text-lg font-semibold text-amber-800">
+              Pending Inventory Suggestions
+            </h3>
+            <Badge variant="warning" className="ml-2">
+              {pendingDeductions.length} pending
+            </Badge>
+          </div>
+          <p className="text-sm text-amber-700 mb-4">
+            These inventory deductions were detected from internal notes. Review and approve or reject each suggestion.
+          </p>
+          <div className="space-y-3">
+            {pendingDeductions.map((deduction) => (
+              <div
+                key={deduction.id}
+                className="bg-white rounded-lg border border-amber-200 p-4 flex flex-col md:flex-row md:items-center gap-4"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link
+                      to={`/tickets/${deduction.ticket?.id}`}
+                      className="text-sm font-medium text-primary hover:underline flex items-center gap-1"
+                    >
+                      #{deduction.ticket?.ticketNumber}
+                      <ExternalLink size={12} />
+                    </Link>
+                    <span className="text-gray-400">|</span>
+                    <span className="text-sm text-gray-600 truncate">
+                      {deduction.ticket?.subject}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-900">
+                      {deduction.quantity}x {deduction.itemName}
+                    </span>
+                    {deduction.inventoryItem ? (
+                      <Badge variant="success" className="flex items-center gap-1">
+                        <CheckCircle size={12} />
+                        Matched: {deduction.inventoryItem.name}
+                      </Badge>
+                    ) : (
+                      <Badge variant="warning" className="flex items-center gap-1">
+                        <AlertTriangle size={12} />
+                        No match found
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleRejectDeduction(deduction.id)}
+                    disabled={processingDeduction === deduction.id}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                  >
+                    {processingDeduction === deduction.id ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <>
+                        <XCircle size={16} className="mr-1" />
+                        Reject
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleApproveDeduction(deduction.id)}
+                    disabled={processingDeduction === deduction.id || !deduction.inventoryItem}
+                    title={!deduction.inventoryItem ? 'Cannot approve without matched inventory item' : ''}
+                  >
+                    {processingDeduction === deduction.id ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <>
+                        <CheckCircle size={16} className="mr-1" />
+                        Approve
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Inventory List */}
       {loading ? (

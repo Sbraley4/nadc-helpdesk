@@ -6,6 +6,9 @@ const {
   createItem,
   updateItem,
   deleteItem,
+  getPendingDeductions,
+  approveDeduction,
+  rejectDeduction,
 } = require('../controllers/inventoryController');
 
 // All routes require authentication
@@ -22,5 +25,15 @@ router.put('/:id', updateItem);
 
 // DELETE /api/inventory/:id
 router.delete('/:id', deleteItem);
+
+// Deduction routes
+// GET /api/inventory/deductions - get all pending deductions
+router.get('/deductions', getPendingDeductions);
+
+// PUT /api/inventory/deductions/:id/approve - approve a deduction
+router.put('/deductions/:id/approve', approveDeduction);
+
+// PUT /api/inventory/deductions/:id/reject - reject a deduction
+router.put('/deductions/:id/reject', rejectDeduction);
 
 module.exports = router;

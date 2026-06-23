@@ -220,7 +220,8 @@ model Ticket {
   checklistItems      TicketChecklistItem[]
   devices             TicketDevice[]
   satisfactionRating  SatisfactionRating?
-  schedules           TicketSchedule[]
+  schedules             TicketSchedule[]
+  inventoryDeductions   InventoryDeduction[]
 }
 
 // TicketReply
@@ -701,4 +702,22 @@ model InventoryItem {
   isLow     Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  deductions InventoryDeduction[]
+}
+
+// InventoryDeduction - AI-suggested inventory deductions from ticket notes
+model InventoryDeduction {
+  id              String         @id @default(cuid())
+  inventoryItemId String?        // null if AI couldn't match to an existing item
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  ticketId        String
+  ticket          Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  replyId         String?        // the internal note that triggered this
+  itemName        String         // raw name from the note
+  quantity        Int
+  status          String         @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }

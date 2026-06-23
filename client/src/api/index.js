@@ -220,6 +220,11 @@ export const inventory = {
   createItem: (data) => client.post('/api/inventory', data).then((r) => r.data),
   updateItem: (id, data) => client.put('/api/inventory/' + id, data).then((r) => r.data),
   deleteItem: (id) => client.delete('/api/inventory/' + id).then((r) => r.data),
+  // Deduction suggestions
+  getPendingDeductions: () => client.get('/api/inventory/deductions').then((r) => r.data),
+  approveDeduction: (id) => client.put('/api/inventory/deductions/' + id + '/approve').then((r) => r.data),
+  rejectDeduction: (id) => client.put('/api/inventory/deductions/' + id + '/reject').then((r) => r.data),
+  getTicketDeductions: (ticketId) => client.get('/api/tickets/' + ticketId + '/inventory-deductions').then((r) => r.data),
 };
 
 export const kb = {
