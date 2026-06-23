@@ -815,75 +815,51 @@ export default function CalendarPage() {
 
   // Handle resizing of events
   const handleEventResize = async (resizeInfo) => {
-    console.log('eventResize fired', resizeInfo);
+    console.log('eventResize fired');
     try {
-      console.log('step 1 - getting event');
       const event = resizeInfo.event;
-      console.log('step 2 - event:', event);
-
-      console.log('step 3 - getting extendedProps');
       const props = event?.extendedProps || {};
-      console.log('step 4 - props:', props);
+      const endDelta = resizeInfo.endDelta;
 
-      console.log('step 5 - props.type:', props.type);
-      console.log('step 6 - props.scheduleId:', props.scheduleId);
-      console.log('step 7 - props.ticketId:', props.ticketId);
-      console.log('step 8 - props.eventId:', props.eventId);
+      let endDateToSave;
 
-      console.log('step 9 - getting endDateToSave');
-      let endDateToSave = event?.end;
-      console.log('step 10 - endDateToSave:', endDateToSave);
-
-      console.log('step 11 - checking isTrulyAllDay');
-      const isTrulyAllDay = event?.allDay && !props.promotedToAllDay;
-      console.log('step 12 - isTrulyAllDay:', isTrulyAllDay);
-
-      if (isTrulyAllDay && event?.end) {
-        console.log('step 13 - adjusting end date for all-day event');
+      // For auto-promoted all-day events, calculate new end from original scheduledEnd + delta
+      // (event.end is unreliable because FullCalendar treats it as a date-only value)
+      if (props.promotedToAllDay && props.scheduledEnd && endDelta) {
+        const originalEnd = new Date(props.scheduledEnd);
+        originalEnd.setDate(originalEnd.getDate() + (endDelta.days || 0));
+        endDateToSave = originalEnd;
+      }
+      // For truly all-day events (from DB), FullCalendar uses exclusive end dates
+      // so we subtract 1 day when saving back
+      else if (event?.allDay && !props.promotedToAllDay && event?.end) {
         const adjustedEnd = new Date(event.end);
         adjustedEnd.setDate(adjustedEnd.getDate() - 1);
         endDateToSave = adjustedEnd;
-        console.log('step 14 - adjusted endDateToSave:', endDateToSave);
+      }
+      // For timed events, use event.end directly
+      else {
+        endDateToSave = event?.end;
       }
 
-      console.log('step 15 - checking branch conditions');
       if (props.type === 'ticket' && props.scheduleId) {
-        console.log('step 16 - TICKET BRANCH');
-        console.log('step 17 - scheduledStart:', event?.start?.toISOString?.());
-        console.log('step 18 - scheduledEnd:', endDateToSave?.toISOString?.());
-
-        console.log('step 19 - calling ticketsApi.updateSchedule');
-        const result = await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
+        await ticketsApi.updateSchedule(props.ticketId, props.scheduleId, {
           scheduledStart: event.start.toISOString(),
           scheduledEnd: endDateToSave.toISOString(),
         });
-        console.log('step 20 - updateSchedule result:', result);
         toast.success('Schedule updated');
         fetchCalendarData();
 
       } else if (props.type === 'event') {
-        console.log('step 16 - EVENT BRANCH');
-        console.log('step 17 - startTime:', event?.start?.toISOString?.());
-        console.log('step 18 - endTime:', endDateToSave?.toISOString?.());
-
-        console.log('step 19 - calling calendarEvents.updateEvent');
-        const result = await calendarEvents.updateEvent(props.eventId, {
+        await calendarEvents.updateEvent(props.eventId, {
           startTime: event.start.toISOString(),
           endTime: endDateToSave.toISOString(),
         });
-        console.log('step 20 - updateEvent result:', result);
         toast.success('Event updated');
         fetchCalendarData();
-
-      } else {
-        console.log('step 16 - NO BRANCH MATCHED');
-        console.log('props.type:', props.type, 'props.scheduleId:', props.scheduleId);
       }
-
-      console.log('step 21 - handleEventResize completed successfully');
     } catch (err) {
       console.error('handleEventResize ERROR:', err);
-      console.error('handleEventResize ERROR stack:', err?.stack);
       toast.error('Failed to resize event');
       resizeInfo.revert();
     }
