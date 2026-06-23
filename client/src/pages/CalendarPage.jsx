@@ -705,7 +705,8 @@ export default function CalendarPage() {
   // Handle drag-and-drop of events
   const handleEventDrop = async (dropInfo) => {
     const event = dropInfo.event;
-    const props = event.extendedProps;
+    const props = event?.extendedProps || {};
+    console.log('handleEventDrop - props:', props);
     const dragStart = dragStartInfoRef.current;
 
     // Check if event actually moved - if not, treat as a tap (show context menu)
@@ -816,7 +817,8 @@ export default function CalendarPage() {
   const handleEventResize = async (resizeInfo) => {
     console.log('eventResize fired', resizeInfo);
     const event = resizeInfo.event;
-    const props = event.extendedProps;
+    const props = event?.extendedProps || {};
+    console.log('handleEventResize - props:', props);
 
     // DEBUG: Log props.type and props.scheduleId
     console.log('handleEventResize - props.type:', props.type);
