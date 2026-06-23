@@ -1,14 +1,20 @@
 const OFFICE_ADDRESS = '9250 Mosby St, Manassas VA 20110';
 const ORS_BASE_URL = 'https://api.openrouteservice.org';
+const ORS_API_KEY = process.env.ORS_API_KEY;
 
 // Geocode an address to coordinates using OpenRouteService
 async function geocodeAddress(address) {
+  if (!ORS_API_KEY) {
+    throw new Error('ORS_API_KEY environment variable is not set');
+  }
+
   const encodedAddress = encodeURIComponent(address);
-  const url = `${ORS_BASE_URL}/geocode/search?text=${encodedAddress}&boundary.country=US&size=1`;
+  const url = `${ORS_BASE_URL}/geocode/search?text=${encodedAddress}&boundary.country=US&size=1&api_key=${ORS_API_KEY}`;
 
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/json',
+      'Authorization': ORS_API_KEY,
     },
   });
 
@@ -28,11 +34,12 @@ async function geocodeAddress(address) {
 
 // Calculate driving distance between two points using OpenRouteService
 async function getDistance(originCoords, destCoords) {
-  const url = `${ORS_BASE_URL}/v2/directions/driving-car?start=${originCoords.lon},${originCoords.lat}&end=${destCoords.lon},${destCoords.lat}`;
+  const url = `${ORS_BASE_URL}/v2/directions/driving-car?api_key=${ORS_API_KEY}&start=${originCoords.lon},${originCoords.lat}&end=${destCoords.lon},${destCoords.lat}`;
 
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/json',
+      'Authorization': ORS_API_KEY,
     },
   });
 
