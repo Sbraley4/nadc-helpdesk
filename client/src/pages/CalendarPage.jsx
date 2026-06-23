@@ -815,7 +815,6 @@ export default function CalendarPage() {
 
   // Handle resizing of events
   const handleEventResize = async (resizeInfo) => {
-    console.log('eventResize fired');
     try {
       const event = resizeInfo.event;
       const props = event?.extendedProps || {};
