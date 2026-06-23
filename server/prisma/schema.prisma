@@ -188,6 +188,9 @@ model Ticket {
   resolutionSummary         String?      @db.Text
   reviewRequestedAt         DateTime?
   reviewRequestScheduledFor DateTime?
+  mileage                   Float?       // actual/override mileage in miles
+  mileageAuto               Float?       // auto-calculated mileage
+  mileageNotes              String?      // optional notes about the trip
   requesterId               String
   companyId                 String?
   assigneeId                String?

@@ -7,6 +7,7 @@ const {
   sendStatusChangeToAgent,
 } = require('../services/emailService');
 const { runAutomations } = require('../services/automationEngine');
+const { calculateMileage: calculateMileageFromService } = require('../services/mileageService');
 
 const prisma = new PrismaClient();
 
@@ -493,6 +494,8 @@ const updateTicket = async (req, res, next) => {
       scheduledEnd,
       tagIds,
       slaBreached,
+      mileage,
+      mileageNotes,
     } = req.body;
 
     // Get existing ticket with current assignees
@@ -644,6 +647,14 @@ const updateTicket = async (req, res, next) => {
 
     if (slaBreached !== undefined) {
       updateData.slaBreached = slaBreached;
+    }
+
+    if (mileage !== undefined) {
+      updateData.mileage = mileage;
+    }
+
+    if (mileageNotes !== undefined) {
+      updateData.mileageNotes = mileageNotes;
     }
 
     // Execute update in transaction
@@ -1330,6 +1341,69 @@ const updateTicketSchedule = async (req, res, next) => {
   }
 };
 
+/**
+ * POST /api/tickets/:id/calculate-mileage
+ * Calculate round-trip mileage from office to ticket's company/contact address
+ */
+const calculateMileage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    // Get ticket with company and requester info
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        company: { select: { id: true, name: true, address: true } },
+        requester: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    // Get destination address from company
+    const destinationAddress = ticket.company?.address;
+
+    if (!destinationAddress) {
+      return res.status(400).json({
+        error: 'No address found. Please add an address to the company.'
+      });
+    }
+
+    // Calculate mileage using the service
+    const mileage = await calculateMileageFromService(destinationAddress);
+
+    // Save both auto-calculated and mileage fields
+    const updatedTicket = await prisma.ticket.update({
+      where: { id },
+      data: {
+        mileageAuto: mileage,
+        mileage: mileage, // Set initial mileage to auto value
+      },
+    });
+
+    // Create activity log
+    await prisma.ticketActivity.create({
+      data: {
+        ticketId: id,
+        type: 'mileage_calculated',
+        description: `Mileage calculated: ${mileage} miles (round trip)`,
+        userId: req.user.id,
+      },
+    });
+
+    res.json({
+      mileage: updatedTicket.mileage,
+      mileageAuto: updatedTicket.mileageAuto,
+      destination: destinationAddress,
+    });
+  } catch (error) {
+    console.error('[Mileage] Calculation error:', error.message);
+    next(error);
+  }
+};
+
 module.exports = {
   listTickets,
   getViews,
@@ -1348,4 +1422,5 @@ module.exports = {
   createTicketSchedule,
   deleteTicketSchedule,
   updateTicketSchedule,
+  calculateMileage,
 };

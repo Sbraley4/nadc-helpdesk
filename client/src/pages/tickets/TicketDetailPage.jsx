@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory } from '../../api';
 import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
@@ -108,6 +108,12 @@ export default function TicketDetailPage() {
   const [loadingDeductions, setLoadingDeductions] = useState(false);
   const [processingDeduction, setProcessingDeduction] = useState(null);
   const [showInventory, setShowInventory] = useState(true);
+
+  // Mileage state
+  const [localMileage, setLocalMileage] = useState('');
+  const [localMileageNotes, setLocalMileageNotes] = useState('');
+  const [isCalculatingMileage, setIsCalculatingMileage] = useState(false);
+  const [showMileage, setShowMileage] = useState(true);
 
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
@@ -326,6 +332,38 @@ export default function TicketDetailPage() {
     } finally {
       setProcessingDeduction(null);
     }
+  };
+
+  // Initialize mileage state when ticket loads
+  useEffect(() => {
+    if (ticketData) {
+      setLocalMileage(ticketData.mileage?.toString() || '');
+      setLocalMileageNotes(ticketData.mileageNotes || '');
+    }
+  }, [ticketData?.id, ticketData?.mileage, ticketData?.mileageNotes]);
+
+  // Handle calculate mileage
+  const handleCalculateMileage = async () => {
+    setIsCalculatingMileage(true);
+    try {
+      const result = await tickets.calculateMileage(id);
+      setLocalMileage(result.mileage?.toString() || '');
+      queryClient.invalidateQueries(['ticket', id]);
+      toast.success(`Mileage calculated: ${result.mileage} miles`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to calculate mileage');
+    } finally {
+      setIsCalculatingMileage(false);
+    }
+  };
+
+  // Handle save mileage
+  const handleSaveMileage = () => {
+    const mileageValue = localMileage ? parseFloat(localMileage) : null;
+    updateMutation.mutate({
+      mileage: mileageValue,
+      mileageNotes: localMileageNotes || null,
+    });
   };
 
   // Delete schedule mutation
@@ -1810,6 +1848,85 @@ export default function TicketDetailPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Mileage Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <button
+              onClick={() => setShowMileage(!showMileage)}
+              className="w-full flex items-center justify-between"
+            >
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Car size={16} />
+                Mileage
+              </h3>
+              {showMileage ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {showMileage && (
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-gray-500">Round trip from office</p>
+
+                {/* Current mileage display */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs text-gray-500 mb-1">Miles</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={localMileage}
+                      onChange={(e) => setLocalMileage(e.target.value)}
+                      placeholder="0.0"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                    />
+                  </div>
+                  <div className="pt-5">
+                    <button
+                      onClick={handleCalculateMileage}
+                      disabled={isCalculatingMileage || !ticket.company?.id}
+                      className="p-2 text-primary hover:bg-primary/10 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={ticket.company?.id ? 'Calculate from company address' : 'No company address available'}
+                    >
+                      {isCalculatingMileage ? (
+                        <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full" />
+                      ) : (
+                        <Calculator size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Auto-calculated badge */}
+                {ticket.mileageAuto && (
+                  <p className="text-xs text-gray-400">
+                    Auto-calculated: {ticket.mileageAuto} mi
+                  </p>
+                )}
+
+                {/* Notes field */}
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Trip Notes</label>
+                  <textarea
+                    value={localMileageNotes}
+                    onChange={(e) => setLocalMileageNotes(e.target.value)}
+                    placeholder="Optional notes about this trip..."
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary resize-none"
+                  />
+                </div>
+
+                {/* Save button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSaveMileage}
+                  disabled={updateMutation.isPending}
+                  className="w-full"
+                >
+                  Save Mileage
+                </Button>
               </div>
             )}
           </div>

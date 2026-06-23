@@ -18,6 +18,7 @@ const {
   createTicketSchedule,
   deleteTicketSchedule,
   updateTicketSchedule,
+  calculateMileage,
 } = require('../controllers/ticketController');
 const { getTicketDeductions } = require('../controllers/inventoryController');
 const { requireAuth } = require('../middleware/auth');
@@ -71,5 +72,8 @@ router.delete('/:id/schedules/:scheduleId', deleteTicketSchedule);
 
 // Inventory deductions for this ticket
 router.get('/:id/inventory-deductions', getTicketDeductions);
+
+// Mileage calculation
+router.post('/:id/calculate-mileage', calculateMileage);
 
 module.exports = router;
