@@ -290,10 +290,10 @@ async function rejectDeduction(req, res, next) {
 // Get all deductions for a specific ticket
 async function getTicketDeductions(req, res, next) {
   try {
-    const { ticketId } = req.params;
+    const { id } = req.params;
 
     const deductions = await prisma.inventoryDeduction.findMany({
-      where: { ticketId },
+      where: { ticketId: id },
       orderBy: { createdAt: 'desc' },
       include: {
         inventoryItem: {
