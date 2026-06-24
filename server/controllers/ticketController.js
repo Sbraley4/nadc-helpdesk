@@ -803,7 +803,7 @@ const updateTicket = async (req, res, next) => {
             type: 'status_changed',
             title: `Ticket ${status}`,
             message: notificationMessage,
-            relatedTicketId: id,
+            ticketId: id,
           },
         }).catch((err) => console.error(`[Ticket] Failed to create status notification for ${agent.email}:`, err.message));
 

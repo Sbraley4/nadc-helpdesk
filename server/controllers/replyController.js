@@ -217,7 +217,7 @@ async function createReply(req, res, next) {
                 type: 'note_mention',
                 title: 'You were mentioned in a note',
                 message: `${req.user.name} mentioned you in a note on ticket #${ticket.ticketNumber}`,
-                relatedTicketId: ticketId,
+                ticketId: ticketId,
               },
             });
           }
@@ -342,7 +342,7 @@ async function createReply(req, res, next) {
             type: 'reply_added',
             title: 'New reply on your ticket',
             message: `${req.user.name} added a reply to ticket #${ticket.ticketNumber || ticketId}`,
-            relatedTicketId: ticketId,
+            ticketId: ticketId,
           },
         }).catch((err) => console.error(`[Reply] Failed to create notification for agent ${agent.id}:`, err.message));
 
