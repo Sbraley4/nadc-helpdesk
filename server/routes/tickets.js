@@ -21,6 +21,12 @@ const {
   calculateMileage,
 } = require('../controllers/ticketController');
 const { getTicketDeductions } = require('../controllers/inventoryController');
+const {
+  getTimeEntries,
+  createTimeEntry,
+  updateTimeEntry,
+  deleteTimeEntry,
+} = require('../controllers/timeEntryController');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../middleware/requireRole');
 const { validate, createTicketValidation, updateTicketValidation } = require('../middleware/validate');
@@ -75,5 +81,11 @@ router.get('/:id/inventory-deductions', getTicketDeductions);
 
 // Mileage calculation
 router.post('/:id/calculate-mileage', calculateMileage);
+
+// Time entries
+router.get('/:id/time-entries', getTimeEntries);
+router.post('/:id/time-entries', createTimeEntry);
+router.put('/:id/time-entries/:entryId', updateTimeEntry);
+router.delete('/:id/time-entries/:entryId', deleteTimeEntry);
 
 module.exports = router;

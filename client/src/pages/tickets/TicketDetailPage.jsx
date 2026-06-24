@@ -116,6 +116,16 @@ export default function TicketDetailPage() {
   const [isCalculatingMileage, setIsCalculatingMileage] = useState(false);
   const [showMileage, setShowMileage] = useState(true);
 
+  // Time tracking state
+  const [showTimeTracking, setShowTimeTracking] = useState(true);
+  const [showTimeForm, setShowTimeForm] = useState(false);
+  const [timeFormDate, setTimeFormDate] = useState(new Date().toISOString().split('T')[0]);
+  const [timeFormAgentId, setTimeFormAgentId] = useState('');
+  const [timeFormStartTime, setTimeFormStartTime] = useState('');
+  const [timeFormEndTime, setTimeFormEndTime] = useState('');
+  const [timeFormNotes, setTimeFormNotes] = useState('');
+  const [editingTimeEntryId, setEditingTimeEntryId] = useState(null);
+
   // Helper function to format note body with preserved line breaks
   const formatNoteBody = (body, isExpanded = true) => {
     if (!body) return '';
@@ -303,9 +313,20 @@ export default function TicketDetailPage() {
     enabled: !!id,
   });
 
+  // Fetch time entries
+  const { data: timeEntriesData, refetch: refetchTimeEntries } = useQuery({
+    queryKey: ['time-entries', id],
+    queryFn: () => timeEntries.getTimeEntries(id),
+    enabled: !!id,
+  });
+
   const checklistItems = checklistData?.items || [];
   const schedulesList = schedulesData?.schedules || [];
   const deductionsList = deductionsData?.deductions || [];
+  const timeEntriesList = timeEntriesData?.entries || [];
+  const totalTimeHours = timeEntriesData?.totalHours || 0;
+  const totalTimeFormatted = timeEntriesData?.totalFormatted || '0h 0m';
+  const agentTimeBreakdown = timeEntriesData?.agentBreakdown || {};
 
   // Handle approve deduction
   const handleApproveDeduction = async (deductionId) => {
@@ -503,7 +524,7 @@ export default function TicketDetailPage() {
     },
   });
 
-  // Time entry mutation
+  // Time entry mutation (inline with notes)
   const createTimeEntryMutation = useMutation({
     mutationFn: (data) => timeEntries.createTimeEntry(id, data),
     onSuccess: () => {
@@ -517,6 +538,93 @@ export default function TicketDetailPage() {
       toast.error(error.response?.data?.error || 'Failed to log time');
     },
   });
+
+  // Sidebar time entry mutations
+  const createSidebarTimeEntryMutation = useMutation({
+    mutationFn: (data) => timeEntries.createTimeEntry(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['time-entries', id]);
+      toast.success('Time entry added');
+      resetTimeForm();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to add time entry');
+    },
+  });
+
+  const updateTimeEntryMutation = useMutation({
+    mutationFn: ({ entryId, data }) => timeEntries.updateTimeEntry(id, entryId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['time-entries', id]);
+      toast.success('Time entry updated');
+      resetTimeForm();
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to update time entry');
+    },
+  });
+
+  const deleteTimeEntryMutation = useMutation({
+    mutationFn: (entryId) => timeEntries.deleteTimeEntry(id, entryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['time-entries', id]);
+      toast.success('Time entry deleted');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to delete time entry');
+    },
+  });
+
+  // Reset time form
+  const resetTimeForm = () => {
+    setShowTimeForm(false);
+    setEditingTimeEntryId(null);
+    setTimeFormDate(new Date().toISOString().split('T')[0]);
+    setTimeFormAgentId('');
+    setTimeFormStartTime('');
+    setTimeFormEndTime('');
+    setTimeFormNotes('');
+  };
+
+  // Calculate duration preview
+  const calculateDurationPreview = () => {
+    if (!timeFormStartTime || !timeFormEndTime) return '';
+    const [startH, startM] = timeFormStartTime.split(':').map(Number);
+    const [endH, endM] = timeFormEndTime.split(':').map(Number);
+    let totalMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+    if (totalMinutes < 0) totalMinutes += 24 * 60;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m`;
+  };
+
+  // Handle save time entry
+  const handleSaveTimeEntry = () => {
+    const data = {
+      date: timeFormDate,
+      startTime: timeFormStartTime,
+      endTime: timeFormEndTime,
+      agentId: timeFormAgentId || user.id,
+      notes: timeFormNotes || null,
+    };
+
+    if (editingTimeEntryId) {
+      updateTimeEntryMutation.mutate({ entryId: editingTimeEntryId, data });
+    } else {
+      createSidebarTimeEntryMutation.mutate(data);
+    }
+  };
+
+  // Handle edit time entry
+  const handleEditTimeEntry = (entry) => {
+    setEditingTimeEntryId(entry.id);
+    setTimeFormDate(new Date(entry.date).toISOString().split('T')[0]);
+    setTimeFormAgentId(entry.agentId);
+    setTimeFormStartTime(entry.startTime);
+    setTimeFormEndTime(entry.endTime);
+    setTimeFormNotes(entry.notes || '');
+    setShowTimeForm(true);
+  };
   // Helper function to format time for display (e.g., "9:00am")
   const formatTimeDisplay = (time24) => {
     if (!time24) return '';
@@ -1857,6 +1965,213 @@ export default function TicketDetailPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+
+          {/* Time Tracking Section */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <button
+              onClick={() => setShowTimeTracking(!showTimeTracking)}
+              className="w-full flex items-center justify-between"
+            >
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Clock size={16} />
+                Time Tracking
+                {totalTimeHours > 0 && (
+                  <span className="text-xs text-gray-500">({totalTimeFormatted})</span>
+                )}
+              </h3>
+              {showTimeTracking ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {showTimeTracking && (
+              <div className="mt-3 space-y-3">
+                {/* Time entry list */}
+                {timeEntriesList.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {timeEntriesList.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="p-2 bg-gray-50 rounded-lg border border-gray-100 group"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span>{format(new Date(entry.date), 'MMM d')}</span>
+                              <span>•</span>
+                              <span className="font-medium">{entry.startTime} - {entry.endTime}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Avatar name={entry.agent.name} size="xs" />
+                              <span className="text-sm font-medium text-gray-900">{entry.agent.name}</span>
+                              <span className="text-sm text-primary font-semibold">
+                                {Math.floor(entry.duration)}h {Math.round((entry.duration % 1) * 60)}m
+                              </span>
+                            </div>
+                            {entry.notes && (
+                              <p className="text-xs text-gray-500 mt-1 truncate">{entry.notes}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleEditTimeEntry(entry)}
+                              className="p-1 text-gray-400 hover:text-primary rounded"
+                              title="Edit"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm('Delete this time entry?')) {
+                                  deleteTimeEntryMutation.mutate(entry.id);
+                                }
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-500 rounded"
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : !showTimeForm && (
+                  <p className="text-sm text-gray-500 italic">No time logged yet</p>
+                )}
+
+                {/* Per-agent breakdown */}
+                {Object.keys(agentTimeBreakdown).length > 0 && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Per Agent:</p>
+                    <div className="space-y-1">
+                      {Object.entries(agentTimeBreakdown).map(([agent, hours]) => (
+                        <div key={agent} className="flex items-center justify-between text-xs">
+                          <span className="text-gray-600">{agent}</span>
+                          <span className="font-medium text-gray-900">
+                            {Math.floor(hours)}h {Math.round((hours % 1) * 60)}m
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Total hours */}
+                {timeEntriesList.length > 0 && (
+                  <div className="pt-2 border-t border-gray-200 flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Total</span>
+                    <span className="text-sm font-bold text-primary">{totalTimeFormatted}</span>
+                  </div>
+                )}
+
+                {/* Add/Edit time form */}
+                {showTimeForm ? (
+                  <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+                    <p className="text-xs font-medium text-blue-700">
+                      {editingTimeEntryId ? 'Edit Time Entry' : 'Log Time'}
+                    </p>
+
+                    {/* Date */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Date</label>
+                      <input
+                        type="date"
+                        value={timeFormDate}
+                        onChange={(e) => setTimeFormDate(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                      />
+                    </div>
+
+                    {/* Agent selector */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Agent</label>
+                      <select
+                        value={timeFormAgentId || user?.id || ''}
+                        onChange={(e) => setTimeFormAgentId(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                      >
+                        {(agentsData?.agents || []).map((agent) => (
+                          <option key={agent.id} value={agent.id}>{agent.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Start/End times */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Start</label>
+                        <input
+                          type="time"
+                          value={timeFormStartTime}
+                          onChange={(e) => setTimeFormStartTime(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">End</label>
+                        <input
+                          type="time"
+                          value={timeFormEndTime}
+                          onChange={(e) => setTimeFormEndTime(e.target.value)}
+                          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Duration preview */}
+                    {timeFormStartTime && timeFormEndTime && (
+                      <div className="text-center py-1.5 bg-blue-100 rounded text-sm font-medium text-blue-700">
+                        Duration: {calculateDurationPreview()}
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Notes (optional)</label>
+                      <textarea
+                        value={timeFormNotes}
+                        onChange={(e) => setTimeFormNotes(e.target.value)}
+                        rows={2}
+                        placeholder="What was done..."
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary resize-none"
+                      />
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={resetTimeForm}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveTimeEntry}
+                        disabled={!timeFormStartTime || !timeFormEndTime}
+                        isLoading={createSidebarTimeEntryMutation.isPending || updateTimeEntryMutation.isPending}
+                        className="flex-1"
+                      >
+                        {editingTimeEntryId ? 'Update' : 'Save'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setTimeFormAgentId(user?.id || '');
+                      setShowTimeForm(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 text-sm font-medium text-primary hover:bg-primary/5 rounded-lg border border-primary/20 transition-colors"
+                  >
+                    <Plus size={14} />
+                    Log Time
+                  </button>
+                )}
               </div>
             )}
           </div>

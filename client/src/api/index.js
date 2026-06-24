@@ -113,10 +113,10 @@ export const notifications = {
 // Phase 5b APIs
 
 export const timeEntries = {
-  getTimeEntries: (ticketId) => client.get('/api/tickets/' + ticketId + '/time').then((r) => r.data),
-  createTimeEntry: (ticketId, data) => client.post('/api/tickets/' + ticketId + '/time', data).then((r) => r.data),
-  updateTimeEntry: (ticketId, entryId, data) => client.put('/api/tickets/' + ticketId + '/time/' + entryId, data).then((r) => r.data),
-  deleteTimeEntry: (ticketId, entryId) => client.delete('/api/tickets/' + ticketId + '/time/' + entryId).then((r) => r.data),
+  getTimeEntries: (ticketId) => client.get('/api/tickets/' + ticketId + '/time-entries').then((r) => r.data),
+  createTimeEntry: (ticketId, data) => client.post('/api/tickets/' + ticketId + '/time-entries', data).then((r) => r.data),
+  updateTimeEntry: (ticketId, entryId, data) => client.put('/api/tickets/' + ticketId + '/time-entries/' + entryId, data).then((r) => r.data),
+  deleteTimeEntry: (ticketId, entryId) => client.delete('/api/tickets/' + ticketId + '/time-entries/' + entryId).then((r) => r.data),
 };
 
 export const materialEntries = {

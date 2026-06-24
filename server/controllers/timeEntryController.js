@@ -1,16 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Format total time as "Xh Ym"
-function formatTime(totalHours, totalMinutes) {
-  const hours = totalHours + Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
+// Calculate duration in hours from startTime and endTime
+function calculateDuration(startTime, endTime) {
+  if (!startTime || !endTime) return 0;
+  const [startHours, startMinutes] = startTime.split(':').map(Number);
+  const [endHours, endMinutes] = endTime.split(':').map(Number);
+  let totalMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+  if (totalMinutes < 0) totalMinutes += 24 * 60; // Handle overnight
+  return Math.round((totalMinutes / 60) * 100) / 100; // Round to 2 decimals
 }
 
-// GET /api/tickets/:ticketId/time
+// GET /api/tickets/:ticketId/time-entries
 async function getTimeEntries(req, res, next) {
   try {
     const { ticketId } = req.params;
@@ -33,34 +34,43 @@ async function getTimeEntries(req, res, next) {
       orderBy: { date: 'desc' },
     });
 
-    // Calculate totals
-    const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
-    const totalMinutes = entries.reduce((sum, e) => sum + e.minutes, 0);
-    const totalFormatted = formatTime(totalHours, totalMinutes);
+    // Calculate total hours
+    const totalHours = entries.reduce((sum, e) => sum + e.duration, 0);
+    const totalFormatted = `${Math.floor(totalHours)}h ${Math.round((totalHours % 1) * 60)}m`;
+
+    // Calculate per-agent breakdown
+    const agentBreakdown = {};
+    entries.forEach((entry) => {
+      const agentName = entry.agent.name;
+      if (!agentBreakdown[agentName]) {
+        agentBreakdown[agentName] = 0;
+      }
+      agentBreakdown[agentName] += entry.duration;
+    });
 
     res.json({
       entries,
       totalHours,
-      totalMinutes,
       totalFormatted,
+      agentBreakdown,
     });
   } catch (error) {
     next(error);
   }
 }
 
-// POST /api/tickets/:ticketId/time
+// POST /api/tickets/:ticketId/time-entries
 async function createTimeEntry(req, res, next) {
   try {
     const { ticketId } = req.params;
-    const { date, hours = 0, minutes = 0, description } = req.body;
+    const { date, startTime, endTime, agentId, notes } = req.body;
 
     // Validate
     if (!date) {
       return res.status(400).json({ error: 'Date is required' });
     }
-    if (hours + minutes <= 0) {
-      return res.status(400).json({ error: 'Time must be greater than 0' });
+    if (!startTime || !endTime) {
+      return res.status(400).json({ error: 'Start time and end time are required' });
     }
 
     // Verify ticket exists
@@ -71,14 +81,24 @@ async function createTimeEntry(req, res, next) {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    // Calculate duration
+    const duration = calculateDuration(startTime, endTime);
+    if (duration <= 0) {
+      return res.status(400).json({ error: 'Duration must be greater than 0' });
+    }
+
+    // Use provided agentId or current user
+    const actualAgentId = agentId || req.user.id;
+
     const entry = await prisma.timeEntry.create({
       data: {
         ticketId,
-        agentId: req.user.id,
+        agentId: actualAgentId,
         date: new Date(date),
-        hours: parseInt(hours, 10),
-        minutes: parseInt(minutes, 10),
-        description,
+        startTime,
+        endTime,
+        duration,
+        notes,
       },
       include: {
         agent: {
@@ -88,18 +108,17 @@ async function createTimeEntry(req, res, next) {
     });
 
     // Create activity log
-    const timeLogged = formatTime(parseInt(hours, 10), parseInt(minutes, 10));
-    const activityDesc = description
-      ? `Time logged: ${timeLogged} — ${description}`
-      : `Time logged: ${timeLogged}`;
+    const hours = Math.floor(duration);
+    const minutes = Math.round((duration % 1) * 60);
+    const timeLogged = minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
 
     await prisma.ticketActivity.create({
       data: {
         ticketId,
         type: 'time_logged',
-        description: activityDesc,
+        description: `Time logged: ${timeLogged} (${startTime} - ${endTime})`,
         userId: req.user.id,
-        metadata: { hours, minutes, description },
+        metadata: { startTime, endTime, duration, notes },
       },
     });
 
@@ -109,11 +128,11 @@ async function createTimeEntry(req, res, next) {
   }
 }
 
-// PUT /api/tickets/:ticketId/time/:entryId
+// PUT /api/tickets/:ticketId/time-entries/:entryId
 async function updateTimeEntry(req, res, next) {
   try {
     const { ticketId, entryId } = req.params;
-    const { date, hours, minutes, description } = req.body;
+    const { date, startTime, endTime, agentId, notes } = req.body;
 
     // Find existing entry
     const existing = await prisma.timeEntry.findUnique({
@@ -135,9 +154,15 @@ async function updateTimeEntry(req, res, next) {
 
     const updateData = {};
     if (date !== undefined) updateData.date = new Date(date);
-    if (hours !== undefined) updateData.hours = parseInt(hours, 10);
-    if (minutes !== undefined) updateData.minutes = parseInt(minutes, 10);
-    if (description !== undefined) updateData.description = description;
+    if (startTime !== undefined) updateData.startTime = startTime;
+    if (endTime !== undefined) updateData.endTime = endTime;
+    if (agentId !== undefined) updateData.agentId = agentId;
+    if (notes !== undefined) updateData.notes = notes;
+
+    // Recalculate duration if times changed
+    const newStartTime = startTime !== undefined ? startTime : existing.startTime;
+    const newEndTime = endTime !== undefined ? endTime : existing.endTime;
+    updateData.duration = calculateDuration(newStartTime, newEndTime);
 
     const entry = await prisma.timeEntry.update({
       where: { id: entryId },
@@ -155,7 +180,7 @@ async function updateTimeEntry(req, res, next) {
   }
 }
 
-// DELETE /api/tickets/:ticketId/time/:entryId
+// DELETE /api/tickets/:ticketId/time-entries/:entryId
 async function deleteTimeEntry(req, res, next) {
   try {
     const { ticketId, entryId } = req.params;
