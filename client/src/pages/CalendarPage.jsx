@@ -287,6 +287,17 @@ export default function CalendarPage() {
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [rescheduleTicket, setRescheduleTicket] = useState(null); // { ticketId, scheduleId, ticketNumber, subject, currentStart, currentEnd }
 
+  // Tooltip state for calendar event preview
+  const [tooltip, setTooltip] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    eventData: null, // { type, ticketNumber, subject, company, status, statusColor, assignee, additionalAssignees }
+  });
+  const tooltipTimeoutRef = useRef(null);
+  const longPressTimeoutRef = useRef(null);
+  const isLongPressRef = useRef(false);
+
   // New ticket modal state
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
   const [newTicketDate, setNewTicketDate] = useState(null);
@@ -864,9 +875,164 @@ export default function CalendarPage() {
     }
   };
 
+  // Tooltip position calculation to stay within viewport
+  const calculateTooltipPosition = (mouseX, mouseY) => {
+    const tooltipWidth = 280;
+    const tooltipHeight = 180;
+    const padding = 12;
+
+    let x = mouseX + padding;
+    let y = mouseY + padding;
+
+    // Keep tooltip within viewport horizontally
+    if (x + tooltipWidth > window.innerWidth) {
+      x = mouseX - tooltipWidth - padding;
+    }
+    if (x < padding) {
+      x = padding;
+    }
+
+    // Keep tooltip within viewport vertically
+    if (y + tooltipHeight > window.innerHeight) {
+      y = mouseY - tooltipHeight - padding;
+    }
+    if (y < padding) {
+      y = padding;
+    }
+
+    return { x, y };
+  };
+
+  // Show tooltip for an event
+  const showTooltip = (eventProps, mouseX, mouseY) => {
+    const { x, y } = calculateTooltipPosition(mouseX, mouseY);
+    setTooltip({
+      visible: true,
+      x,
+      y,
+      eventData: eventProps,
+    });
+  };
+
+  // Hide tooltip
+  const hideTooltip = () => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
+    }
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    setTooltip(prev => ({ ...prev, visible: false }));
+  };
+
+  // Desktop hover handlers
+  const handleEventMouseEnter = (eventProps, e) => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    tooltipTimeoutRef.current = setTimeout(() => {
+      showTooltip(eventProps, e.clientX, e.clientY);
+    }, 250); // 250ms delay
+  };
+
+  const handleEventMouseLeave = () => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+      tooltipTimeoutRef.current = null;
+    }
+    hideTooltip();
+  };
+
+  const handleEventMouseMove = (eventProps, e) => {
+    // Update tooltip position if already visible
+    if (tooltip.visible) {
+      const { x, y } = calculateTooltipPosition(e.clientX, e.clientY);
+      setTooltip(prev => ({ ...prev, x, y }));
+    }
+  };
+
+  // Mobile long-press handlers
+  const handleEventTouchStart = (eventProps, e) => {
+    isLongPressRef.current = false;
+    const touch = e.touches[0];
+    longPressTimeoutRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      showTooltip(eventProps, touch.clientX, touch.clientY);
+    }, 500); // 500ms hold for long press
+  };
+
+  const handleEventTouchEnd = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+    // Don't immediately hide - let user see the tooltip
+    // It will be hidden when they tap elsewhere
+  };
+
+  const handleEventTouchMove = () => {
+    // Cancel long press if user moves finger
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  // Hide tooltip when clicking/tapping outside
+  useEffect(() => {
+    if (!tooltip.visible) return;
+
+    const handleOutsideClick = () => {
+      hideTooltip();
+    };
+
+    // Small delay to prevent immediate dismissal
+    const timer = setTimeout(() => {
+      document.addEventListener('click', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('click', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [tooltip.visible]);
+
+  // Status badge styling consistent with Badge component
+  const getStatusBadgeClasses = (status) => {
+    const statusLower = status?.toLowerCase();
+    const variants = {
+      open: 'bg-blue-100 text-blue-800',
+      pending: 'bg-gray-200 text-gray-700',
+      resolved: 'bg-slate-100 text-slate-700',
+      invoiced: 'bg-green-100 text-green-800',
+      posted: 'bg-pink-100 text-pink-800',
+      closed: 'bg-gray-100 text-gray-600',
+    };
+    return variants[statusLower] || 'bg-gray-100 text-gray-700';
+  };
+
   // Custom event rendering
   const renderEventContent = (eventInfo) => {
     const props = eventInfo.event.extendedProps;
+    // Include event title for calendar events (not in extendedProps)
+    const tooltipData = {
+      ...props,
+      title: eventInfo.event.title,
+    };
+
+    // Common tooltip event handlers
+    const tooltipHandlers = {
+      onMouseEnter: (e) => handleEventMouseEnter(tooltipData, e),
+      onMouseLeave: handleEventMouseLeave,
+      onMouseMove: (e) => handleEventMouseMove(tooltipData, e),
+      onTouchStart: (e) => handleEventTouchStart(tooltipData, e),
+      onTouchEnd: handleEventTouchEnd,
+      onTouchMove: handleEventTouchMove,
+    };
 
     if (props.type === 'ticket') {
       const agentColors = props.agentColors || [eventInfo.event.backgroundColor];
@@ -877,6 +1043,7 @@ export default function CalendarPage() {
         <div
           className="w-full h-full overflow-hidden p-0.5 rounded"
           style={stripeGradient ? { background: stripeGradient } : {}}
+          {...tooltipHandlers}
         >
           <div
             className="h-1 w-full rounded-t"
@@ -897,7 +1064,10 @@ export default function CalendarPage() {
       );
     } else {
       return (
-        <div className="w-full h-full overflow-hidden p-1">
+        <div
+          className="w-full h-full overflow-hidden p-1"
+          {...tooltipHandlers}
+        >
           <div className="flex items-center gap-1">
             <CalendarDays size={10} />
             <span className="text-[11px] leading-tight truncate font-medium">
@@ -1399,6 +1569,90 @@ export default function CalendarPage() {
           )}
         </div>
       </div>
+
+      {/* Calendar Event Tooltip */}
+      {tooltip.visible && tooltip.eventData && (
+        <div
+          className="fixed z-[60] bg-white rounded-lg shadow-xl border border-gray-200 p-3 w-[280px] pointer-events-none"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+          }}
+        >
+          {tooltip.eventData.type === 'ticket' ? (
+            <div className="space-y-2">
+              {/* Ticket Number & Subject */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-bold text-primary">#{tooltip.eventData.ticketNumber}</span>
+                  <span
+                    className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusBadgeClasses(tooltip.eventData.status)}`}
+                  >
+                    {tooltip.eventData.status}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-900 font-medium line-clamp-2">
+                  {tooltip.eventData.subject}
+                </p>
+              </div>
+
+              {/* Company/Location */}
+              {tooltip.eventData.company && (
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span className="truncate">{tooltip.eventData.company}</span>
+                </div>
+              )}
+
+              {/* Assignee(s) */}
+              <div className="flex items-start gap-2 text-xs text-gray-600">
+                <User size={14} className="flex-shrink-0 mt-0.5" />
+                <div className="flex flex-wrap gap-1">
+                  {tooltip.eventData.assignee ? (
+                    <>
+                      <span className="font-medium">{tooltip.eventData.assignee.name}</span>
+                      {tooltip.eventData.additionalAssignees?.length > 0 && (
+                        <>
+                          {tooltip.eventData.additionalAssignees.map((a, i) => (
+                            <span key={i} className="font-medium">
+                              , {a.name}
+                            </span>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <span className="italic text-gray-400">Unassigned</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Calendar Event */}
+              <div className="flex items-center gap-2 mb-1">
+                <CalendarDays size={14} className="text-purple-600" />
+                <span className="text-sm font-medium text-gray-900">{tooltip.eventData.title || 'Calendar Event'}</span>
+              </div>
+              {tooltip.eventData.description && (
+                <p className="text-xs text-gray-600 line-clamp-3">
+                  {tooltip.eventData.description}
+                </p>
+              )}
+              {tooltip.eventData.assignees?.length > 0 && (
+                <div className="flex items-start gap-2 text-xs text-gray-600">
+                  <User size={14} className="flex-shrink-0 mt-0.5" />
+                  <span className="font-medium">
+                    {tooltip.eventData.assignees.map(a => a.name).join(', ')}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Context Menu */}
       {contextMenu.visible && (
