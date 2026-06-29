@@ -120,14 +120,6 @@
             });
             console.log('[App] SW registered:', registration.scope);
 
-            // Check for updates IMMEDIATELY on page load
-            registration.update().catch(() => {});
-
-            // Also check for updates periodically (every 5 minutes)
-            setInterval(() => {
-              registration.update().catch(() => {});
-            }, 5 * 60 * 1000);
-
             // Handle updates
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
