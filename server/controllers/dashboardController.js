@@ -277,12 +277,11 @@ async function getAgentAvgResolution(agentId) {
 async function getAgentHoursLogged(agentId, since) {
   const entries = await prisma.timeEntry.aggregate({
     where: { agentId, date: { gte: since } },
-    _sum: { hours: true, minutes: true },
+    _sum: { duration: true },
   });
 
-  const hours = entries._sum.hours || 0;
-  const minutes = entries._sum.minutes || 0;
-  return Math.round((hours + minutes / 60) * 100) / 100;
+  const totalMinutes = entries._sum.duration || 0;
+  return Math.round((totalMinutes / 60) * 100) / 100;
 }
 
 async function getTopCompanies() {
@@ -348,18 +347,17 @@ async function getSatisfactionSummary() {
 async function getTimeTrackedThisMonth(monthStart) {
   const result = await prisma.timeEntry.aggregate({
     where: { date: { gte: monthStart } },
-    _sum: { hours: true, minutes: true },
+    _sum: { duration: true },
   });
 
-  const totalHours = result._sum.hours || 0;
-  const totalMinutes = result._sum.minutes || 0;
-  const adjustedHours = totalHours + Math.floor(totalMinutes / 60);
+  const totalMinutes = result._sum.duration || 0;
+  const adjustedHours = Math.floor(totalMinutes / 60);
   const adjustedMinutes = totalMinutes % 60;
 
   return {
     totalHours: adjustedHours,
     totalMinutes: adjustedMinutes,
-    formatted: formatHours(adjustedHours + adjustedMinutes / 60),
+    formatted: formatHours(totalMinutes / 60),
   };
 }
 
