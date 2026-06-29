@@ -32,13 +32,6 @@ const clearAllAuth = () => {
 // Check for existing token once at module load to set initial state
 const initialAccessToken = getToken('accessToken');
 
-// DEBUG: Log initial state
-console.log('[AuthStore] Module init:', {
-  initialAccessToken: initialAccessToken ? 'EXISTS' : 'NULL',
-  localStorage: localStorage.getItem('accessToken') ? 'HAS_TOKEN' : 'EMPTY',
-  sessionStorage: sessionStorage.getItem('accessToken') ? 'HAS_TOKEN' : 'EMPTY',
-});
-
 const useAuthStore = create((set, get) => ({
   user: null,
   accessToken: initialAccessToken,
@@ -48,11 +41,9 @@ const useAuthStore = create((set, get) => ({
   isLoading: !!initialAccessToken,
 
   login: async (email, password, rememberMe = false) => {
-    console.log('[AuthStore] login() CALLED, rememberMe:', rememberMe);
     set({ isLoading: true });
     try {
       const data = await auth.login(email, password, rememberMe);
-      console.log('[AuthStore] login() API SUCCESS');
 
       // Choose storage based on rememberMe flag
       const storage = rememberMe ? localStorage : sessionStorage;
@@ -101,21 +92,16 @@ const useAuthStore = create((set, get) => ({
   },
 
   loadUser: async () => {
-    console.log('[AuthStore] loadUser() CALLED');
     const token = get().accessToken;
-    console.log('[AuthStore] loadUser() token from store:', token ? 'EXISTS' : 'NULL');
     if (!token) {
-      console.log('[AuthStore] loadUser() NO TOKEN - setting isLoading: false');
       set({ isLoading: false });
       return;
     }
 
-    console.log('[AuthStore] loadUser() HAS TOKEN - setting isLoading: true, calling API');
     set({ isLoading: true });
     try {
       // auth.getMe() returns the user object directly (not wrapped in { user: ... })
       const user = await auth.getMe();
-      console.log('[AuthStore] loadUser() API SUCCESS - user:', user?.email);
       // Store user in same storage as token
       const storageType = getStorageType();
       if (storageType === 'localStorage') {
@@ -123,17 +109,14 @@ const useAuthStore = create((set, get) => ({
       } else if (storageType === 'sessionStorage') {
         sessionStorage.setItem('user', JSON.stringify(user));
       }
-      console.log('[AuthStore] loadUser() setting isAuthenticated: true, isLoading: false');
       set({
         user: user,
         isAuthenticated: true,
         isLoading: false,
       });
     } catch (error) {
-      console.log('[AuthStore] loadUser() API ERROR:', error?.message || error);
       // Token invalid - clear auth from both storages
       clearAllAuth();
-      console.log('[AuthStore] loadUser() setting isAuthenticated: false, isLoading: false');
       set({
         user: null,
         accessToken: null,

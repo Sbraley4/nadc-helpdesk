@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,8 +27,17 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordSubmitted, setForgotPasswordSubmitted] = useState(false);
 
-  // DEBUG: Log every render
-  console.log('[LoginPage] RENDER - authLoading:', authLoading, 'isAuthenticated:', isAuthenticated);
+  // Track if we've completed the initial auth check to prevent form remounting
+  const initialCheckDone = useRef(false);
+  const [showInitialLoading, setShowInitialLoading] = useState(authLoading);
+
+  // Once auth loading completes for the first time, never show loading overlay again
+  useEffect(() => {
+    if (!authLoading && !initialCheckDone.current) {
+      initialCheckDone.current = true;
+      setShowInitialLoading(false);
+    }
+  }, [authLoading]);
 
   const {
     register,
@@ -55,23 +64,10 @@ export default function LoginPage() {
     },
   });
 
-  // Show loading while checking existing auth token
-  if (authLoading) {
-    console.log('[LoginPage] RETURNING: Loading spinner (authLoading=true)');
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  // Redirect if already authenticated
-  if (isAuthenticated) {
-    console.log('[LoginPage] RETURNING: Navigate to /tickets (isAuthenticated=true)');
+  // Redirect if already authenticated (only check, don't block form rendering)
+  if (isAuthenticated && !authLoading) {
     return <Navigate to="/tickets" replace />;
   }
-
-  console.log('[LoginPage] RETURNING: Login form');
 
   const onSubmit = async (data) => {
     setIsSubmitting(true);
@@ -189,11 +185,18 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 relative">
+      {/* Loading overlay - only shown during initial auth check, doesn't unmount form */}
+      {showInitialLoading && (
+        <div className="absolute inset-0 bg-gray-50 flex items-center justify-center z-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      )}
+
       <div className="max-w-md w-full space-y-8">
         {/* Logo and title */}
         <div className="text-center">
-<img src="/nadclogo.png" alt="NADC" className="mx-auto h-28 w-auto" />
+          <img src="/nadclogo.png" alt="NADC" className="mx-auto h-28 w-auto" />
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
             NADC Helpdesk
           </h2>
