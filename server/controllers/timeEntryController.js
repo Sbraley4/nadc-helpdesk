@@ -14,7 +14,7 @@ function calculateDuration(startTime, endTime) {
 // GET /api/tickets/:ticketId/time-entries
 async function getTimeEntries(req, res, next) {
   try {
-    const { ticketId } = req.params;
+    const ticketId = req.params.ticketId || req.params.id;
 
     // Verify ticket exists
     const ticket = await prisma.ticket.findUnique({
@@ -62,8 +62,7 @@ async function getTimeEntries(req, res, next) {
 // POST /api/tickets/:ticketId/time-entries
 async function createTimeEntry(req, res, next) {
   try {
-    const { ticketId } = req.params;
-    console.log('[DEBUG] Time entry req.body received:', JSON.stringify(req.body, null, 2));
+    const ticketId = req.params.ticketId || req.params.id;
     const { date, startTime, endTime, agentId, notes } = req.body;
 
     // Validate
@@ -132,7 +131,8 @@ async function createTimeEntry(req, res, next) {
 // PUT /api/tickets/:ticketId/time-entries/:entryId
 async function updateTimeEntry(req, res, next) {
   try {
-    const { ticketId, entryId } = req.params;
+    const ticketId = req.params.ticketId || req.params.id;
+    const { entryId } = req.params;
     const { date, startTime, endTime, agentId, notes } = req.body;
 
     // Find existing entry
@@ -184,7 +184,8 @@ async function updateTimeEntry(req, res, next) {
 // DELETE /api/tickets/:ticketId/time-entries/:entryId
 async function deleteTimeEntry(req, res, next) {
   try {
-    const { ticketId, entryId } = req.params;
+    const ticketId = req.params.ticketId || req.params.id;
+    const { entryId } = req.params;
 
     // Find existing entry
     const existing = await prisma.timeEntry.findUnique({
