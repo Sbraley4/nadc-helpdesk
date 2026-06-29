@@ -24,8 +24,8 @@ const statusStripeColors = {
 const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
-  'Chris Lowrance': '#FACC15', // Yellow/Amber
-  'Tech 1': '#10B981',        // Emerald/Green
+  'Chris Lowrance': '#84CC16', // Lime green
+  'Tech 1': '#6366F1',        // Indigo
   'Tech 2': '#8B5CF6',        // Purple/Violet
 };
 const UNASSIGNED_COLOR = '#6B7280'; // Grey
