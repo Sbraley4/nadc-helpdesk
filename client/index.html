@@ -104,14 +104,10 @@
           }
         });
 
-        // Handle controller change (new SW activated) - AUTO REFRESH
+        // Handle controller change (new SW activated) - show banner instead of auto-reload
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          console.log('[App] New service worker controller - auto refreshing');
-          if (!refreshing) {
-            refreshing = true;
-            // Auto-reload to use the new service worker immediately
-            window.location.reload();
-          }
+          console.log('[App] New service worker controller available');
+          showUpdateNotification();
         });
 
         // Register service worker
