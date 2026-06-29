@@ -10,8 +10,8 @@ const prisma = new PrismaClient();
 const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
-  'Chris Lowrance': '#84CC16', // Lime green
-  'Tech 1': '#6366F1',        // Indigo (scheduling-only)
+  'Chris Lowrance': '#FBF12B', // Yellow
+  'Tech 1': '#000000',        // Black (scheduling-only)
   'Tech 2': '#8B5CF6',        // Purple/Violet (scheduling-only)
 };
 

@@ -11,8 +11,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 // Status stripe colors (hex for inline styles)
+// OPEN is null - no status stripe, show only agent color(s)
 const statusStripeColors = {
-  OPEN: '#EAB308',     // yellow-500
+  OPEN: null,          // No status stripe for OPEN tickets
   PENDING: '#6B7280',  // gray-500
   RESOLVED: '#64748B', // slate-500
   INVOICED: '#22C55E', // green-500
@@ -24,8 +25,8 @@ const statusStripeColors = {
 const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
-  'Chris Lowrance': '#84CC16', // Lime green
-  'Tech 1': '#6366F1',        // Indigo
+  'Chris Lowrance': '#FBF12B', // Yellow
+  'Tech 1': '#000000',        // Black
   'Tech 2': '#8B5CF6',        // Purple/Violet
 };
 const UNASSIGNED_COLOR = '#6B7280'; // Grey
@@ -65,16 +66,34 @@ const getAllAgentColors = (ticket) => {
 };
 
 // Helper to build diagonal stripe gradient for agents + status (Teamup-style)
-// Single agent: agent color, status color, repeat
-// Multi-agent: agent1, status, agent2, status, repeat
+// Single agent with status: agent color, status color, repeat
+// Multi-agent with status: agent1, status, agent2, status, repeat
+// No status (OPEN): solid agent color or agent1, agent2, repeat (no status interleaved)
 const buildTicketStripeGradient = (agentColors, statusColor) => {
   if (!agentColors || agentColors.length === 0) return null;
 
   const stripeWidth = 10; // pixels per stripe
-  const stops = [];
 
-  // Interleave agent colors with status color
+  // If no status color (e.g., OPEN tickets), show only agent colors
+  if (!statusColor) {
+    // Single agent: solid background (no gradient needed)
+    if (agentColors.length === 1) {
+      return null; // Will use backgroundColor instead
+    }
+    // Multi-agent: alternate between agent colors only
+    const stops = [];
+    let position = 0;
+    agentColors.forEach((agentColor) => {
+      stops.push(`${agentColor} ${position}px`);
+      position += stripeWidth;
+      stops.push(`${agentColor} ${position}px`);
+    });
+    return `repeating-linear-gradient(45deg, ${stops.join(', ')})`;
+  }
+
+  // With status color: interleave agent colors with status color
   // Pattern: agent1, status, agent2, status, agent3, status, ...
+  const stops = [];
   let position = 0;
   agentColors.forEach((agentColor) => {
     // Agent color stripe
@@ -1047,14 +1066,16 @@ export default function CalendarPage() {
 
     if (props.type === 'ticket') {
       const agentColors = props.agentColors || [eventInfo.event.backgroundColor];
-      const statusColor = props.statusColor || '#6B7280';
-      // Always use stripes for tickets: alternating agent color(s) and status color
+      const statusColor = props.statusColor; // null for OPEN tickets
+      // Use stripes for tickets: alternating agent color(s) and status color (if status has color)
       const stripeGradient = buildTicketStripeGradient(agentColors, statusColor);
+      // For single-agent OPEN tickets (no gradient), use solid agent color
+      const solidBackground = !stripeGradient && agentColors.length > 0 ? agentColors[0] : null;
 
       return (
         <div
           className="w-full h-full overflow-hidden p-0.5 rounded"
-          style={stripeGradient ? { background: stripeGradient } : {}}
+          style={stripeGradient ? { background: stripeGradient } : solidBackground ? { backgroundColor: solidBackground } : {}}
           {...tooltipHandlers}
         >
           <div className="text-[11px] leading-tight truncate font-medium px-1 text-white drop-shadow-sm">

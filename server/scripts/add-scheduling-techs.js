@@ -26,7 +26,7 @@ const SCHEDULING_TECHS = [
   {
     name: 'Tech 1',
     email: 'tech1@scheduling.internal',
-    color: '#6366F1', // Indigo
+    color: '#000000', // Black
   },
   {
     name: 'Tech 2',
