@@ -67,7 +67,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [trendPeriod, setTrendPeriod] = useState('30d');
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError, error } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => dashboard.getStats(),
     staleTime: 5 * 60 * 1000,
@@ -91,7 +91,28 @@ export default function DashboardPage() {
     );
   }
 
-  if (!stats) {
+  if (isError) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="bg-white rounded-lg shadow p-8 text-center">
+          <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Failed to load dashboard</h2>
+          <p className="text-gray-500 mb-4">
+            {error?.message || 'Unable to fetch dashboard statistics. Please try again.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show welcome state only when we have stats but total tickets is 0
+  if (stats && stats.ticketCounts?.total === 0) {
     return (
       <div className="p-4 md:p-6">
         <div className="bg-white rounded-lg shadow p-8 text-center">
