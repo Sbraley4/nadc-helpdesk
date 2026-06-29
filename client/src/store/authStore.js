@@ -100,16 +100,17 @@ const useAuthStore = create((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const data = await auth.getMe();
+      // auth.getMe() returns the user object directly (not wrapped in { user: ... })
+      const user = await auth.getMe();
       // Store user in same storage as token
       const storageType = getStorageType();
       if (storageType === 'localStorage') {
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify(user));
       } else if (storageType === 'sessionStorage') {
-        sessionStorage.setItem('user', JSON.stringify(data.user));
+        sessionStorage.setItem('user', JSON.stringify(user));
       }
       set({
-        user: data.user,
+        user: user,
         isAuthenticated: true,
         isLoading: false,
       });
