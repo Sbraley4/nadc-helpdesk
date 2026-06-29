@@ -138,6 +138,7 @@ export default function TicketListPage() {
             onChange={(value) => updateFilters({ search: value, page: 1 })}
             placeholder="Search..."
             className="flex-1 md:flex-none md:w-64"
+            enableRecentSearches
           />
           {/* Mobile filter toggle */}
           <button
