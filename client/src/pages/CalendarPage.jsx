@@ -4,9 +4,9 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
-import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal } from '../components/shared';
+import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal, TemplateSelectModal, DuplicateTicketModal } from '../components/shared';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -361,6 +361,10 @@ export default function CalendarPage() {
   const [ticketSearchDate, setTicketSearchDate] = useState(null);
   const [ticketSearchTime, setTicketSearchTime] = useState('09:00');
 
+  // Template and Duplicate modal state for new ticket modal
+  const [showTemplateModalForNewTicket, setShowTemplateModalForNewTicket] = useState(false);
+  const [showDuplicateModalForNewTicket, setShowDuplicateModalForNewTicket] = useState(false);
+
   // Get companies for new client modal
   const { data: companiesData } = useQuery({
     queryKey: ['companies'],
@@ -395,6 +399,33 @@ export default function CalendarPage() {
       phone: newClientForm.phone.trim() || undefined,
       companyId: newClientForm.companyId || undefined,
     });
+  };
+
+  // Handle template selection for new ticket modal
+  const handleSelectTemplateForNewTicket = (template) => {
+    setNewTicketForm(prev => ({
+      ...prev,
+      subject: template.subject || '',
+      description: template.description || '',
+      priority: template.priority || 'MEDIUM',
+      assigneeId: template.assigneeId || '',
+    }));
+    toast.success(`Template "${template.name}" applied`);
+  };
+
+  // Handle duplicate ticket selection for new ticket modal
+  const handleSelectDuplicateForNewTicket = (ticket) => {
+    setNewTicketForm(prev => ({
+      ...prev,
+      subject: ticket.subject || '',
+      description: ticket.description || '',
+      priority: ticket.priority || 'MEDIUM',
+      assigneeId: ticket.assigneeId || '',
+      contactId: ticket.requesterId || ticket.requester?.id || '',
+      companyId: ticket.companyId || ticket.company?.id || ticket.requester?.companyId || '',
+      additionalAssigneeIds: ticket.additionalAssignees?.map(a => a.id) || [],
+    }));
+    toast.success(`Ticket #${ticket.ticketNumber} duplicated`);
   };
 
   // Get date range based on current view
@@ -1786,6 +1817,30 @@ export default function CalendarPage() {
         size="lg"
       >
         <form onSubmit={handleCreateTicket} className="space-y-4">
+          {/* Templates and Duplicate buttons */}
+          <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-200">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowTemplateModalForNewTicket(true)}
+              className="flex items-center gap-2"
+            >
+              <FileText size={16} />
+              Templates
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowDuplicateModalForNewTicket(true)}
+              className="flex items-center gap-2"
+            >
+              <Copy size={16} />
+              Duplicate
+            </Button>
+          </div>
+
           {/* Date and Time */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
             <div>
@@ -2146,6 +2201,20 @@ export default function CalendarPage() {
           setShowRescheduleModal(false);
           setRescheduleTicket(null);
         }}
+      />
+
+      {/* Template Select Modal for New Ticket */}
+      <TemplateSelectModal
+        isOpen={showTemplateModalForNewTicket}
+        onClose={() => setShowTemplateModalForNewTicket(false)}
+        onSelectTemplate={handleSelectTemplateForNewTicket}
+      />
+
+      {/* Duplicate Ticket Modal for New Ticket */}
+      <DuplicateTicketModal
+        isOpen={showDuplicateModalForNewTicket}
+        onClose={() => setShowDuplicateModalForNewTicket(false)}
+        onSelectTicket={handleSelectDuplicateForNewTicket}
       />
 
       {/* Custom styles for FullCalendar */}

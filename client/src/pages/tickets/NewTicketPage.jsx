@@ -4,10 +4,10 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, CalendarRange, X, Plus } from 'lucide-react';
+import { ArrowLeft, Calendar, CalendarRange, X, Plus, FileText, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents, templates, contacts, companies, attachments } from '../../api';
-import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput, FileUpload } from '../../components/shared';
+import { Button, Input, Select, Textarea, ContactTypeahead, MultiSelectAgents, PhoneInput, FileUpload, TemplateSelectModal, DuplicateTicketModal } from '../../components/shared';
 
 const ticketSchema = z.object({
   subject: z.string().min(1, 'Subject is required').max(255),
@@ -35,6 +35,10 @@ export default function NewTicketPage() {
   const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
   const [ticketFiles, setTicketFiles] = useState([]);
   const templateId = searchParams.get('templateId');
+
+  // Template and Duplicate modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   // Helper to format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
   const formatLocalDate = (date) => {
@@ -108,6 +112,38 @@ export default function NewTicketPage() {
       }
     }
   }, [templateData, setValue]);
+
+  // Handle template selection from modal
+  const handleSelectTemplate = (template) => {
+    setValue('subject', template.subject || '');
+    setValue('description', template.description || '');
+    setValue('priority', template.priority || 'MEDIUM');
+    if (template.assigneeId) {
+      setValue('assigneeId', template.assigneeId);
+    }
+    toast.success(`Template "${template.name}" applied`);
+  };
+
+  // Handle duplicate ticket selection from modal
+  const handleSelectDuplicateTicket = (ticket) => {
+    setValue('subject', ticket.subject || '');
+    setValue('description', ticket.description || '');
+    setValue('priority', ticket.priority || 'MEDIUM');
+    if (ticket.assigneeId) {
+      setValue('assigneeId', ticket.assigneeId);
+    }
+    // Set company via contact if available
+    if (ticket.requesterId) {
+      setValue('contactId', ticket.requesterId);
+    } else if (ticket.requester?.id) {
+      setValue('contactId', ticket.requester.id);
+    }
+    // Set additional assignees if any
+    if (ticket.additionalAssignees && ticket.additionalAssignees.length > 0) {
+      setAdditionalAssigneeIds(ticket.additionalAssignees.map(a => a.id));
+    }
+    toast.success(`Ticket #${ticket.ticketNumber} duplicated`);
+  };
 
   const contactId = watch('contactId');
 
@@ -305,6 +341,28 @@ export default function NewTicketPage() {
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">New Ticket</h1>
+      </div>
+
+      {/* Templates and Duplicate buttons */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setShowTemplateModal(true)}
+          className="flex items-center gap-2"
+        >
+          <FileText size={16} />
+          Templates
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setShowDuplicateModal(true)}
+          className="flex items-center gap-2"
+        >
+          <Copy size={16} />
+          Duplicate
+        </Button>
       </div>
 
       {templateData && (
@@ -618,6 +676,20 @@ export default function NewTicketPage() {
           </div>
         </div>
       )}
+
+      {/* Template Select Modal */}
+      <TemplateSelectModal
+        isOpen={showTemplateModal}
+        onClose={() => setShowTemplateModal(false)}
+        onSelectTemplate={handleSelectTemplate}
+      />
+
+      {/* Duplicate Ticket Modal */}
+      <DuplicateTicketModal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        onSelectTicket={handleSelectDuplicateTicket}
+      />
     </div>
   );
 }

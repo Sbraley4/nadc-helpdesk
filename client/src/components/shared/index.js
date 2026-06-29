@@ -20,3 +20,5 @@ export { default as Spinner, FullPageSpinner, CenteredSpinner } from './Spinner'
 export { default as Textarea } from './Textarea';
 export { default as ScheduleTicketModal } from './ScheduleTicketModal';
 export { default as TicketSearchModal } from './TicketSearchModal';
+export { default as TemplateSelectModal } from './TemplateSelectModal';
+export { default as DuplicateTicketModal } from './DuplicateTicketModal';
