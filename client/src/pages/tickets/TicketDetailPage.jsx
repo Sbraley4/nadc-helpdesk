@@ -674,9 +674,9 @@ export default function TicketDetailPage() {
           const formattedDesc = formatTimeLogDescription();
           await timeEntries.createTimeEntry(id, {
             date: timeLogDate,
-            hours,
-            minutes,
-            description: formattedDesc || timeLogDescription || replyContent.substring(0, 200),
+            startTime: timeLogStartTime,
+            endTime: timeLogFinishTime,
+            notes: formattedDesc || timeLogDescription || replyContent.substring(0, 200),
           });
           toast.success('Time logged');
 
@@ -751,9 +751,17 @@ export default function TicketDetailPage() {
           if (startHours !== null && endHours !== null) {
             let duration = endHours - startHours;
             if (duration < 0) duration += 24; // Handle overnight
+            // Convert decimal hours back to HH:MM format for API
+            const toTimeString = (decimalHours) => {
+              const h = Math.floor(decimalHours) % 24;
+              const m = Math.round((decimalHours % 1) * 60);
+              return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            };
             result.time = {
               hours: Math.floor(duration),
               minutes: Math.round((duration % 1) * 60),
+              startTime: toTimeString(startHours),
+              endTime: toTimeString(endHours),
               source: timeStr,
             };
           }
@@ -790,9 +798,9 @@ export default function TicketDetailPage() {
       if (parsedData.time) {
         await timeEntries.createTimeEntry(id, {
           date: new Date().toISOString().split('T')[0],
-          hours: parsedData.time.hours,
-          minutes: parsedData.time.minutes,
-          description: `Parsed from note: ${parsedData.time.source}`,
+          startTime: parsedData.time.startTime,
+          endTime: parsedData.time.endTime,
+          notes: `Parsed from note: ${parsedData.time.source}`,
         });
       }
 
