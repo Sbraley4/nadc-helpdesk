@@ -29,12 +29,16 @@ const clearAllAuth = () => {
   sessionStorage.removeItem('user');
 };
 
+// Check for existing token once at module load to set initial state
+const initialAccessToken = getToken('accessToken');
+
 const useAuthStore = create((set, get) => ({
   user: null,
-  accessToken: getToken('accessToken'),
+  accessToken: initialAccessToken,
   refreshToken: getToken('refreshToken'),
-  isAuthenticated: !!getToken('accessToken'),
-  isLoading: false,
+  isAuthenticated: !!initialAccessToken,
+  // Start loading if there's a token to validate, otherwise false
+  isLoading: !!initialAccessToken,
 
   login: async (email, password, rememberMe = false) => {
     set({ isLoading: true });
