@@ -64,18 +64,27 @@ const getAllAgentColors = (ticket) => {
   return colors;
 };
 
-// Helper to build diagonal stripe gradient for multiple agents
-const buildStripeGradient = (colors) => {
-  if (!colors || colors.length <= 1) return null;
+// Helper to build diagonal stripe gradient for agents + status (Teamup-style)
+// Single agent: agent color, status color, repeat
+// Multi-agent: agent1, status, agent2, status, repeat
+const buildTicketStripeGradient = (agentColors, statusColor) => {
+  if (!agentColors || agentColors.length === 0) return null;
 
   const stripeWidth = 10; // pixels per stripe
   const stops = [];
 
-  colors.forEach((color, i) => {
-    const start = i * stripeWidth;
-    const end = (i + 1) * stripeWidth;
-    stops.push(`${color} ${start}px`);
-    stops.push(`${color} ${end}px`);
+  // Interleave agent colors with status color
+  // Pattern: agent1, status, agent2, status, agent3, status, ...
+  let position = 0;
+  agentColors.forEach((agentColor) => {
+    // Agent color stripe
+    stops.push(`${agentColor} ${position}px`);
+    position += stripeWidth;
+    stops.push(`${agentColor} ${position}px`);
+    // Status color stripe
+    stops.push(`${statusColor} ${position}px`);
+    position += stripeWidth;
+    stops.push(`${statusColor} ${position}px`);
   });
 
   return `repeating-linear-gradient(45deg, ${stops.join(', ')})`;
@@ -496,7 +505,7 @@ export default function CalendarPage() {
         end: fcEnd,
         allDay: isAllDay,
         backgroundColor: primaryColor,
-        borderColor: statusColor,
+        borderColor: 'transparent',
         textColor: '#ffffff',
         extendedProps: {
           type: 'ticket',
@@ -1038,8 +1047,9 @@ export default function CalendarPage() {
 
     if (props.type === 'ticket') {
       const agentColors = props.agentColors || [eventInfo.event.backgroundColor];
-      const hasMultipleAgents = agentColors.length > 1;
-      const stripeGradient = hasMultipleAgents ? buildStripeGradient(agentColors) : null;
+      const statusColor = props.statusColor || '#6B7280';
+      // Always use stripes for tickets: alternating agent color(s) and status color
+      const stripeGradient = buildTicketStripeGradient(agentColors, statusColor);
 
       return (
         <div
@@ -1047,10 +1057,6 @@ export default function CalendarPage() {
           style={stripeGradient ? { background: stripeGradient } : {}}
           {...tooltipHandlers}
         >
-          <div
-            className="h-1 w-full rounded-t"
-            style={{ backgroundColor: props.statusColor }}
-          />
           <div className="text-[11px] leading-tight truncate font-medium px-1 text-white drop-shadow-sm">
             #{props.ticketNumber}
           </div>
@@ -2170,7 +2176,6 @@ export default function CalendarPage() {
         .fullcalendar-wrapper .fc-event {
           border-radius: 4px;
           border-width: 0;
-          border-left-width: 3px;
           cursor: pointer;
         }
         .fullcalendar-wrapper .fc-event:hover {
