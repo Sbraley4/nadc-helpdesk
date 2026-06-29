@@ -27,6 +27,9 @@ export default function LoginPage() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordSubmitted, setForgotPasswordSubmitted] = useState(false);
 
+  // DEBUG: Log every render
+  console.log('[LoginPage] RENDER - authLoading:', authLoading, 'isAuthenticated:', isAuthenticated);
+
   const {
     register,
     handleSubmit,
@@ -54,6 +57,7 @@ export default function LoginPage() {
 
   // Show loading while checking existing auth token
   if (authLoading) {
+    console.log('[LoginPage] RETURNING: Loading spinner (authLoading=true)');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -63,8 +67,11 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
+    console.log('[LoginPage] RETURNING: Navigate to /tickets (isAuthenticated=true)');
     return <Navigate to="/tickets" replace />;
   }
+
+  console.log('[LoginPage] RETURNING: Login form');
 
   const onSubmit = async (data) => {
     setIsSubmitting(true);

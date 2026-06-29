@@ -54,7 +54,11 @@ import {
 function ProtectedRoute({ children }) {
   const { isAuthenticated, isLoading } = useAuthStore();
 
+  // DEBUG: Log every render
+  console.log('[ProtectedRoute] RENDER - isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
+
   if (isLoading) {
+    console.log('[ProtectedRoute] RETURNING: Loading spinner');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -63,9 +67,11 @@ function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated) {
+    console.log('[ProtectedRoute] RETURNING: Navigate to /login');
     return <Navigate to="/login" replace />;
   }
 
+  console.log('[ProtectedRoute] RETURNING: children');
   return children;
 }
 
@@ -95,7 +101,11 @@ function ProtectedPortalRoute({ children }) {
 function App() {
   const { loadUser, isAuthenticated } = useAuthStore();
 
+  // DEBUG: Log App render
+  console.log('[App] RENDER - isAuthenticated:', isAuthenticated);
+
   useEffect(() => {
+    console.log('[App] useEffect - calling loadUser()');
     loadUser();
   }, [loadUser]);
 
