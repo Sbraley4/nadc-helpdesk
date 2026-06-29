@@ -672,12 +672,16 @@ export default function TicketDetailPage() {
       if (hours > 0 || minutes > 0) {
         try {
           const formattedDesc = formatTimeLogDescription();
-          await timeEntries.createTimeEntry(id, {
+          const timeEntryPayload = {
             date: timeLogDate,
             startTime: timeLogStartTime,
             endTime: timeLogFinishTime,
             notes: formattedDesc || timeLogDescription || replyContent.substring(0, 200),
-          });
+          };
+          console.log('[DEBUG] Time entry payload being sent:', JSON.stringify(timeEntryPayload, null, 2));
+          console.log('[DEBUG] timeLogStartTime:', timeLogStartTime, 'type:', typeof timeLogStartTime);
+          console.log('[DEBUG] timeLogFinishTime:', timeLogFinishTime, 'type:', typeof timeLogFinishTime);
+          await timeEntries.createTimeEntry(id, timeEntryPayload);
           toast.success('Time logged');
 
           // Append time log info to the note body

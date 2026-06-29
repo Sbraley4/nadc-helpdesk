@@ -63,6 +63,7 @@ async function getTimeEntries(req, res, next) {
 async function createTimeEntry(req, res, next) {
   try {
     const { ticketId } = req.params;
+    console.log('[DEBUG] Time entry req.body received:', JSON.stringify(req.body, null, 2));
     const { date, startTime, endTime, agentId, notes } = req.body;
 
     // Validate
