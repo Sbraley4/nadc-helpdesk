@@ -109,7 +109,7 @@ const listTickets = async (req, res, next) => {
       slaBreached,
       createdAfter,
       createdBefore,
-      sortBy = 'updatedAt',
+      sortBy = 'ticketNumber',
       order = 'desc',
     } = req.query;
 
@@ -194,9 +194,9 @@ const listTickets = async (req, res, next) => {
       where.createdAt = { ...where.createdAt, lte: new Date(createdBefore) };
     }
 
-    // Build orderBy
-    const validSortFields = ['createdAt', 'updatedAt', 'priority', 'dueDate'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'updatedAt';
+    // Build orderBy - always sort by ticketNumber desc by default for consistent ordering
+    const validSortFields = ['ticketNumber', 'createdAt', 'updatedAt', 'priority', 'dueDate'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'ticketNumber';
     const sortOrder = order === 'asc' ? 'asc' : 'desc';
 
     // For priority sorting, use custom order
