@@ -1,7 +1,7 @@
 import client from './client';
 
 export const auth = {
-  login: (email, password) => client.post('/api/auth/login', { email, password }).then((r) => r.data),
+  login: (email, password, rememberMe = false) => client.post('/api/auth/login', { email, password, rememberMe }).then((r) => r.data),
   logout: () => client.post('/api/auth/logout').then((r) => r.data),
   refresh: (refreshToken) => client.post('/api/auth/refresh', { refreshToken }).then((r) => r.data),
   getMe: () => client.get('/api/auth/me').then((r) => r.data),

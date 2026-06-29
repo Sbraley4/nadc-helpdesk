@@ -12,6 +12,7 @@ import { Button, Input } from '../../components/shared';
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email'),
   password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean().optional(),
 });
 
 const forgotPasswordSchema = z.object({
@@ -35,6 +36,7 @@ export default function LoginPage() {
     defaultValues: {
       email: '',
       password: '',
+      rememberMe: false,
     },
   });
 
@@ -58,7 +60,7 @@ export default function LoginPage() {
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      await login(data.email, data.password);
+      await login(data.email, data.password, data.rememberMe);
       toast.success('Welcome back!');
       navigate('/tickets', { replace: true });
     } catch (error) {
@@ -214,7 +216,15 @@ export default function LoginPage() {
                 error={errors.password?.message}
                 {...register('password')}
               />
-              <div className="mt-2 text-right">
+              <div className="mt-2 flex items-center justify-between">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+                    {...register('rememberMe')}
+                  />
+                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
+                </label>
                 <button
                   type="button"
                   onClick={() => setShowForgotPassword(true)}

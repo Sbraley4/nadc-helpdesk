@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
  */
 const login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
 
     // Find user by email
     const user = await prisma.user.findUnique({
@@ -33,19 +33,23 @@ const login = async (req, res, next) => {
       return res.status(403).json({ error: 'Account disabled' });
     }
 
-    // Generate tokens
+    // Generate tokens with expiration based on rememberMe
     const tokenPayload = {
       id: user.id,
       email: user.email,
       role: user.role,
     };
 
+    // Use longer expiration for "Remember Me" tokens
+    const accessTokenExpiry = rememberMe ? '1d' : (process.env.JWT_EXPIRES_IN || '15m');
+    const refreshTokenExpiry = rememberMe ? '30d' : (process.env.JWT_REFRESH_EXPIRES_IN || '7d');
+
     const accessToken = jwt.sign(tokenPayload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+      expiresIn: accessTokenExpiry,
     });
 
     const refreshToken = jwt.sign(tokenPayload, process.env.JWT_REFRESH_SECRET, {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+      expiresIn: refreshTokenExpiry,
     });
 
     // Return tokens and user data (without password)
