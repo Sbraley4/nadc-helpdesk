@@ -25,7 +25,7 @@ const statusStripeColors = {
 const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
-  'Chris Lowrance': '#FBF12B', // Yellow
+  'Chris Lowrance': '#F59E0B', // Amber
   'Tech 1': '#000000',        // Black
   'Tech 2': '#8B5CF6',        // Purple/Violet
 };
@@ -485,7 +485,7 @@ export default function CalendarPage() {
 
       const agentColors = getAllAgentColors(ticket);
       const primaryColor = agentColors[0];
-      const statusColor = statusStripeColors[ticket.status] || '#6B7280';
+      const statusColor = statusStripeColors[ticket.status]; // null for OPEN (no status stripe)
       const companyName = ticket.company?.name || ticket.requester?.company?.name || '';
 
       // Calculate duration and auto-promote to all-day if > 8 hours
