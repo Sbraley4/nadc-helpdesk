@@ -25,6 +25,8 @@ const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
   'Chris Lowrance': '#FACC15', // Yellow/Amber
+  'Tech 1': '#10B981',        // Emerald/Green
+  'Tech 2': '#8B5CF6',        // Purple/Violet
 };
 const UNASSIGNED_COLOR = '#6B7280'; // Grey
 

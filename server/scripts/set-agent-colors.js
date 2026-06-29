@@ -11,6 +11,8 @@ const AGENT_COLORS = {
   'Peter Braley': '#2563EB',  // Blue
   'Sam Braley': '#DC2626',    // Red
   'Chris Lowrance': '#FACC15', // Yellow/Amber
+  'Tech 1': '#10B981',        // Emerald/Green (scheduling-only)
+  'Tech 2': '#8B5CF6',        // Purple/Violet (scheduling-only)
 };
 
 async function setAgentColors() {
