@@ -87,6 +87,12 @@ export default function TicketDetailPage() {
   // Mobile sidebar state
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
+  // Mobile metadata bar state (collapsed by default on mobile)
+  const [mobileMetadataExpanded, setMobileMetadataExpanded] = useState(false);
+
+  // Mobile action sheet state
+  const [showMobileActionSheet, setShowMobileActionSheet] = useState(false);
+
   // Ticket action menu state
   const [showTicketMenu, setShowTicketMenu] = useState(false);
   const [showEditTicketModal, setShowEditTicketModal] = useState(false);
@@ -934,51 +940,116 @@ export default function TicketDetailPage() {
             >
               <MoreVertical size={20} />
             </button>
+
+            {/* Desktop dropdown menu */}
             {showTicketMenu && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowTicketMenu(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
-                  <button
-                    onClick={handleOpenEditModal}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                  >
-                    <Pencil size={16} />
-                    Edit Ticket
-                  </button>
-                  <button
-                    onClick={() => {
-                      setScheduleModalMode('add');
-                      setRescheduleId(null);
-                      setShowScheduleModal(true);
-                      setShowTicketMenu(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                  >
-                    <Calendar size={16} />
-                    Add to Calendar
-                  </button>
-                  <button
-                    onClick={handleStartThread}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                  >
-                    <MessageSquare size={16} />
-                    Start a Thread
-                  </button>
-                  <button
-                    onClick={() => { setShowForwardModal(true); setShowTicketMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                  >
-                    <Forward size={16} />
-                    Forward Ticket
-                  </button>
-                  <hr className="my-1" />
-                  <button
-                    onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 min-h-[44px] touch-manipulation"
-                  >
-                    <Trash2 size={16} />
-                    Delete Ticket
-                  </button>
+                <div className="hidden lg:block">
+                  <div className="fixed inset-0 z-40" onClick={() => setShowTicketMenu(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
+                    <button
+                      onClick={handleOpenEditModal}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
+                    >
+                      <Pencil size={16} />
+                      Edit Ticket
+                    </button>
+                    <button
+                      onClick={() => {
+                        setScheduleModalMode('add');
+                        setRescheduleId(null);
+                        setShowScheduleModal(true);
+                        setShowTicketMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
+                    >
+                      <Calendar size={16} />
+                      Add to Calendar
+                    </button>
+                    <button
+                      onClick={handleStartThread}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
+                    >
+                      <MessageSquare size={16} />
+                      Start a Thread
+                    </button>
+                    <button
+                      onClick={() => { setShowForwardModal(true); setShowTicketMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
+                    >
+                      <Forward size={16} />
+                      Forward Ticket
+                    </button>
+                    <hr className="my-1" />
+                    <button
+                      onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 min-h-[44px] touch-manipulation"
+                    >
+                      <Trash2 size={16} />
+                      Delete Ticket
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mobile bottom sheet action menu */}
+                <div className="lg:hidden">
+                  <div className="fixed inset-0 bg-black/50 z-40 animate-fadeIn" onClick={() => setShowTicketMenu(false)} />
+                  <div className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-xl animate-slideUp safe-bottom">
+                    <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto my-3" />
+                    <div className="px-4 pb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 text-center">Ticket Actions</h3>
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleOpenEditModal}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
+                        >
+                          <Pencil size={20} />
+                          Edit Ticket
+                        </button>
+                        <button
+                          onClick={() => {
+                            setScheduleModalMode('add');
+                            setRescheduleId(null);
+                            setShowScheduleModal(true);
+                            setShowTicketMenu(false);
+                          }}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
+                        >
+                          <Calendar size={20} />
+                          Add to Calendar
+                        </button>
+                        <button
+                          onClick={handleStartThread}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
+                        >
+                          <MessageSquare size={20} />
+                          Start a Thread
+                        </button>
+                        <button
+                          onClick={() => { setShowForwardModal(true); setShowTicketMenu(false); }}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
+                        >
+                          <Forward size={20} />
+                          Forward Ticket
+                        </button>
+                        <div className="pt-2 mt-2 border-t border-gray-200">
+                          <button
+                            onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
+                            className="w-full flex items-center gap-3 px-4 py-4 text-base text-red-600 bg-red-50 hover:bg-red-100 rounded-xl touch-manipulation"
+                          >
+                            <Trash2 size={20} />
+                            Delete Ticket
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => setShowTicketMenu(false)}
+                          className="w-full py-4 text-base font-medium text-gray-500 hover:bg-gray-100 rounded-xl touch-manipulation mt-2"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -993,12 +1064,104 @@ export default function TicketDetailPage() {
           </button>
         </div>
 
+        {/* Mobile Metadata Summary Bar - Collapsed by default, tap to expand */}
+        <div className="lg:hidden mb-4">
+          {/* Summary Row - Always visible */}
+          <button
+            onClick={() => setMobileMetadataExpanded(!mobileMetadataExpanded)}
+            className="w-full flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-200 touch-manipulation"
+          >
+            <div className="flex items-center gap-3 flex-wrap">
+              <Badge variant={statusConfig[ticket.status]?.variant}>
+                {statusConfig[ticket.status]?.label}
+              </Badge>
+              <Badge variant={priorityConfig[ticket.priority]?.variant}>
+                {priorityConfig[ticket.priority]?.label}
+              </Badge>
+              {ticket.assignee && (
+                <div className="flex items-center gap-1.5">
+                  <Avatar name={ticket.assignee.name} size="xs" />
+                  <span className="text-xs text-gray-600">{ticket.assignee.name}</span>
+                </div>
+              )}
+              {schedulesList.length > 0 && (
+                <span className="text-xs text-primary flex items-center gap-1">
+                  <Calendar size={12} />
+                  {schedulesList.length} scheduled
+                </span>
+              )}
+            </div>
+            <ChevronDown size={18} className={`text-gray-400 transition-transform ${mobileMetadataExpanded ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Expanded Details */}
+          {mobileMetadataExpanded && (
+            <div className="mt-2 p-4 bg-white rounded-lg shadow-sm border border-gray-200 space-y-4 animate-fadeIn">
+              {/* Status & Priority */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Status</label>
+                  <Select
+                    options={statusOptions}
+                    value={ticket.status}
+                    onChange={(e) => updateMutation.mutate({ status: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Priority</label>
+                  <Select
+                    options={priorityOptions}
+                    value={ticket.priority}
+                    onChange={(e) => updateMutation.mutate({ priority: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Assignee */}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Assignee</label>
+                <Select
+                  options={agentOptions}
+                  value={ticket.assigneeId || ''}
+                  onChange={(e) => updateMutation.mutate({ assigneeId: e.target.value || null })}
+                />
+              </div>
+
+              {/* Contact Info */}
+              <div className="flex items-center gap-3 pt-3 border-t border-gray-100">
+                <Avatar name={ticket.requester?.name} size="md" />
+                <div className="min-w-0 flex-1">
+                  <Link to={'/contacts/' + ticket.requester?.id} className="text-sm font-medium text-gray-900 hover:text-primary block truncate">
+                    {ticket.requester?.name}
+                  </Link>
+                  {ticket.company && (
+                    <Link to={'/companies/' + ticket.company.id} className="text-xs text-gray-500 hover:text-primary block truncate">
+                      {ticket.company.name}
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="pt-3 border-t border-gray-100">
+                <button
+                  onClick={() => { setMobileMetadataExpanded(false); setShowMobileSidebar(true); }}
+                  className="w-full text-sm text-primary font-medium py-2 hover:bg-primary/5 rounded-lg transition-colors touch-manipulation"
+                >
+                  View All Details →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Conversation */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
           {/* Original ticket description */}
-          <div className="p-6 border-b border-gray-200">
+          <div className="p-4 md:p-6 border-b border-gray-200">
             <div className="flex items-start gap-3">
-              <Avatar name={ticket.requester?.name} size="md" />
+              <Avatar name={ticket.requester?.name} size="md" className="hidden sm:block" />
+              <Avatar name={ticket.requester?.name} size="sm" className="sm:hidden" />
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-medium text-gray-900">{ticket.requester?.name}</span>
@@ -1030,9 +1193,10 @@ export default function TicketDetailPage() {
           </div>
           {/* Replies */}
           {replyList.map((reply) => (
-            <div key={reply.id} className={"p-6 border-b border-gray-200 group relative " + (reply.isInternal ? 'bg-yellow-50' : '')}>
-              <div className="flex items-start gap-3">
-                <Avatar name={reply.author?.name} size="md" />
+            <div key={reply.id} className={"p-4 md:p-6 border-b border-gray-200 group relative " + (reply.isInternal ? 'bg-yellow-50' : '')}>
+              <div className="flex items-start gap-2 md:gap-3">
+                <Avatar name={reply.author?.name} size="md" className="hidden sm:block" />
+                <Avatar name={reply.author?.name} size="sm" className="sm:hidden" />
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1158,12 +1322,12 @@ export default function TicketDetailPage() {
 
                   {/* Mobile action buttons - inline below content, always visible */}
                   {reply.isInternal && !editingReplyId && (
-                    <div className="sm:hidden flex flex-wrap gap-2 mt-3 pt-3 border-t border-yellow-200">
+                    <div className="sm:hidden flex flex-wrap gap-2 mt-4 pt-3 border-t border-yellow-200">
                       <button
                         onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[44px]"
                       >
-                        <Pencil size={14} />
+                        <Pencil size={16} />
                         Edit
                       </button>
                       <button
@@ -1172,23 +1336,23 @@ export default function TicketDetailPage() {
                             deleteReplyMutation.mutate(reply.id);
                           }
                         }}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-red-600 bg-white rounded-lg border border-gray-200 active:bg-red-50 touch-manipulation min-h-[36px]"
+                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-red-600 bg-white rounded-lg border border-gray-200 active:bg-red-50 touch-manipulation min-h-[44px]"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                         Delete
                       </button>
                       <button
                         onClick={() => setForwardingReply(reply)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[44px]"
                       >
-                        <Forward size={14} />
+                        <Forward size={16} />
                         Forward
                       </button>
                       <button
                         onClick={() => setThreadReplyId(reply.id)}
-                        className="flex items-center gap-1.5 px-3 py-2 text-xs text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[36px]"
+                        className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[44px]"
                       >
-                        <MessageSquare size={14} />
+                        <MessageSquare size={16} />
                         Reply
                       </button>
                     </div>
@@ -1254,7 +1418,67 @@ export default function TicketDetailPage() {
 
           {/* Reply form */}
           <div className="p-4 md:p-6">
-            <div className="flex flex-wrap gap-2 mb-3">
+            {/* Mobile: Large toggle buttons with Log Time prominent */}
+            <div className="lg:hidden mb-4">
+              {/* Primary toggle row - Reply / Internal Note */}
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setIsInternalNote(false)}
+                  className={"flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-colors min-h-[52px] touch-manipulation flex items-center justify-center gap-2 " + (!isInternalNote ? 'bg-primary text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200')}
+                >
+                  <Send size={18} />
+                  Reply to Customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsInternalNote(true)}
+                  className={"flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-colors min-h-[52px] touch-manipulation flex items-center justify-center gap-2 " + (isInternalNote ? 'bg-yellow-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 active:bg-gray-200')}
+                >
+                  <MessageSquare size={18} />
+                  Internal Note
+                </button>
+              </div>
+
+              {/* Log Time button - Prominent, always visible on mobile */}
+              {isInternalNote && (
+                <button
+                  type="button"
+                  onClick={() => setShowTimeLog(!showTimeLog)}
+                  className={"w-full px-4 py-3 text-sm font-semibold rounded-xl transition-colors min-h-[52px] touch-manipulation flex items-center justify-center gap-2 " + (showTimeLog ? 'bg-blue-500 text-white shadow-md' : 'bg-blue-50 text-blue-700 border-2 border-blue-200 active:bg-blue-100')}
+                >
+                  <Clock size={18} />
+                  {showTimeLog ? 'Hide Time Log' : 'Log Time'}
+                  {showTimeLog && <ChevronUp size={16} />}
+                  {!showTimeLog && <ChevronDown size={16} />}
+                </button>
+              )}
+
+              {/* Secondary actions row */}
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowKBModal(true)}
+                  className="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[44px] touch-manipulation"
+                  title="Insert KB Article"
+                >
+                  <BookOpen size={16} />
+                  KB
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(true)}
+                  className="flex-1 px-3 py-2.5 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 active:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[44px] touch-manipulation"
+                  title="Use Template"
+                >
+                  <FileText size={16} />
+                  Template
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop: Original layout */}
+            <div className="hidden lg:flex flex-wrap gap-2 mb-3">
               <button
                 type="button"
                 onClick={() => setIsInternalNote(false)}
@@ -1269,21 +1493,21 @@ export default function TicketDetailPage() {
               >
                 Internal Note
               </button>
-              <div className="hidden md:block flex-1" />
-              <div className="flex gap-2 w-full md:w-auto mt-2 md:mt-0">
+              <div className="flex-1" />
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowKBModal(true)}
-                  className="flex-1 md:flex-none px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
+                  className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
                   title="Insert KB Article"
                 >
                   <BookOpen size={14} />
-                  <span className="hidden sm:inline">Insert</span> KB
+                  Insert KB
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowTemplateModal(true)}
-                  className="flex-1 md:flex-none px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
+                  className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 min-h-[40px] touch-manipulation"
                   title="Use Template"
                 >
                   <FileText size={14} />
@@ -1329,9 +1553,10 @@ export default function TicketDetailPage() {
               value={replyContent}
               onChange={handleReplyChange}
               placeholder={isInternalNote ? 'Add an internal note...' : 'Type your reply...'}
-              rows={6}
-              minHeight={200}
+              rows={4}
+              minHeight={120}
               autoGrow
+              className="text-base"
             />
 
             {/* File attachments */}
@@ -1343,13 +1568,14 @@ export default function TicketDetailPage() {
               />
             </div>
 
-            {/* Time Logging Section (collapsed by default) */}
+            {/* Time Logging Section - Desktop: collapsible header, Mobile: controlled by toggle above */}
             {isInternalNote && (
               <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                {/* Desktop toggle header */}
                 <button
                   type="button"
                   onClick={() => setShowTimeLog(!showTimeLog)}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="hidden lg:flex w-full items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
                     <Clock size={14} />
@@ -1486,32 +1712,70 @@ export default function TicketDetailPage() {
               </div>
             )}
 
-            <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 mt-3">
+            {/* Desktop submit row */}
+            <div className="hidden lg:flex flex-row justify-between gap-3 mt-3">
               {isInternalNote && (
                 <Button
                   variant="outline"
                   onClick={parseNote}
                   disabled={!replyContent.trim()}
                   leftIcon={<Zap size={16} />}
-                  className="w-full sm:w-auto"
                 >
                   Parse & Log
                 </Button>
               )}
-              <div className={`${!isInternalNote ? 'w-full sm:ml-auto sm:w-auto' : 'w-full sm:w-auto'}`}>
+              <div className={`${!isInternalNote ? 'ml-auto' : ''}`}>
                 <Button
                   onClick={handleSendReply}
                   isLoading={replyMutation.isPending}
                   disabled={!replyContent.trim()}
                   leftIcon={<Send size={16} />}
-                  className="w-full"
                 >
                   {isInternalNote ? 'Add Note' : 'Send Reply'}
                 </Button>
               </div>
             </div>
+
+            {/* Mobile submit row - larger buttons */}
+            <div className="lg:hidden flex flex-col gap-3 mt-4">
+              {isInternalNote && (
+                <Button
+                  variant="outline"
+                  onClick={parseNote}
+                  disabled={!replyContent.trim()}
+                  leftIcon={<Zap size={18} />}
+                  className="w-full min-h-[52px] text-base"
+                >
+                  Parse & Log Time
+                </Button>
+              )}
+              <Button
+                onClick={handleSendReply}
+                isLoading={replyMutation.isPending}
+                disabled={!replyContent.trim()}
+                leftIcon={<Send size={20} />}
+                className="w-full min-h-[56px] text-base font-semibold"
+              >
+                {isInternalNote ? 'Add Note' : 'Send Reply'}
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Sticky Submit Bar - appears when textarea has content and keyboard may be up */}
+        {replyContent.trim() && (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 p-3 bg-white border-t border-gray-200 shadow-lg z-30 safe-bottom">
+            <Button
+              onClick={handleSendReply}
+              isLoading={replyMutation.isPending}
+              disabled={!replyContent.trim()}
+              leftIcon={<Send size={20} />}
+              className="w-full min-h-[52px] text-base font-semibold"
+            >
+              {isInternalNote ? 'Add Note' : 'Send Reply'}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* KB Article Modal */}
