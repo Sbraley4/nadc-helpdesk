@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,6 +26,7 @@ const priorityOptions = [
 
 export default function NewTicketPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [startDate, setStartDate] = useState(searchParams.get('dueDate') || '');
@@ -112,6 +113,28 @@ export default function NewTicketPage() {
       }
     }
   }, [templateData, setValue]);
+
+  // Populate form from duplicated ticket passed via navigation state
+  useEffect(() => {
+    const duplicateTicket = location.state?.duplicateTicket;
+    if (duplicateTicket) {
+      setValue('subject', duplicateTicket.subject || '');
+      setValue('description', duplicateTicket.description || '');
+      setValue('priority', duplicateTicket.priority || 'MEDIUM');
+      if (duplicateTicket.assigneeId) {
+        setValue('assigneeId', duplicateTicket.assigneeId);
+      }
+      if (duplicateTicket.requesterId) {
+        setValue('contactId', duplicateTicket.requesterId);
+      } else if (duplicateTicket.requester?.id) {
+        setValue('contactId', duplicateTicket.requester.id);
+      }
+      if (duplicateTicket.additionalAssignees && duplicateTicket.additionalAssignees.length > 0) {
+        setAdditionalAssigneeIds(duplicateTicket.additionalAssignees.map(a => a.id));
+      }
+      toast.success(`Ticket #${duplicateTicket.ticketNumber} duplicated`);
+    }
+  }, [location.state, setValue]);
 
   // Handle template selection from modal
   const handleSelectTemplate = (template) => {

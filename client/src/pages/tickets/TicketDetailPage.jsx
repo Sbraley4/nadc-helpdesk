@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory } from '../../api';
 import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
@@ -897,6 +897,25 @@ export default function TicketDetailPage() {
     document.querySelector('textarea')?.focus();
   };
 
+  // Handle duplicate ticket - navigate to new ticket page with pre-filled data
+  const handleDuplicateTicket = () => {
+    setShowTicketMenu(false);
+    navigate('/tickets/new', {
+      state: {
+        duplicateTicket: {
+          ticketNumber: ticket.ticketNumber,
+          subject: ticket.subject,
+          description: ticket.description,
+          priority: ticket.priority,
+          assigneeId: ticket.assigneeId,
+          requesterId: ticket.requesterId,
+          requester: ticket.requester,
+          additionalAssignees: ticket.additionalAssignees,
+        }
+      }
+    });
+  };
+
   const agentOptions = [
     { value: '', label: 'Unassigned' },
     ...(agentsData?.agents || []).map((agent) => ({
@@ -983,6 +1002,13 @@ export default function TicketDetailPage() {
                       <Forward size={16} />
                       Forward Ticket
                     </button>
+                    <button
+                      onClick={handleDuplicateTicket}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
+                    >
+                      <Copy size={16} />
+                      Duplicate Ticket
+                    </button>
                     <hr className="my-1" />
                     <button
                       onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
@@ -1034,6 +1060,13 @@ export default function TicketDetailPage() {
                         >
                           <Forward size={20} />
                           Forward Ticket
+                        </button>
+                        <button
+                          onClick={handleDuplicateTicket}
+                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
+                        >
+                          <Copy size={20} />
+                          Duplicate Ticket
                         </button>
                         <div className="pt-2 mt-2 border-t border-gray-200">
                           <button
