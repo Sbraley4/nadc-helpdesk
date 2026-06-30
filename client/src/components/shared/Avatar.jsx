@@ -56,7 +56,7 @@ export default function Avatar({
 
   return (
     <div
-      className={`${sizes[size]} ${bgColor} rounded-full flex items-center justify-center text-white font-medium ${className}`}
+      className={`${sizes[size]} ${bgColor} rounded-full flex items-center justify-center text-white font-medium leading-none ${className}`}
       title={name}
     >
       {initials}

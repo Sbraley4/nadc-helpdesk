@@ -133,22 +133,25 @@ export default function TicketDetailPage() {
   const [editingTimeEntryId, setEditingTimeEntryId] = useState(null);
 
   // Helper function to format note body with preserved line breaks
+  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
   const formatNoteBody = (body, isExpanded = true) => {
     if (!body) return '';
-    // Convert newlines to <br> tags to preserve formatting
-    const formattedBody = body
-      .replace(/\n/g, '<br>')
-      .replace(/  /g, '&nbsp;&nbsp;'); // Preserve double spaces
+
+    // Normalize line endings (CRLF -> LF) to prevent extra spacing
+    const normalizedBody = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Preserve double spaces (browsers collapse multiple spaces)
+    const formattedBody = normalizedBody.replace(/  /g, '&nbsp;&nbsp;');
 
     // If not expanded, truncate to first 150 chars or first 2 lines
     if (!isExpanded) {
-      const lines = body.split('\n');
+      const lines = normalizedBody.split('\n');
       const previewLines = lines.slice(0, 2);
       let preview = previewLines.join('\n');
       if (lines.length > 2 || preview.length > 150) {
         preview = preview.substring(0, 150) + '...';
       }
-      return preview.replace(/\n/g, '<br>').replace(/  /g, '&nbsp;&nbsp;');
+      return preview.replace(/  /g, '&nbsp;&nbsp;');
     }
     return formattedBody;
   };
@@ -1555,6 +1558,7 @@ export default function TicketDetailPage() {
               placeholder={isInternalNote ? 'Add an internal note...' : 'Type your reply...'}
               rows={4}
               minHeight={120}
+              mobileMinHeight={160}
               autoGrow
               className="text-base"
             />

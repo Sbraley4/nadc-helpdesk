@@ -1,18 +1,31 @@
-import { forwardRef, useEffect, useRef, useCallback } from 'react';
+import { forwardRef, useEffect, useRef, useCallback, useState } from 'react';
 
 const Textarea = forwardRef(
-  ({ label, error, helperText, className = '', rows = 4, minHeight, autoGrow, onChange, ...props }, ref) => {
+  ({ label, error, helperText, className = '', rows = 4, minHeight, mobileMinHeight, autoGrow, onChange, ...props }, ref) => {
     const internalRef = useRef(null);
     const textareaRef = ref || internalRef;
+    const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+    // Track mobile state for responsive minHeight
+    useEffect(() => {
+      const handleResize = () => {
+        setIsMobile(window.innerWidth < 768);
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    // Determine effective minHeight based on screen size
+    const effectiveMinHeight = isMobile && mobileMinHeight ? mobileMinHeight : minHeight;
 
     const adjustHeight = useCallback(() => {
       const textarea = typeof textareaRef === 'function' ? null : textareaRef?.current;
       if (textarea && autoGrow) {
         textarea.style.height = 'auto';
-        const newHeight = Math.max(textarea.scrollHeight, minHeight || 0);
+        const newHeight = Math.max(textarea.scrollHeight, effectiveMinHeight || 0);
         textarea.style.height = newHeight + 'px';
       }
-    }, [autoGrow, minHeight, textareaRef]);
+    }, [autoGrow, effectiveMinHeight, textareaRef]);
 
     useEffect(() => {
       adjustHeight();
@@ -34,7 +47,7 @@ const Textarea = forwardRef(
         <textarea
           ref={textareaRef}
           rows={rows}
-          style={minHeight ? { minHeight: minHeight + 'px' } : undefined}
+          style={effectiveMinHeight ? { minHeight: effectiveMinHeight + 'px' } : undefined}
           className={`w-full px-3 py-2.5 text-base md:text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary touch-manipulation ${autoGrow ? 'resize-none overflow-hidden' : 'resize-none'} ${
             error
               ? 'border-red-300 focus:ring-red-100 focus:border-red-500'
