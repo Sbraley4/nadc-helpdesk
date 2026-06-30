@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
 import useAuthStore from '../../store/authStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
@@ -57,6 +57,8 @@ export default function TicketDetailPage() {
   const [notifyAgents, setNotifyAgents] = useState([]);
   const [editingReplyId, setEditingReplyId] = useState(null);
   const [editingReplyContent, setEditingReplyContent] = useState('');
+  const [editingReplyIsInternal, setEditingReplyIsInternal] = useState(false);
+  const [editNotifyAgents, setEditNotifyAgents] = useState([]);
   const [forwardingReply, setForwardingReply] = useState(null);
   const [forwardAgentId, setForwardAgentId] = useState('');
   const [threadReplyId, setThreadReplyId] = useState(null);
@@ -475,11 +477,13 @@ export default function TicketDetailPage() {
 
   // Edit reply mutation
   const editReplyMutation = useMutation({
-    mutationFn: ({ replyId, body }) => replies.updateReply(id, replyId, { body }),
+    mutationFn: ({ replyId, body, notifyAgentIds }) => replies.updateReply(id, replyId, { body, notifyAgentIds }),
     onSuccess: () => {
       queryClient.invalidateQueries(['replies', id]);
       setEditingReplyId(null);
       setEditingReplyContent('');
+      setEditingReplyIsInternal(false);
+      setEditNotifyAgents([]);
       toast.success('Note updated');
     },
     onError: (error) => {
@@ -1243,25 +1247,77 @@ export default function TicketDetailPage() {
                     <span className="text-xs sm:text-sm text-gray-500">{format(new Date(reply.createdAt), 'MMM d, yyyy h:mm a')}</span>
                   </div>
                   {editingReplyId === reply.id ? (
-                    <div className="space-y-2">
-                      <Textarea
+                    <div className="space-y-3">
+                      {/* Notify Teammates Section for Internal Notes in Edit Mode */}
+                      {editingReplyIsInternal && (
+                        <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                            <Bell size={14} />
+                            Notify teammates:
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {(agentsData?.agents || []).map((agent) => (
+                              <button
+                                key={agent.id}
+                                type="button"
+                                onClick={() => {
+                                  setEditNotifyAgents((prev) =>
+                                    prev.includes(agent.id)
+                                      ? prev.filter((aid) => aid !== agent.id)
+                                      : [...prev, agent.id]
+                                  );
+                                }}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors min-h-[32px] touch-manipulation ${
+                                  editNotifyAgents.includes(agent.id)
+                                    ? 'bg-primary text-white'
+                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                                }`}
+                              >
+                                <Avatar name={agent.name} size="xs" />
+                                {agent.name}
+                              </button>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            Previously notified agents are pre-selected. Only newly added agents will be notified when you save.
+                          </p>
+                        </div>
+                      )}
+                      <MentionTextarea
                         value={editingReplyContent}
                         onChange={(e) => setEditingReplyContent(e.target.value)}
                         rows={4}
                         autoGrow
+                        agents={editingReplyIsInternal ? (agentsData?.agents || []) : []}
+                        selectedMentions={editNotifyAgents}
+                        onMention={(agentId) => {
+                          if (!editNotifyAgents.includes(agentId)) {
+                            setEditNotifyAgents((prev) => [...prev, agentId]);
+                          }
+                        }}
+                        placeholder={editingReplyIsInternal ? 'Edit note... (type @ to mention teammates)' : 'Edit reply...'}
                       />
                       <div className="flex flex-col-reverse sm:flex-row gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => { setEditingReplyId(null); setEditingReplyContent(''); }}
+                          onClick={() => {
+                            setEditingReplyId(null);
+                            setEditingReplyContent('');
+                            setEditingReplyIsInternal(false);
+                            setEditNotifyAgents([]);
+                          }}
                           className="w-full sm:w-auto"
                         >
                           Cancel
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => editReplyMutation.mutate({ replyId: reply.id, body: editingReplyContent })}
+                          onClick={() => editReplyMutation.mutate({
+                            replyId: reply.id,
+                            body: editingReplyContent,
+                            notifyAgentIds: editingReplyIsInternal ? editNotifyAgents : undefined
+                          })}
                           isLoading={editReplyMutation.isPending}
                           className="w-full sm:w-auto"
                         >
@@ -1361,7 +1417,12 @@ export default function TicketDetailPage() {
                   {reply.isInternal && !editingReplyId && (
                     <div className="sm:hidden flex flex-wrap gap-2 mt-4 pt-3 border-t border-yellow-200">
                       <button
-                        onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
+                        onClick={() => {
+                          setEditingReplyId(reply.id);
+                          setEditingReplyContent(reply.body);
+                          setEditingReplyIsInternal(reply.isInternal);
+                          setEditNotifyAgents(reply.mentions?.map(m => m.user?.id || m.userId) || []);
+                        }}
                         className="flex items-center gap-1.5 px-4 py-2.5 text-sm text-gray-600 bg-white rounded-lg border border-gray-200 active:bg-gray-100 touch-manipulation min-h-[44px]"
                       >
                         <Pencil size={16} />
@@ -1400,7 +1461,12 @@ export default function TicketDetailPage() {
                 {reply.isInternal && !editingReplyId && (
                   <div className="hidden sm:flex absolute top-4 right-4 gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => { setEditingReplyId(reply.id); setEditingReplyContent(reply.body); }}
+                      onClick={() => {
+                        setEditingReplyId(reply.id);
+                        setEditingReplyContent(reply.body);
+                        setEditingReplyIsInternal(reply.isInternal);
+                        setEditNotifyAgents(reply.mentions?.map(m => m.user?.id || m.userId) || []);
+                      }}
                       className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded"
                       title="Edit"
                     >
@@ -1586,15 +1652,22 @@ export default function TicketDetailPage() {
               </div>
             )}
 
-            <Textarea
+            <MentionTextarea
               value={replyContent}
               onChange={handleReplyChange}
-              placeholder={isInternalNote ? 'Add an internal note...' : 'Type your reply...'}
+              placeholder={isInternalNote ? 'Add an internal note... (type @ to mention teammates)' : 'Type your reply...'}
               rows={4}
               minHeight={120}
               mobileMinHeight={160}
               autoGrow
               className="text-base"
+              agents={isInternalNote ? (agentsData?.agents || []) : []}
+              selectedMentions={notifyAgents}
+              onMention={(agentId) => {
+                if (!notifyAgents.includes(agentId)) {
+                  setNotifyAgents((prev) => [...prev, agentId]);
+                }
+              }}
             />
 
             {/* File attachments */}

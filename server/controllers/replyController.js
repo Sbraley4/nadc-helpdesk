@@ -50,6 +50,16 @@ async function getReplies(req, res, next) {
             createdAt: true,
           },
         },
+        mentions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -205,10 +215,18 @@ async function createReply(req, res, next) {
           },
         });
 
-        // Create notifications for notified agents
+        // Create NoteMention records and notifications for notified agents
         if (agentIdsToNotify && agentIdsToNotify.length > 0) {
+          // Create mention records
+          await tx.noteMention.createMany({
+            data: agentIdsToNotify.map((userId) => ({
+              replyId: reply.id,
+              userId,
+            })),
+          });
+
+          // Create notifications (exclude the author)
           for (const agentId of agentIdsToNotify) {
-            // Don't notify the author
             if (agentId === req.user.id) continue;
 
             await tx.notification.create({
@@ -227,7 +245,7 @@ async function createReply(req, res, next) {
       return { reply, attachments };
     });
 
-    // Fetch full reply with author and attachments
+    // Fetch full reply with author, attachments, and mentions
     const fullReply = await prisma.ticketReply.findUnique({
       where: { id: result.reply.id },
       include: {
@@ -247,6 +265,16 @@ async function createReply(req, res, next) {
             mimeType: true,
             size: true,
             createdAt: true,
+          },
+        },
+        mentions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -412,12 +440,27 @@ async function createReply(req, res, next) {
 async function updateReply(req, res, next) {
   try {
     const { ticketId, replyId } = req.params;
-    const { body } = req.body;
+    const { body, notifyAgentIds } = req.body;
 
-    // Find the reply
+    // Parse notifyAgentIds if it's a JSON string
+    let agentIdsToNotify = [];
+    if (notifyAgentIds) {
+      try {
+        agentIdsToNotify = typeof notifyAgentIds === 'string'
+          ? JSON.parse(notifyAgentIds)
+          : notifyAgentIds;
+      } catch (e) {
+        agentIdsToNotify = [];
+      }
+    }
+
+    // Find the reply with existing mentions
     const reply = await prisma.ticketReply.findUnique({
       where: { id: replyId },
-      include: { author: true },
+      include: {
+        author: true,
+        mentions: true,
+      },
     });
 
     if (!reply) {
@@ -438,13 +481,61 @@ async function updateReply(req, res, next) {
       return res.status(400).json({ error: 'Reply body is required' });
     }
 
-    // Update reply
-    const updatedReply = await prisma.ticketReply.update({
+    // Get existing mentioned user IDs
+    const existingMentionIds = reply.mentions.map(m => m.userId);
+
+    // Determine newly added agents (for notifications)
+    const newlyAddedAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
+
+    // Get ticket info for notifications
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId },
+      select: { ticketNumber: true },
+    });
+
+    // Update reply and manage mentions in transaction
+    const updatedReply = await prisma.$transaction(async (tx) => {
+      // Update the reply body
+      const updated = await tx.ticketReply.update({
+        where: { id: replyId },
+        data: {
+          body: body.trim(),
+          updatedAt: new Date(),
+        },
+      });
+
+      // Only create new mentions for internal notes
+      if (reply.isInternal && newlyAddedAgentIds.length > 0) {
+        // Create mention records for newly added agents
+        await tx.noteMention.createMany({
+          data: newlyAddedAgentIds.map((userId) => ({
+            replyId: replyId,
+            userId,
+          })),
+        });
+
+        // Create notifications for newly added agents (exclude author)
+        for (const agentId of newlyAddedAgentIds) {
+          if (agentId === req.user.id) continue;
+
+          await tx.notification.create({
+            data: {
+              userId: agentId,
+              type: 'note_mention',
+              title: 'You were mentioned in a note',
+              message: `${req.user.name} mentioned you in a note on ticket #${ticket?.ticketNumber || ticketId}`,
+              ticketId: ticketId,
+            },
+          });
+        }
+      }
+
+      return updated;
+    });
+
+    // Fetch the full updated reply with all relations
+    const fullUpdatedReply = await prisma.ticketReply.findUnique({
       where: { id: replyId },
-      data: {
-        body: body.trim(),
-        updatedAt: new Date(),
-      },
       include: {
         author: {
           select: {
@@ -464,13 +555,63 @@ async function updateReply(req, res, next) {
             createdAt: true,
           },
         },
+        mentions: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
+    // Emit Socket.io notifications for newly added agents
+    const io = req.app.get('io');
+    if (io && reply.isInternal && newlyAddedAgentIds.length > 0) {
+      for (const agentId of newlyAddedAgentIds) {
+        if (agentId === req.user.id) continue;
+        io.to(`user:${agentId}`).emit('notification:new', {
+          type: 'note_mention',
+          title: 'You were mentioned in a note',
+          ticketId,
+        });
+      }
+    }
+
+    // Send emails to newly added agents
+    if (reply.isInternal && newlyAddedAgentIds.length > 0) {
+      const agentsToNotify = await prisma.user.findMany({
+        where: {
+          id: { in: newlyAddedAgentIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
+
+      const author = { id: req.user.id, name: req.user.name };
+      const ticketForEmail = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { ticketNumber: true, subject: true },
+      });
+
+      for (const agent of agentsToNotify) {
+        if (agent.email && agent.id !== req.user.id) {
+          sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
+            .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
+        }
+      }
+    }
+
     // Add file URLs
     const replyWithUrls = {
-      ...updatedReply,
-      attachments: updatedReply.attachments.map((att) => ({
+      ...fullUpdatedReply,
+      attachments: fullUpdatedReply.attachments.map((att) => ({
         ...att,
         url: getFileUrl(att.storedName),
       })),

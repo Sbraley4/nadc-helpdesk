@@ -18,6 +18,7 @@ export { default as SearchInput } from './SearchInput';
 export { default as Select } from './Select';
 export { default as Spinner, FullPageSpinner, CenteredSpinner } from './Spinner';
 export { default as Textarea } from './Textarea';
+export { default as MentionTextarea } from './MentionTextarea';
 export { default as ScheduleTicketModal } from './ScheduleTicketModal';
 export { default as TicketSearchModal } from './TicketSearchModal';
 export { default as TemplateSelectModal } from './TemplateSelectModal';
