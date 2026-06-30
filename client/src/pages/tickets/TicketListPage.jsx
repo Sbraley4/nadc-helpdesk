@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+
+const FILTER_STORAGE_KEY = 'ticketListFilters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Plus, AlertCircle, Clock, CheckCircle, XCircle, ChevronDown, Filter, X, DollarSign, Send } from 'lucide-react';
@@ -54,6 +56,32 @@ export default function TicketListPage() {
     assigneeId: searchParams.get('assigneeId') || '',
   };
 
+  // Restore filters from localStorage when navigating to bare /tickets URL
+  useEffect(() => {
+    const hasUrlFilters = searchParams.get('search') || searchParams.get('status') ||
+      searchParams.get('priority') || searchParams.get('assigneeId') || searchParams.get('page');
+
+    if (!hasUrlFilters) {
+      const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+      if (saved) {
+        try {
+          const savedFilters = JSON.parse(saved);
+          const params = new URLSearchParams();
+          Object.entries(savedFilters).forEach(([key, value]) => {
+            if (value && !(key === 'page' && value === 1)) {
+              params.set(key, String(value));
+            }
+          });
+          if (params.toString()) {
+            setSearchParams(params, { replace: true });
+          }
+        } catch (e) {
+          localStorage.removeItem(FILTER_STORAGE_KEY);
+        }
+      }
+    }
+  }, []); // Only run on mount
+
   const updateFilters = (newFilters) => {
     const params = new URLSearchParams();
     const merged = { ...filters, ...newFilters };
@@ -62,7 +90,19 @@ export default function TicketListPage() {
         params.set(key, String(value));
       }
     });
+    // Save filters to localStorage (exclude page for cleaner restore)
+    const filtersToSave = { ...merged, page: 1 };
+    if (filtersToSave.search || filtersToSave.status || filtersToSave.priority || filtersToSave.assigneeId) {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } else {
+      localStorage.removeItem(FILTER_STORAGE_KEY);
+    }
     setSearchParams(params);
+  };
+
+  const clearFilters = () => {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
+    updateFilters({ search: '', status: '', priority: '', assigneeId: '', page: 1 });
   };
 
   // Fetch agents for assignee filter
@@ -158,7 +198,7 @@ export default function TicketListPage() {
             <Select options={priorityOptions} value={filters.priority} onChange={(e) => updateFilters({ priority: e.target.value, page: 1 })} className="w-40" />
             <Select options={assigneeOptions} value={filters.assigneeId} onChange={(e) => updateFilters({ assigneeId: e.target.value, page: 1 })} className="w-44" />
             {(filters.search || filters.status || filters.priority || filters.assigneeId) && (
-              <Button variant="ghost" size="sm" onClick={() => updateFilters({ search: '', status: '', priority: '', assigneeId: '', page: 1 })}>Clear filters</Button>
+              <Button variant="ghost" size="sm" onClick={clearFilters}>Clear filters</Button>
             )}
           </div>
         </div>
@@ -191,7 +231,7 @@ export default function TicketListPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { updateFilters({ status: '', priority: '', assigneeId: '', page: 1 }); setShowFilters(false); }}
+                onClick={() => { clearFilters(); setShowFilters(false); }}
                 className="w-full"
               >
                 Clear all filters
