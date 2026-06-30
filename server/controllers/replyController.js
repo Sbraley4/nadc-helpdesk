@@ -442,34 +442,21 @@ async function updateReply(req, res, next) {
     const { ticketId, replyId } = req.params;
     const { body, notifyAgentIds } = req.body;
 
-    console.log('[DEBUG PARSE] req.body:', JSON.stringify(req.body));
-    console.log('[DEBUG PARSE] raw notifyAgentIds:', notifyAgentIds, 'type:', typeof notifyAgentIds, 'isArray:', Array.isArray(notifyAgentIds));
-
     // Parse notifyAgentIds - handle JSON string (from FormData) or array (from JSON body)
     let agentIdsToNotify = [];
     if (notifyAgentIds) {
       if (Array.isArray(notifyAgentIds)) {
         // Already an array (from JSON request body)
         agentIdsToNotify = notifyAgentIds;
-        console.log('[DEBUG PARSE] notifyAgentIds was already an array');
       } else if (typeof notifyAgentIds === 'string') {
         // JSON string (from FormData multipart)
         try {
           agentIdsToNotify = JSON.parse(notifyAgentIds);
-          console.log('[DEBUG PARSE] parsed JSON string to array');
         } catch (e) {
-          console.log('[DEBUG PARSE] JSON.parse error:', e.message);
           agentIdsToNotify = [];
         }
-      } else {
-        console.log('[DEBUG PARSE] notifyAgentIds is neither array nor string:', typeof notifyAgentIds);
-        agentIdsToNotify = [];
       }
-    } else {
-      console.log('[DEBUG PARSE] notifyAgentIds is falsy:', notifyAgentIds);
     }
-
-    console.log('[DEBUG PARSE] final agentIdsToNotify:', agentIdsToNotify);
 
     // Find the reply with existing mentions
     const reply = await prisma.ticketReply.findUnique({
@@ -501,11 +488,10 @@ async function updateReply(req, res, next) {
     // Get existing mentioned user IDs (for creating new NoteMention records only)
     const existingMentionIds = reply.mentions.map(m => m.userId);
 
-    // For notifications on edit: notify ALL agents the user selected (excluding author)
+    // For notifications on edit: notify ALL agents the user selected
     // The user explicitly chose these agents in the "Notify Teammates" UI, so always notify them
-    const agentsToNotifyOnEdit = agentIdsToNotify.filter(id => id !== req.user.id);
-
-    console.log('[DEBUG NOTIFY EDIT]', { agentsToNotifyOnEdit, isInternal: reply.isInternal });
+    // (including self if they selected themselves)
+    const agentsToNotifyOnEdit = agentIdsToNotify;
 
     // Determine which agents need new NoteMention records (not already in mentions)
     const newMentionAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
@@ -539,23 +525,16 @@ async function updateReply(req, res, next) {
 
       // Create in-app notifications for ALL selected agents (user explicitly chose them)
       if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-        try {
-          console.log('[DEBUG IN-APP NOTIFY] Creating notifications for:', agentsToNotifyOnEdit);
-          for (const agentId of agentsToNotifyOnEdit) {
-            await tx.notification.create({
-              data: {
-                userId: agentId,
-                type: 'note_mention',
-                title: 'You were mentioned in a note',
-                message: `${req.user.name} mentioned you in a note on ticket #${ticket?.ticketNumber || ticketId}`,
-                ticketId: ticketId,
-              },
-            });
-          }
-          console.log('[DEBUG IN-APP NOTIFY] Successfully created notifications');
-        } catch (err) {
-          console.error('[DEBUG IN-APP NOTIFY ERROR]', err);
-          throw err; // Re-throw to rollback transaction
+        for (const agentId of agentsToNotifyOnEdit) {
+          await tx.notification.create({
+            data: {
+              userId: agentId,
+              type: 'note_mention',
+              title: 'You were mentioned in a note',
+              message: `${req.user.name} mentioned you in a note on ticket #${ticket?.ticketNumber || ticketId}`,
+              ticketId: ticketId,
+            },
+          });
         }
       }
 
@@ -600,52 +579,39 @@ async function updateReply(req, res, next) {
     // Emit Socket.io notifications for all selected agents
     const io = req.app.get('io');
     if (io && reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-      try {
-        console.log('[DEBUG SOCKET NOTIFY] Emitting to agents:', agentsToNotifyOnEdit);
-        for (const agentId of agentsToNotifyOnEdit) {
-          io.to(`user:${agentId}`).emit('notification:new', {
-            type: 'note_mention',
-            title: 'You were mentioned in a note',
-            ticketId,
-          });
-        }
-        console.log('[DEBUG SOCKET NOTIFY] Successfully emitted');
-      } catch (err) {
-        console.error('[DEBUG SOCKET NOTIFY ERROR]', err);
+      for (const agentId of agentsToNotifyOnEdit) {
+        io.to(`user:${agentId}`).emit('notification:new', {
+          type: 'note_mention',
+          title: 'You were mentioned in a note',
+          ticketId,
+        });
       }
     }
 
     // Send emails to all selected agents
     if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-      try {
-        console.log('[DEBUG EMAIL NOTIFY] Fetching agents for email:', agentsToNotifyOnEdit);
-        const agentsForEmail = await prisma.user.findMany({
-          where: {
-            id: { in: agentsToNotifyOnEdit },
-          },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        });
-        console.log('[DEBUG EMAIL NOTIFY] Found agents:', agentsForEmail.map(a => ({ id: a.id, email: a.email })));
+      const agentsForEmail = await prisma.user.findMany({
+        where: {
+          id: { in: agentsToNotifyOnEdit },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      });
 
-        const author = { id: req.user.id, name: req.user.name };
-        const ticketForEmail = await prisma.ticket.findUnique({
-          where: { id: ticketId },
-          select: { ticketNumber: true, subject: true },
-        });
+      const author = { id: req.user.id, name: req.user.name };
+      const ticketForEmail = await prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { ticketNumber: true, subject: true },
+      });
 
-        for (const agent of agentsForEmail) {
-          if (agent.email) {
-            console.log('[DEBUG EMAIL NOTIFY] Sending email to:', agent.email);
-            sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
-              .catch((err) => console.error(`[DEBUG EMAIL NOTIFY ERROR] Failed to send to agent ${agent.id}:`, err.message));
-          }
+      for (const agent of agentsForEmail) {
+        if (agent.email) {
+          sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
+            .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
         }
-      } catch (err) {
-        console.error('[DEBUG EMAIL NOTIFY ERROR]', err);
       }
     }
 
