@@ -488,6 +488,8 @@ async function updateReply(req, res, next) {
     // The user explicitly chose these agents in the "Notify Teammates" UI, so always notify them
     const agentsToNotifyOnEdit = agentIdsToNotify.filter(id => id !== req.user.id);
 
+    console.log('[DEBUG NOTIFY EDIT]', { agentsToNotifyOnEdit, isInternal: reply.isInternal });
+
     // Determine which agents need new NoteMention records (not already in mentions)
     const newMentionAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
 
@@ -520,16 +522,23 @@ async function updateReply(req, res, next) {
 
       // Create in-app notifications for ALL selected agents (user explicitly chose them)
       if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-        for (const agentId of agentsToNotifyOnEdit) {
-          await tx.notification.create({
-            data: {
-              userId: agentId,
-              type: 'note_mention',
-              title: 'You were mentioned in a note',
-              message: `${req.user.name} mentioned you in a note on ticket #${ticket?.ticketNumber || ticketId}`,
-              ticketId: ticketId,
-            },
-          });
+        try {
+          console.log('[DEBUG IN-APP NOTIFY] Creating notifications for:', agentsToNotifyOnEdit);
+          for (const agentId of agentsToNotifyOnEdit) {
+            await tx.notification.create({
+              data: {
+                userId: agentId,
+                type: 'note_mention',
+                title: 'You were mentioned in a note',
+                message: `${req.user.name} mentioned you in a note on ticket #${ticket?.ticketNumber || ticketId}`,
+                ticketId: ticketId,
+              },
+            });
+          }
+          console.log('[DEBUG IN-APP NOTIFY] Successfully created notifications');
+        } catch (err) {
+          console.error('[DEBUG IN-APP NOTIFY ERROR]', err);
+          throw err; // Re-throw to rollback transaction
         }
       }
 
@@ -574,39 +583,52 @@ async function updateReply(req, res, next) {
     // Emit Socket.io notifications for all selected agents
     const io = req.app.get('io');
     if (io && reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-      for (const agentId of agentsToNotifyOnEdit) {
-        io.to(`user:${agentId}`).emit('notification:new', {
-          type: 'note_mention',
-          title: 'You were mentioned in a note',
-          ticketId,
-        });
+      try {
+        console.log('[DEBUG SOCKET NOTIFY] Emitting to agents:', agentsToNotifyOnEdit);
+        for (const agentId of agentsToNotifyOnEdit) {
+          io.to(`user:${agentId}`).emit('notification:new', {
+            type: 'note_mention',
+            title: 'You were mentioned in a note',
+            ticketId,
+          });
+        }
+        console.log('[DEBUG SOCKET NOTIFY] Successfully emitted');
+      } catch (err) {
+        console.error('[DEBUG SOCKET NOTIFY ERROR]', err);
       }
     }
 
     // Send emails to all selected agents
     if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
-      const agentsForEmail = await prisma.user.findMany({
-        where: {
-          id: { in: agentsToNotifyOnEdit },
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      });
+      try {
+        console.log('[DEBUG EMAIL NOTIFY] Fetching agents for email:', agentsToNotifyOnEdit);
+        const agentsForEmail = await prisma.user.findMany({
+          where: {
+            id: { in: agentsToNotifyOnEdit },
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        });
+        console.log('[DEBUG EMAIL NOTIFY] Found agents:', agentsForEmail.map(a => ({ id: a.id, email: a.email })));
 
-      const author = { id: req.user.id, name: req.user.name };
-      const ticketForEmail = await prisma.ticket.findUnique({
-        where: { id: ticketId },
-        select: { ticketNumber: true, subject: true },
-      });
+        const author = { id: req.user.id, name: req.user.name };
+        const ticketForEmail = await prisma.ticket.findUnique({
+          where: { id: ticketId },
+          select: { ticketNumber: true, subject: true },
+        });
 
-      for (const agent of agentsForEmail) {
-        if (agent.email) {
-          sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
-            .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
+        for (const agent of agentsForEmail) {
+          if (agent.email) {
+            console.log('[DEBUG EMAIL NOTIFY] Sending email to:', agent.email);
+            sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
+              .catch((err) => console.error(`[DEBUG EMAIL NOTIFY ERROR] Failed to send to agent ${agent.id}:`, err.message));
+          }
         }
+      } catch (err) {
+        console.error('[DEBUG EMAIL NOTIFY ERROR]', err);
       }
     }
 
