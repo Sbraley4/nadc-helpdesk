@@ -442,17 +442,34 @@ async function updateReply(req, res, next) {
     const { ticketId, replyId } = req.params;
     const { body, notifyAgentIds } = req.body;
 
-    // Parse notifyAgentIds if it's a JSON string
+    console.log('[DEBUG PARSE] req.body:', JSON.stringify(req.body));
+    console.log('[DEBUG PARSE] raw notifyAgentIds:', notifyAgentIds, 'type:', typeof notifyAgentIds, 'isArray:', Array.isArray(notifyAgentIds));
+
+    // Parse notifyAgentIds - handle JSON string (from FormData) or array (from JSON body)
     let agentIdsToNotify = [];
     if (notifyAgentIds) {
-      try {
-        agentIdsToNotify = typeof notifyAgentIds === 'string'
-          ? JSON.parse(notifyAgentIds)
-          : notifyAgentIds;
-      } catch (e) {
+      if (Array.isArray(notifyAgentIds)) {
+        // Already an array (from JSON request body)
+        agentIdsToNotify = notifyAgentIds;
+        console.log('[DEBUG PARSE] notifyAgentIds was already an array');
+      } else if (typeof notifyAgentIds === 'string') {
+        // JSON string (from FormData multipart)
+        try {
+          agentIdsToNotify = JSON.parse(notifyAgentIds);
+          console.log('[DEBUG PARSE] parsed JSON string to array');
+        } catch (e) {
+          console.log('[DEBUG PARSE] JSON.parse error:', e.message);
+          agentIdsToNotify = [];
+        }
+      } else {
+        console.log('[DEBUG PARSE] notifyAgentIds is neither array nor string:', typeof notifyAgentIds);
         agentIdsToNotify = [];
       }
+    } else {
+      console.log('[DEBUG PARSE] notifyAgentIds is falsy:', notifyAgentIds);
     }
+
+    console.log('[DEBUG PARSE] final agentIdsToNotify:', agentIdsToNotify);
 
     // Find the reply with existing mentions
     const reply = await prisma.ticketReply.findUnique({
