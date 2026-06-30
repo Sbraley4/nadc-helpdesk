@@ -442,6 +442,9 @@ async function updateReply(req, res, next) {
     const { ticketId, replyId } = req.params;
     const { body, notifyAgentIds } = req.body;
 
+    // DEBUG: Log the request body to trace notifyAgentIds
+    console.log('[DEBUG updateReply] req.body:', JSON.stringify(req.body, null, 2));
+
     // Parse notifyAgentIds if it's a JSON string
     let agentIdsToNotify = [];
     if (notifyAgentIds) {
@@ -453,6 +456,7 @@ async function updateReply(req, res, next) {
         agentIdsToNotify = [];
       }
     }
+    console.log('[DEBUG updateReply] agentIdsToNotify after parsing:', agentIdsToNotify);
 
     // Find the reply with existing mentions
     const reply = await prisma.ticketReply.findUnique({
@@ -483,9 +487,11 @@ async function updateReply(req, res, next) {
 
     // Get existing mentioned user IDs
     const existingMentionIds = reply.mentions.map(m => m.userId);
+    console.log('[DEBUG updateReply] existingMentionIds:', existingMentionIds);
 
     // Determine newly added agents (for notifications)
     const newlyAddedAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
+    console.log('[DEBUG updateReply] newlyAddedAgentIds:', newlyAddedAgentIds);
 
     // Get ticket info for notifications
     const ticket = await prisma.ticket.findUnique({
