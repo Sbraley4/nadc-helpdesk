@@ -139,7 +139,17 @@ const listTickets = async (req, res, next) => {
       if (assigneeId === 'unassigned') {
         where.assigneeId = null;
       } else {
-        where.assigneeId = assigneeId;
+        // Match tickets where agent is primary assignee OR additional assignee
+        // Use AND to combine with other filters (avoids conflict with search OR)
+        if (!where.AND) {
+          where.AND = [];
+        }
+        where.AND.push({
+          OR: [
+            { assigneeId: assigneeId },
+            { additionalAssignees: { some: { userId: assigneeId } } }
+          ]
+        });
       }
     }
 
