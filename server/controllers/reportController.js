@@ -272,12 +272,11 @@ async function getAgentTotalHours(agentId, start, end) {
       agentId,
       date: { gte: start, lte: end },
     },
-    _sum: { hours: true, minutes: true },
+    _sum: { duration: true },
   });
 
-  const hours = result._sum.hours || 0;
-  const minutes = result._sum.minutes || 0;
-  return Math.round((hours + minutes / 60) * 100) / 100;
+  // duration is stored as Float in hours (e.g., 3.5 = 3h 30m)
+  return Math.round((result._sum.duration || 0) * 100) / 100;
 }
 
 /**
@@ -418,29 +417,29 @@ async function getTimeAndMaterialsReport(req, res, next) {
       },
     });
 
-    // Aggregate time
+    // Aggregate time - duration is stored as Float in hours (e.g., 3.5 = 3h 30m)
     const totalTimeResult = await prisma.timeEntry.aggregate({
       where: timeWhere,
-      _sum: { hours: true, minutes: true },
+      _sum: { duration: true },
     });
 
-    const totalHours = totalTimeResult._sum.hours || 0;
-    const totalMinutes = totalTimeResult._sum.minutes || 0;
+    const totalDuration = totalTimeResult._sum.duration || 0;
+    const totalHours = Math.floor(totalDuration);
+    const totalMinutes = Math.round((totalDuration - totalHours) * 60);
 
-    // Time by agent
+    // Time by agent - accumulate duration then convert to hours/minutes
     const timeByAgentMap = {};
     for (const entry of timeEntries) {
       const name = entry.agent.name;
       if (!timeByAgentMap[name]) {
-        timeByAgentMap[name] = { hours: 0, minutes: 0 };
+        timeByAgentMap[name] = 0;
       }
-      timeByAgentMap[name].hours += entry.hours;
-      timeByAgentMap[name].minutes += entry.minutes;
+      timeByAgentMap[name] += entry.duration || 0;
     }
-    const timeByAgent = Object.entries(timeByAgentMap).map(([agentName, t]) => ({
+    const timeByAgent = Object.entries(timeByAgentMap).map(([agentName, duration]) => ({
       agentName,
-      hours: t.hours + Math.floor(t.minutes / 60),
-      minutes: t.minutes % 60,
+      hours: Math.floor(duration),
+      minutes: Math.round((duration - Math.floor(duration)) * 60),
     }));
 
     // Time by company
@@ -448,15 +447,14 @@ async function getTimeAndMaterialsReport(req, res, next) {
     for (const entry of timeEntries) {
       const name = entry.ticket.company?.name || 'No Company';
       if (!timeByCompanyMap[name]) {
-        timeByCompanyMap[name] = { hours: 0, minutes: 0 };
+        timeByCompanyMap[name] = 0;
       }
-      timeByCompanyMap[name].hours += entry.hours;
-      timeByCompanyMap[name].minutes += entry.minutes;
+      timeByCompanyMap[name] += entry.duration || 0;
     }
-    const timeByCompany = Object.entries(timeByCompanyMap).map(([companyName, t]) => ({
+    const timeByCompany = Object.entries(timeByCompanyMap).map(([companyName, duration]) => ({
       companyName,
-      hours: t.hours + Math.floor(t.minutes / 60),
-      minutes: t.minutes % 60,
+      hours: Math.floor(duration),
+      minutes: Math.round((duration - Math.floor(duration)) * 60),
     }));
 
     // Time by day
@@ -464,17 +462,16 @@ async function getTimeAndMaterialsReport(req, res, next) {
     for (const entry of timeEntries) {
       const day = entry.date.toISOString().split('T')[0];
       if (!timeByDayMap[day]) {
-        timeByDayMap[day] = { hours: 0, minutes: 0 };
+        timeByDayMap[day] = 0;
       }
-      timeByDayMap[day].hours += entry.hours;
-      timeByDayMap[day].minutes += entry.minutes;
+      timeByDayMap[day] += entry.duration || 0;
     }
     const timeByDay = Object.entries(timeByDayMap)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, t]) => ({
+      .map(([date, duration]) => ({
         date,
-        hours: t.hours + Math.floor(t.minutes / 60),
-        minutes: t.minutes % 60,
+        hours: Math.floor(duration),
+        minutes: Math.round((duration - Math.floor(duration)) * 60),
       }));
 
     // Material entries
@@ -734,17 +731,19 @@ async function generateTimeMaterialsCsv(start, end) {
     orderBy: { createdAt: 'asc' },
   });
 
-  // Time section
+  // Time section - duration is stored as Float in hours (e.g., 3.5 = 3h 30m)
   let csv = 'TIME ENTRIES\n';
   csv += 'Date,Ticket #,Agent,Hours,Minutes,Description\n';
   for (const t of timeEntries) {
+    const hours = Math.floor(t.duration || 0);
+    const minutes = Math.round(((t.duration || 0) - hours) * 60);
     csv += [
       t.date.toISOString().split('T')[0],
       t.ticket.ticketNumber,
       escapeCsvValue(t.agent.name),
-      t.hours,
-      t.minutes,
-      escapeCsvValue(t.description || ''),
+      hours,
+      minutes,
+      escapeCsvValue(t.notes || ''),
     ].join(',') + '\n';
   }
 

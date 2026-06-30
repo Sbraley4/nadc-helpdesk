@@ -110,26 +110,27 @@ async function getCalendarTickets(req, res, next) {
     });
 
     // Group time entries by date
+    // Note: entry.duration is stored as Float in hours (e.g., 3.5 = 3h 30m)
     const timeByDate = {};
     for (const entry of timeEntries) {
       const dateKey = entry.date.toISOString().split('T')[0];
       if (!timeByDate[dateKey]) {
         timeByDate[dateKey] = {
+          totalDuration: 0, // Accumulated duration in hours
           totalHours: 0,
           totalMinutes: 0,
           entries: [],
         };
       }
-      timeByDate[dateKey].totalHours += entry.hours;
-      timeByDate[dateKey].totalMinutes += entry.minutes;
+      timeByDate[dateKey].totalDuration += entry.duration || 0;
       timeByDate[dateKey].entries.push(entry);
     }
 
-    // Normalize minutes (convert excess minutes to hours)
+    // Convert decimal hours to hours + minutes for API compatibility
     for (const dateKey of Object.keys(timeByDate)) {
       const day = timeByDate[dateKey];
-      day.totalHours += Math.floor(day.totalMinutes / 60);
-      day.totalMinutes = day.totalMinutes % 60;
+      day.totalHours = Math.floor(day.totalDuration);
+      day.totalMinutes = Math.round((day.totalDuration - day.totalHours) * 60);
     }
 
     // Format schedule entries for calendar
@@ -263,14 +264,13 @@ async function getWorkloadSummary(req, res, next) {
               },
             },
             _sum: {
-              hours: true,
-              minutes: true,
+              duration: true,
             },
           }),
         ]);
 
-        const totalHours = (timeEntries._sum.hours || 0) +
-          Math.floor((timeEntries._sum.minutes || 0) / 60);
+        // duration is stored as Float in hours (e.g., 3.5 = 3h 30m)
+        const totalHours = Math.floor(timeEntries._sum.duration || 0);
 
         return {
           agentId: agent.id,

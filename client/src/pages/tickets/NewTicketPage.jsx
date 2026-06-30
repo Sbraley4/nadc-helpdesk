@@ -269,14 +269,15 @@ export default function NewTicketPage() {
 
   const createMutation = useMutation({
     mutationFn: async ({ ticketData, files }) => {
-      // Create the ticket first (without dueDate)
+      // Create the ticket first - this is the critical operation
       const createdTicket = await tickets.createTicket(ticketData);
-      // DEBUG: Log the created ticket response
       console.log('[NewTicket DEBUG] Ticket created, response:', createdTicket);
+
+      // Track post-creation errors separately (ticket exists, but extras failed)
+      const postCreationErrors = [];
 
       // If dates are set, create a TicketSchedule entry
       if (ticketData._scheduleData) {
-        // DEBUG: Log before createSchedule call
         console.log('[NewTicket DEBUG] About to call createSchedule with:', {
           ticketId: createdTicket.id,
           scheduleData: ticketData._scheduleData,
@@ -286,29 +287,41 @@ export default function NewTicketPage() {
           console.log('[NewTicket DEBUG] createSchedule succeeded:', scheduleResult);
         } catch (scheduleError) {
           console.error('[NewTicket DEBUG] createSchedule FAILED:', scheduleError);
-          throw scheduleError; // Re-throw to preserve original behavior
+          postCreationErrors.push('schedule');
         }
-      } else {
-        console.log('[NewTicket DEBUG] No _scheduleData found, skipping schedule creation');
       }
 
       // Upload attachments if any
       if (files && files.length > 0) {
-        const formData = new FormData();
-        files.forEach((file) => {
-          formData.append('files', file);
-        });
-        await attachments.uploadAttachment(createdTicket.id, formData);
+        try {
+          const formData = new FormData();
+          files.forEach((file) => {
+            formData.append('files', file);
+          });
+          await attachments.uploadAttachment(createdTicket.id, formData);
+        } catch (attachmentError) {
+          console.error('[NewTicket DEBUG] attachment upload FAILED:', attachmentError);
+          postCreationErrors.push('attachments');
+        }
       }
 
-      return createdTicket;
+      // Return ticket with any post-creation error info
+      return { ...createdTicket, _postCreationErrors: postCreationErrors };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries(['tickets']);
-      toast.success('Ticket created successfully');
+
+      // Show appropriate message based on whether post-creation operations succeeded
+      if (data._postCreationErrors && data._postCreationErrors.length > 0) {
+        const failedOps = data._postCreationErrors.join(' and ');
+        toast.success(`Ticket created, but ${failedOps} failed to save. Please update manually.`);
+      } else {
+        toast.success('Ticket created successfully');
+      }
       navigate('/tickets/' + data.id);
     },
     onError: (error) => {
+      // This only triggers if ticket creation itself failed (not post-creation ops)
       toast.error(error.response?.data?.message || 'Failed to create ticket');
     },
   });
