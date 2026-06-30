@@ -101,7 +101,7 @@ export default function MultiSelectAgents({
                   <div
                     key={agent.id}
                     onClick={() => toggleAgent(agent.id)}
-                    className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+                    className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-50 min-h-[44px] touch-manipulation ${
                       isSelected ? 'bg-primary/5' : ''
                     }`}
                   >

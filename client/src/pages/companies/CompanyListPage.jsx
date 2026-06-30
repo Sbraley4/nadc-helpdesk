@@ -238,9 +238,9 @@ export default function CompanyListPage() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="block md:hidden">
+            <div className="block md:hidden flex flex-col gap-3 p-3 bg-gray-50">
               {companyList.map((company) => (
-                <div key={company.id} className="p-4 border-b border-gray-100 last:border-b-0">
+                <div key={company.id} className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                   <Link to={'/companies/' + company.id} className="block mb-3">
                     <p className="text-base font-medium text-gray-900">{company.name}</p>
                     {company.domain && <p className="text-sm text-gray-500 mt-0.5">{company.domain}</p>}

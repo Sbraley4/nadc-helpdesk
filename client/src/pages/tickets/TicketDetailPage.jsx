@@ -916,7 +916,7 @@ export default function TicketDetailPage() {
       <div className="flex-1 min-w-0">
         {/* Header */}
         <div className="flex items-center gap-2 md:gap-4 mb-4 md:mb-6">
-          <button onClick={() => navigate('/tickets')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center">
+          <button onClick={() => navigate('/tickets')} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
             <ArrowLeft size={20} />
           </button>
           <div className="flex-1 min-w-0">
@@ -929,7 +929,7 @@ export default function TicketDetailPage() {
           <div className="relative">
             <button
               onClick={() => setShowTicketMenu(!showTicketMenu)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Ticket Actions"
             >
               <MoreVertical size={20} />
@@ -940,7 +940,7 @@ export default function TicketDetailPage() {
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1">
                   <button
                     onClick={handleOpenEditModal}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
                   >
                     <Pencil size={16} />
                     Edit Ticket
@@ -952,21 +952,21 @@ export default function TicketDetailPage() {
                       setShowScheduleModal(true);
                       setShowTicketMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
                   >
                     <Calendar size={16} />
                     Add to Calendar
                   </button>
                   <button
                     onClick={handleStartThread}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
                   >
                     <MessageSquare size={16} />
                     Start a Thread
                   </button>
                   <button
                     onClick={() => { setShowForwardModal(true); setShowTicketMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
                   >
                     <Forward size={16} />
                     Forward Ticket
@@ -974,7 +974,7 @@ export default function TicketDetailPage() {
                   <hr className="my-1" />
                   <button
                     onClick={() => { handleDeleteTicket(); setShowTicketMenu(false); }}
-                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 min-h-[44px] touch-manipulation"
                   >
                     <Trash2 size={16} />
                     Delete Ticket
@@ -986,7 +986,7 @@ export default function TicketDetailPage() {
           {/* Mobile sidebar toggle */}
           <button
             onClick={() => setShowMobileSidebar(true)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
             title="Ticket Details"
           >
             <Settings2 size={20} />

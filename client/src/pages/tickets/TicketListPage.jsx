@@ -143,7 +143,7 @@ export default function TicketListPage() {
           {/* Mobile filter toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className="md:hidden flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg min-h-[40px] touch-manipulation"
+            className="md:hidden flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg min-h-[44px] touch-manipulation"
           >
             <Filter size={16} />
             {activeFilterCount > 0 && (
@@ -238,7 +238,7 @@ export default function TicketListPage() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden divide-y divide-gray-200">
+            <div className="md:hidden flex flex-col gap-3 p-3 bg-gray-50">
               {ticketList.map((ticket) => (
                 <MobileTicketCard
                   key={ticket.id}
@@ -342,7 +342,7 @@ function MobileTicketCard({ ticket, onStatusChange, onClick }) {
 
   return (
     <div
-      className="p-4 active:bg-gray-50 touch-manipulation cursor-pointer"
+      className="p-4 bg-white rounded-lg shadow-sm border border-gray-200 active:bg-gray-50 touch-manipulation cursor-pointer"
       onClick={onClick}
     >
       {/* Top row: ticket number, status, priority */}
@@ -356,7 +356,7 @@ function MobileTicketCard({ ticket, onStatusChange, onClick }) {
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowStatusMenu(!showStatusMenu); }}
-            className="flex items-center gap-1 touch-manipulation"
+            className="flex items-center gap-1 touch-manipulation min-h-[44px] px-1"
           >
             <Badge variant={statusConfig[ticket.status]?.variant}>
               {statusConfig[ticket.status]?.label}

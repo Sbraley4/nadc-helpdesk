@@ -289,9 +289,9 @@ export default function ContactListPage() {
             </div>
 
             {/* Mobile Card View */}
-            <div className="block md:hidden">
+            <div className="block md:hidden flex flex-col gap-3 p-3 bg-gray-50">
               {contactList.map((contact) => (
-                <div key={contact.id} className="p-4 border-b border-gray-100 last:border-b-0">
+                <div key={contact.id} className="p-4 bg-white rounded-lg shadow-sm border border-gray-200">
                   <Link to={'/contacts/' + contact.id} className="block">
                     <div className="flex items-start gap-3 mb-3">
                       <Avatar name={contact.name} size="md" />

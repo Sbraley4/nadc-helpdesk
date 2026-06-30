@@ -42,7 +42,7 @@ export default function FAB({ onAction }) {
             <button
               key={item.action}
               onClick={() => handleActionClick(item.action)}
-              className={`flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shadow-lg text-white ${item.color} hover:opacity-90 transition-all`}
+              className={`flex items-center gap-2 pl-3 pr-4 py-2 rounded-full shadow-lg text-white ${item.color} hover:opacity-90 transition-all min-h-[44px] touch-manipulation`}
               style={{
                 animationDelay: `${index * 50}ms`,
                 animation: 'slideUp 0.2s ease-out forwards',

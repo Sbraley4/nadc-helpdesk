@@ -104,7 +104,7 @@ export default function ContactTypeahead({
             <button
               type="button"
               onClick={handleClear}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center flex-shrink-0"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0"
             >
               <X size={18} />
             </button>

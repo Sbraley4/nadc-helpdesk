@@ -337,7 +337,7 @@ export default function NewTicketPage() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center">
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">New Ticket</h1>
@@ -535,7 +535,7 @@ export default function NewTicketPage() {
                   setNewCompanyDomain('');
                   setNewCompanyAddress('');
                 }}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-2 hover:bg-gray-100 rounded-lg touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <X size={20} />
               </button>

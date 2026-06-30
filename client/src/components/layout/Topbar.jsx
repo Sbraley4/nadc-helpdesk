@@ -163,7 +163,7 @@ export default function Topbar({ title, onMenuClick, isMobile }) {
         {isMobile && onMenuClick && (
           <button
             onClick={onMenuClick}
-            className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg touch-manipulation"
+            className="p-2 -ml-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
             <Menu size={20} />
           </button>
@@ -332,7 +332,7 @@ export default function Topbar({ title, onMenuClick, isMobile }) {
         <div className="relative" ref={notificationRef}>
           <button
             onClick={() => setNotificationPanelOpen(!notificationPanelOpen)}
-            className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
           >
             <Bell size={20} />
             {unreadCount > 0 && (
