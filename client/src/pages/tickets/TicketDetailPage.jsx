@@ -2324,26 +2324,29 @@ export default function TicketDetailPage() {
                               <p className="text-xs text-gray-500 mt-1 truncate">{entry.notes}</p>
                             )}
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleEditTimeEntry(entry)}
-                              className="p-1 text-gray-400 hover:text-primary rounded"
-                              title="Edit"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              onClick={() => {
-                                if (confirm('Delete this time entry?')) {
-                                  deleteTimeEntryMutation.mutate(entry.id);
-                                }
-                              }}
-                              className="p-1 text-gray-400 hover:text-red-500 rounded"
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
+                          {/* Edit/Delete - only visible to entry owner or ADMIN */}
+                          {(entry.agentId === user?.id || user?.role === 'ADMIN') && (
+                            <div className="flex gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleEditTimeEntry(entry)}
+                                className="p-2 min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 lg:p-1 text-gray-500 hover:text-primary active:text-primary rounded-lg lg:rounded touch-manipulation flex items-center justify-center"
+                                title="Edit"
+                              >
+                                <Pencil size={16} className="lg:w-3 lg:h-3" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm('Delete this time entry?')) {
+                                    deleteTimeEntryMutation.mutate(entry.id);
+                                  }
+                                }}
+                                className="p-2 min-w-[44px] min-h-[44px] lg:min-w-0 lg:min-h-0 lg:p-1 text-gray-500 hover:text-red-500 active:text-red-500 rounded-lg lg:rounded touch-manipulation flex items-center justify-center"
+                                title="Delete"
+                              >
+                                <Trash2 size={16} className="lg:w-3 lg:h-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
