@@ -442,9 +442,6 @@ async function updateReply(req, res, next) {
     const { ticketId, replyId } = req.params;
     const { body, notifyAgentIds } = req.body;
 
-    // DEBUG: Log the request body to trace notifyAgentIds
-    console.log('[DEBUG updateReply] req.body:', JSON.stringify(req.body, null, 2));
-
     // Parse notifyAgentIds if it's a JSON string
     let agentIdsToNotify = [];
     if (notifyAgentIds) {
@@ -456,7 +453,6 @@ async function updateReply(req, res, next) {
         agentIdsToNotify = [];
       }
     }
-    console.log('[DEBUG updateReply] agentIdsToNotify after parsing:', agentIdsToNotify);
 
     // Find the reply with existing mentions
     const reply = await prisma.ticketReply.findUnique({
@@ -485,13 +481,15 @@ async function updateReply(req, res, next) {
       return res.status(400).json({ error: 'Reply body is required' });
     }
 
-    // Get existing mentioned user IDs
+    // Get existing mentioned user IDs (for creating new NoteMention records only)
     const existingMentionIds = reply.mentions.map(m => m.userId);
-    console.log('[DEBUG updateReply] existingMentionIds:', existingMentionIds);
 
-    // Determine newly added agents (for notifications)
-    const newlyAddedAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
-    console.log('[DEBUG updateReply] newlyAddedAgentIds:', newlyAddedAgentIds);
+    // For notifications on edit: notify ALL agents the user selected (excluding author)
+    // The user explicitly chose these agents in the "Notify Teammates" UI, so always notify them
+    const agentsToNotifyOnEdit = agentIdsToNotify.filter(id => id !== req.user.id);
+
+    // Determine which agents need new NoteMention records (not already in mentions)
+    const newMentionAgentIds = agentIdsToNotify.filter(id => !existingMentionIds.includes(id));
 
     // Get ticket info for notifications
     const ticket = await prisma.ticket.findUnique({
@@ -510,20 +508,19 @@ async function updateReply(req, res, next) {
         },
       });
 
-      // Only create new mentions for internal notes
-      if (reply.isInternal && newlyAddedAgentIds.length > 0) {
-        // Create mention records for newly added agents
+      // Create NoteMention records for agents not already mentioned
+      if (reply.isInternal && newMentionAgentIds.length > 0) {
         await tx.noteMention.createMany({
-          data: newlyAddedAgentIds.map((userId) => ({
+          data: newMentionAgentIds.map((userId) => ({
             replyId: replyId,
             userId,
           })),
         });
+      }
 
-        // Create notifications for newly added agents (exclude author)
-        for (const agentId of newlyAddedAgentIds) {
-          if (agentId === req.user.id) continue;
-
+      // Create in-app notifications for ALL selected agents (user explicitly chose them)
+      if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
+        for (const agentId of agentsToNotifyOnEdit) {
           await tx.notification.create({
             data: {
               userId: agentId,
@@ -574,11 +571,10 @@ async function updateReply(req, res, next) {
       },
     });
 
-    // Emit Socket.io notifications for newly added agents
+    // Emit Socket.io notifications for all selected agents
     const io = req.app.get('io');
-    if (io && reply.isInternal && newlyAddedAgentIds.length > 0) {
-      for (const agentId of newlyAddedAgentIds) {
-        if (agentId === req.user.id) continue;
+    if (io && reply.isInternal && agentsToNotifyOnEdit.length > 0) {
+      for (const agentId of agentsToNotifyOnEdit) {
         io.to(`user:${agentId}`).emit('notification:new', {
           type: 'note_mention',
           title: 'You were mentioned in a note',
@@ -587,11 +583,11 @@ async function updateReply(req, res, next) {
       }
     }
 
-    // Send emails to newly added agents
-    if (reply.isInternal && newlyAddedAgentIds.length > 0) {
-      const agentsToNotify = await prisma.user.findMany({
+    // Send emails to all selected agents
+    if (reply.isInternal && agentsToNotifyOnEdit.length > 0) {
+      const agentsForEmail = await prisma.user.findMany({
         where: {
-          id: { in: newlyAddedAgentIds },
+          id: { in: agentsToNotifyOnEdit },
         },
         select: {
           id: true,
@@ -606,8 +602,8 @@ async function updateReply(req, res, next) {
         select: { ticketNumber: true, subject: true },
       });
 
-      for (const agent of agentsToNotify) {
-        if (agent.email && agent.id !== req.user.id) {
+      for (const agent of agentsForEmail) {
+        if (agent.email) {
           sendNoteNotificationToAgent(ticketForEmail, fullUpdatedReply, author, agent)
             .catch((err) => console.error(`[Reply] Failed to send note email to agent ${agent.id}:`, err.message));
         }

@@ -477,10 +477,7 @@ export default function TicketDetailPage() {
 
   // Edit reply mutation
   const editReplyMutation = useMutation({
-    mutationFn: ({ replyId, body, notifyAgentIds }) => {
-      console.log('[DEBUG editReply] Sending:', { replyId, body: body?.substring(0, 50), notifyAgentIds });
-      return replies.updateReply(id, replyId, { body, notifyAgentIds });
-    },
+    mutationFn: ({ replyId, body, notifyAgentIds }) => replies.updateReply(id, replyId, { body, notifyAgentIds }),
     onSuccess: () => {
       queryClient.invalidateQueries(['replies', id]);
       setEditingReplyId(null);
