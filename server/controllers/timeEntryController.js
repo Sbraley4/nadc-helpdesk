@@ -90,11 +90,15 @@ async function createTimeEntry(req, res, next) {
     // Use provided agentId or current user
     const actualAgentId = agentId || req.user.id;
 
+    // Parse date string as local noon to avoid timezone shift
+    // (e.g., "2026-06-18" -> local June 18th at noon, not UTC midnight which shifts back a day)
+    const parsedDate = new Date(date + 'T12:00:00');
+
     const entry = await prisma.timeEntry.create({
       data: {
         ticketId,
         agentId: actualAgentId,
-        date: new Date(date),
+        date: parsedDate,
         startTime,
         endTime,
         duration,
@@ -154,7 +158,8 @@ async function updateTimeEntry(req, res, next) {
     }
 
     const updateData = {};
-    if (date !== undefined) updateData.date = new Date(date);
+    // Parse date string as local noon to avoid timezone shift
+    if (date !== undefined) updateData.date = new Date(date + 'T12:00:00');
     if (startTime !== undefined) updateData.startTime = startTime;
     if (endTime !== undefined) updateData.endTime = endTime;
     if (agentId !== undefined) updateData.agentId = agentId;

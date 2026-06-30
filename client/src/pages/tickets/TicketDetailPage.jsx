@@ -691,7 +691,8 @@ export default function TicketDetailPage() {
           toast.success('Time logged');
 
           // Append time log info to the note body
-          const dateFormatted = new Date(timeLogDate).toLocaleDateString('en-US', {
+          // Parse as local noon to avoid timezone shift (UTC midnight shifts back a day in US timezones)
+          const dateFormatted = new Date(timeLogDate + 'T12:00:00').toLocaleDateString('en-US', {
             weekday: 'short',
             month: 'short',
             day: 'numeric'
@@ -2308,7 +2309,7 @@ export default function TicketDetailPage() {
                         <div className="flex items-start justify-between">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <span>{format(new Date(entry.date), 'MMM d')}</span>
+                              <span>{format(new Date(new Date(entry.date).toISOString().split('T')[0] + 'T12:00:00'), 'MMM d')}</span>
                               <span>•</span>
                               <span className="font-medium">{entry.startTime} - {entry.endTime}</span>
                             </div>
