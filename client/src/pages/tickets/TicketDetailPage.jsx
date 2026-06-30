@@ -477,7 +477,10 @@ export default function TicketDetailPage() {
 
   // Edit reply mutation
   const editReplyMutation = useMutation({
-    mutationFn: ({ replyId, body, notifyAgentIds }) => replies.updateReply(id, replyId, { body, notifyAgentIds }),
+    mutationFn: ({ replyId, body, notifyAgentIds }) => {
+      console.log('[DEBUG EDIT REPLY]', { replyId, body, notifyAgentIds });
+      return replies.updateReply(id, replyId, { body, notifyAgentIds });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['replies', id]);
       setEditingReplyId(null);
@@ -1313,11 +1316,14 @@ export default function TicketDetailPage() {
                         </Button>
                         <Button
                           size="sm"
-                          onClick={() => editReplyMutation.mutate({
-                            replyId: reply.id,
-                            body: editingReplyContent,
-                            notifyAgentIds: editingReplyIsInternal ? editNotifyAgents : undefined
-                          })}
+                          onClick={() => {
+                            console.log('[DEBUG EDIT SUBMIT]', { editNotifyAgents, editingReplyIsInternal });
+                            editReplyMutation.mutate({
+                              replyId: reply.id,
+                              body: editingReplyContent,
+                              notifyAgentIds: editingReplyIsInternal ? editNotifyAgents : undefined
+                            });
+                          }}
                           isLoading={editReplyMutation.isPending}
                           className="w-full sm:w-auto"
                         >
