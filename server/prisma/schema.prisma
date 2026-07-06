@@ -33,7 +33,6 @@ enum TicketStatus {
   RESOLVED
   INVOICED
   POSTED
-  CLOSED
 }
 
 enum Priority {

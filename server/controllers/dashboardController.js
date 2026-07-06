@@ -92,17 +92,16 @@ async function getDashboardStats(req, res, next) {
 async function getTicketCounts(todayStart) {
   const now = new Date();
 
-  const [total, open, pending, resolved, closed, overdue, slaBreached, createdToday, resolvedToday] =
+  const [total, open, pending, resolved, overdue, slaBreached, createdToday, resolvedToday] =
     await Promise.all([
       prisma.ticket.count(),
       prisma.ticket.count({ where: { status: 'OPEN' } }),
       prisma.ticket.count({ where: { status: 'PENDING' } }),
       prisma.ticket.count({ where: { status: 'INVOICED' } }),
-      prisma.ticket.count({ where: { status: 'CLOSED' } }),
       prisma.ticket.count({
         where: {
           dueDate: { lt: now },
-          status: { notIn: ['CLOSED', 'INVOICED', 'POSTED'] },
+          status: { notIn: ['INVOICED', 'POSTED'] },
         },
       }),
       prisma.ticket.count({ where: { slaBreached: true } }),
@@ -114,7 +113,7 @@ async function getTicketCounts(todayStart) {
       }),
     ]);
 
-  return { total, open, pending, resolved, closed, overdue, slaBreached, createdToday, resolvedToday };
+  return { total, open, pending, resolved, overdue, slaBreached, createdToday, resolvedToday };
 }
 
 async function getAvgResponseTime(since) {
@@ -171,7 +170,7 @@ async function getTicketsByPriority() {
 }
 
 async function getTicketsByStatus() {
-  const statuses = ['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'];
+  const statuses = ['OPEN', 'PENDING', 'INVOICED', 'POSTED'];
   const counts = await Promise.all(
     statuses.map(async (status) => ({
       status,

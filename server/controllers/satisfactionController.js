@@ -7,8 +7,8 @@ const prisma = new PrismaClient();
 // Google Business Review URL placeholder - update this in AppSettings
 const GOOGLE_BUSINESS_REVIEW_URL = 'PLACEHOLDER_GOOGLE_REVIEW_URL';
 
-// Schedule review request when ticket is closed
-// Called internally from ticket update when status changes to CLOSED
+// Schedule review request when ticket is invoiced
+// Called internally from ticket update when status changes to INVOICED
 async function scheduleReviewRequest(ticket) {
   try {
     // Get settings

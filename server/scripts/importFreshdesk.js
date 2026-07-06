@@ -33,7 +33,7 @@ const STATUS_MAP = {
   2: 'OPEN',
   3: 'PENDING',
   4: 'RESOLVED',
-  5: 'CLOSED',
+  5: 'INVOICED',
 };
 
 // Priority mapping from Freshdesk integer values
@@ -415,7 +415,7 @@ async function importTickets(importDir) {
             assigneeId: dbAssigneeId,
             dueDate,
             createdAt: createdDate,
-            resolvedAt: ['RESOLVED', 'CLOSED', 'INVOICED'].includes(status) ? createdDate : null,
+            resolvedAt: ['RESOLVED', 'INVOICED'].includes(status) ? createdDate : null,
           },
         });
 

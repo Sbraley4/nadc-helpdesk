@@ -130,7 +130,7 @@ function TicketVolumeReport({ data }) {
   if (!data) return null;
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-lg shadow p-4 text-center">
           <div className="text-3xl font-bold text-blue-600">{data.totals?.created || 0}</div>
           <div className="text-sm text-gray-500">Created</div>
@@ -138,10 +138,6 @@ function TicketVolumeReport({ data }) {
         <div className="bg-white rounded-lg shadow p-4 text-center">
           <div className="text-3xl font-bold text-green-600">{data.totals?.resolved || 0}</div>
           <div className="text-sm text-gray-500">Resolved</div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4 text-center">
-          <div className="text-3xl font-bold text-gray-600">{data.totals?.closed || 0}</div>
-          <div className="text-sm text-gray-500">Closed</div>
         </div>
       </div>
 
@@ -156,7 +152,6 @@ function TicketVolumeReport({ data }) {
             <Legend />
             <Line type="monotone" dataKey="created" stroke="#3B82F6" strokeWidth={2} />
             <Line type="monotone" dataKey="resolved" stroke="#10B981" strokeWidth={2} />
-            <Line type="monotone" dataKey="closed" stroke="#6B7280" strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
       </div>
@@ -173,7 +168,7 @@ function AgentPerformanceReport({ data }) {
           <tr>
             <th className="text-left p-3">Agent</th>
             <th className="text-center p-3">Assigned</th>
-            <th className="text-center p-3">Closed</th>
+            <th className="text-center p-3">Invoiced</th>
             <th className="text-center p-3">Avg First Response</th>
             <th className="text-center p-3">Avg Resolution</th>
             <th className="text-center p-3">SLA %</th>
@@ -185,7 +180,7 @@ function AgentPerformanceReport({ data }) {
             <tr key={agent.agentId} className="border-t">
               <td className="p-3 font-medium">{agent.agentName}</td>
               <td className="text-center p-3">{agent.ticketsAssigned}</td>
-              <td className="text-center p-3">{agent.ticketsClosed}</td>
+              <td className="text-center p-3">{agent.ticketsInvoiced}</td>
               <td className="text-center p-3">{agent.avgFirstResponseHours ? `${agent.avgFirstResponseHours}h` : '—'}</td>
               <td className="text-center p-3">{agent.avgResolutionHours ? `${agent.avgResolutionHours}h` : '—'}</td>
               <td className="text-center p-3">

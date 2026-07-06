@@ -10,7 +10,6 @@ const statusConfig = {
   PENDING: { label: 'Pending', color: 'bg-gray-200 text-gray-700', icon: Clock },
   INVOICED: { label: 'Invoiced', color: 'bg-green-100 text-green-800', icon: DollarSign },
   POSTED: { label: 'Posted', color: 'bg-pink-100 text-pink-800', icon: Mail },
-  CLOSED: { label: 'Closed', color: 'bg-gray-100 text-gray-600', icon: CheckCircle },
 };
 
 export default function PortalTicketsPage() {
@@ -65,7 +64,6 @@ export default function PortalTicketsPage() {
               <option value="PENDING">Pending</option>
               <option value="INVOICED">Invoiced</option>
               <option value="POSTED">Posted</option>
-              <option value="CLOSED">Closed</option>
             </select>
           </div>
         </div>

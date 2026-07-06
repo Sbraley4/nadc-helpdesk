@@ -121,7 +121,7 @@ const listTickets = async (req, res, next) => {
     const where = {};
 
     // Valid ticket statuses
-    const validStatuses = ['OPEN', 'PENDING', 'RESOLVED', 'INVOICED', 'POSTED', 'CLOSED'];
+    const validStatuses = ['OPEN', 'PENDING', 'RESOLVED', 'INVOICED', 'POSTED'];
 
     if (status) {
       // Validate status to prevent Prisma errors from invalid enum values
@@ -309,9 +309,9 @@ const getViews = async (req, res) => {
       filters: { slaBreached: 'true' },
     },
     {
-      id: 'closed-today',
-      label: 'Closed today',
-      filters: { status: 'CLOSED', createdAfter: '{{today}}' },
+      id: 'invoiced-today',
+      label: 'Invoiced today',
+      filters: { status: 'INVOICED', createdAfter: '{{today}}' },
     },
   ];
 
@@ -591,11 +591,11 @@ const updateTicket = async (req, res, next) => {
       });
 
       // Handle timestamp updates based on status change
-      if (status === 'CLOSED') {
+      if (status === 'INVOICED') {
         updateData.closedAt = new Date();
-        // Schedule review request when ticket is closed
+        // Schedule review request when ticket is invoiced
         scheduleReviewRequest({ id, ...existingTicket });
-      } else if (status === 'OPEN' && existingTicket.status === 'CLOSED') {
+      } else if (status === 'OPEN' && existingTicket.status === 'INVOICED') {
         updateData.closedAt = null;
       }
     }
@@ -987,11 +987,11 @@ const mergeTicket = async (req, res, next) => {
         },
       });
 
-      // Close source ticket
+      // Invoice source ticket (merged)
       await tx.ticket.update({
         where: { id },
         data: {
-          status: 'CLOSED',
+          status: 'INVOICED',
           closedAt: new Date(),
           mergedIntoId: targetTicketId,
         },

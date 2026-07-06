@@ -10,12 +10,12 @@ async function processReviewRequests() {
 
   try {
     // Find all tickets where:
-    // - status = CLOSED
+    // - status = INVOICED
     // - reviewRequestScheduledFor <= now()
     // - reviewRequestedAt is null
     const tickets = await prisma.ticket.findMany({
       where: {
-        status: 'CLOSED',
+        status: 'INVOICED',
         reviewRequestScheduledFor: {
           lte: new Date(),
         },

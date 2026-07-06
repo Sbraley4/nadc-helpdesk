@@ -17,7 +17,6 @@ const statusColors = {
   PENDING: 'bg-gray-500',
   INVOICED: 'bg-green-500',
   POSTED: 'bg-pink-500',
-  CLOSED: 'bg-gray-700',
 };
 
 const availabilityColors = {

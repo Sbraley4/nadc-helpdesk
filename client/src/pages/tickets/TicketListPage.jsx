@@ -14,7 +14,6 @@ const statusConfig = {
   RESOLVED: { label: 'Resolved', variant: 'resolved', icon: CheckCircle },
   INVOICED: { label: 'Invoiced', variant: 'invoiced', icon: DollarSign },
   POSTED: { label: 'Posted', variant: 'posted', icon: Send },
-  CLOSED: { label: 'Closed', variant: 'closed', icon: XCircle },
 };
 
 const priorityConfig = {
@@ -31,7 +30,6 @@ const statusOptions = [
   { value: 'RESOLVED', label: 'Resolved' },
   { value: 'INVOICED', label: 'Invoiced' },
   { value: 'POSTED', label: 'Posted' },
-  { value: 'CLOSED', label: 'Closed' },
 ];
 
 const priorityOptions = [

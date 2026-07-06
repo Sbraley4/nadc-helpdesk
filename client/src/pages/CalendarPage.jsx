@@ -18,7 +18,6 @@ const statusStripeColors = {
   RESOLVED: '#64748B', // slate-500
   INVOICED: '#22C55E', // green-500
   POSTED: '#EC4899',   // pink-500
-  CLOSED: '#374151',   // gray-700
 };
 
 // Agent color mapping by name (hardcoded as fallback)

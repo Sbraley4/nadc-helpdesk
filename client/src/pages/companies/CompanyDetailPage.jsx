@@ -9,7 +9,8 @@ const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
   PENDING: { label: 'Pending', variant: 'pending' },
   RESOLVED: { label: 'Resolved', variant: 'resolved' },
-  CLOSED: { label: 'Closed', variant: 'closed' },
+  INVOICED: { label: 'Invoiced', variant: 'invoiced' },
+  POSTED: { label: 'Posted', variant: 'posted' },
 };
 
 export default function CompanyDetailPage() {

@@ -18,7 +18,8 @@ const COLORS = {
   open: '#3B82F6',
   pending: '#F59E0B',
   resolved: '#10B981',
-  closed: '#6B7280',
+  invoiced: '#22C55E',
+  posted: '#EC4899',
 };
 
 function StatCard({ icon: Icon, label, value, subtext, color = 'blue', onClick }) {
@@ -177,7 +178,7 @@ export default function DashboardPage() {
             <PieChart>
               <Pie data={statusData} dataKey="count" nameKey="status" cx="50%" cy="50%" innerRadius={50} outerRadius={70}>
                 {statusData.map((entry, i) => (
-                  <Cell key={i} fill={COLORS[entry.status.toLowerCase()] || COLORS.closed} />
+                  <Cell key={i} fill={COLORS[entry.status.toLowerCase()] || '#6B7280'} />
                 ))}
               </Pie>
               <Tooltip />

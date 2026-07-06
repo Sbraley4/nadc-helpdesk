@@ -12,7 +12,6 @@ const statusConfig = {
   PENDING: { label: 'Pending', color: 'bg-gray-200 text-gray-700', icon: Clock },
   INVOICED: { label: 'Invoiced', color: 'bg-green-100 text-green-800', icon: DollarSign },
   POSTED: { label: 'Posted', color: 'bg-pink-100 text-pink-800', icon: Mail },
-  CLOSED: { label: 'Closed', color: 'bg-gray-100 text-gray-600', icon: CheckCircle },
 };
 
 export default function PortalTicketDetailPage() {
@@ -159,7 +158,7 @@ export default function PortalTicketDetailPage() {
           ))}
 
           {/* Reply form */}
-          {ticket.status !== 'CLOSED' && (
+          {ticket.status !== 'INVOICED' && ticket.status !== 'POSTED' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
               <h3 className="font-medium text-gray-900 mb-3">Add a Reply</h3>
               <form onSubmit={handleSendReply}>

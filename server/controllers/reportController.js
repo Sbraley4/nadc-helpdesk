@@ -166,7 +166,7 @@ async function getAgentPerformanceReport(req, res, next) {
 
         const [
           ticketsAssigned,
-          ticketsClosed,
+          ticketsInvoiced,
           avgFirstResponse,
           avgResolution,
           slaBreachCount,
@@ -177,7 +177,7 @@ async function getAgentPerformanceReport(req, res, next) {
         ] = await Promise.all([
           prisma.ticket.count({ where: ticketWhere }),
           prisma.ticket.count({
-            where: { ...ticketWhere, status: 'CLOSED' },
+            where: { ...ticketWhere, status: 'INVOICED' },
           }),
           getAgentAvgFirstResponse(agent.id, start, end),
           getAgentAvgResolutionTime(agent.id, start, end),
@@ -210,7 +210,7 @@ async function getAgentPerformanceReport(req, res, next) {
           agentId: agent.id,
           agentName: agent.name,
           ticketsAssigned,
-          ticketsClosed,
+          ticketsInvoiced,
           avgFirstResponseHours: avgFirstResponse,
           avgResolutionHours: avgResolution,
           slaBreachCount,
@@ -652,7 +652,7 @@ async function generateAgentPerformanceCsv(start, end) {
   });
 
   const headers = [
-    'Agent', 'Tickets Assigned', 'Tickets Closed',
+    'Agent', 'Tickets Assigned', 'Tickets Invoiced',
     'Avg First Response (hrs)', 'Avg Resolution (hrs)',
     'SLA Breaches', 'Hours Logged'
   ];
@@ -662,8 +662,8 @@ async function generateAgentPerformanceCsv(start, end) {
       const assigned = await prisma.ticket.count({
         where: { assigneeId: agent.id, createdAt: { gte: start, lte: end } },
       });
-      const closed = await prisma.ticket.count({
-        where: { assigneeId: agent.id, createdAt: { gte: start, lte: end }, status: 'CLOSED' },
+      const invoiced = await prisma.ticket.count({
+        where: { assigneeId: agent.id, createdAt: { gte: start, lte: end }, status: 'INVOICED' },
       });
       const avgFirst = await getAgentAvgFirstResponse(agent.id, start, end);
       const avgRes = await getAgentAvgResolutionTime(agent.id, start, end);
@@ -675,7 +675,7 @@ async function generateAgentPerformanceCsv(start, end) {
       return [
         agent.name,
         assigned,
-        closed,
+        invoiced,
         avgFirst || 'N/A',
         avgRes || 'N/A',
         breaches,

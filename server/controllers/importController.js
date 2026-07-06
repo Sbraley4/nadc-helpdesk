@@ -370,7 +370,7 @@ const importTickets = async (req, res, next) => {
               assigneeId,
               companyId,
               createdAt: createdDate,
-              resolvedAt: ['INVOICED', 'CLOSED'].includes(status) ? createdDate : null,
+              resolvedAt: ['INVOICED'].includes(status) ? createdDate : null,
             },
           });
 

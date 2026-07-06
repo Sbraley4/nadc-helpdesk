@@ -262,7 +262,7 @@ async function createReplyFromEmail(ticket, parsed) {
     const updates = { updatedAt: new Date() };
 
     // Reopen if in completed state
-    if (['INVOICED', 'POSTED', 'CLOSED'].includes(ticket.status)) {
+    if (['INVOICED', 'POSTED'].includes(ticket.status)) {
       updates.status = 'OPEN';
 
       await prisma.ticketActivity.create({

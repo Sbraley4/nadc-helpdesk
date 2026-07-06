@@ -573,7 +573,7 @@ Apologies for any inconvenience.
         { field: 'ticketAgeDays', operator: 'greater_than', value: '7' },
       ],
       actions: [
-        { type: 'set_status', value: 'CLOSED' },
+        { type: 'set_status', value: 'INVOICED' },
       ],
       runOrder: 2,
       isActive: true,

@@ -172,7 +172,7 @@ async function createReply(req, res, next) {
         }
 
         // Reopen ticket if it was in a completed state
-        if (['INVOICED', 'POSTED', 'CLOSED'].includes(ticket.status)) {
+        if (['INVOICED', 'POSTED'].includes(ticket.status)) {
           updates.status = 'OPEN';
 
           // Create reopen activity
