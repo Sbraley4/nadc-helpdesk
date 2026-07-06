@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-
-const FILTER_STORAGE_KEY = 'ticketListFilters';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import useAuthStore from '../../store/authStore';
 import { format } from 'date-fns';
 import { Plus, AlertCircle, Clock, CheckCircle, XCircle, ChevronDown, Filter, X, DollarSign, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -47,6 +46,10 @@ export default function TicketListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showFilters, setShowFilters] = useState(false);
+  const { user } = useAuthStore();
+
+  // User-scoped storage key for filter persistence
+  const FILTER_STORAGE_KEY = user?.id ? `ticketListFilters_${user.id}` : null;
 
   const filters = {
     page: parseInt(searchParams.get('page') || '1'),
@@ -58,6 +61,8 @@ export default function TicketListPage() {
 
   // Restore filters from localStorage when navigating to bare /tickets URL
   useEffect(() => {
+    if (!FILTER_STORAGE_KEY) return; // Wait for user to be loaded
+
     const hasUrlFilters = searchParams.get('search') || searchParams.get('status') ||
       searchParams.get('priority') || searchParams.get('assigneeId') || searchParams.get('page');
 
@@ -80,7 +85,7 @@ export default function TicketListPage() {
         }
       }
     }
-  }, []); // Only run on mount
+  }, [FILTER_STORAGE_KEY]); // Run when user ID becomes available
 
   const updateFilters = (newFilters) => {
     const params = new URLSearchParams();
@@ -91,17 +96,21 @@ export default function TicketListPage() {
       }
     });
     // Save filters to localStorage (exclude page for cleaner restore)
-    const filtersToSave = { ...merged, page: 1 };
-    if (filtersToSave.search || filtersToSave.status || filtersToSave.priority || filtersToSave.assigneeId) {
-      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
-    } else {
-      localStorage.removeItem(FILTER_STORAGE_KEY);
+    if (FILTER_STORAGE_KEY) {
+      const filtersToSave = { ...merged, page: 1 };
+      if (filtersToSave.search || filtersToSave.status || filtersToSave.priority || filtersToSave.assigneeId) {
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
+      } else {
+        localStorage.removeItem(FILTER_STORAGE_KEY);
+      }
     }
     setSearchParams(params);
   };
 
   const clearFilters = () => {
-    localStorage.removeItem(FILTER_STORAGE_KEY);
+    if (FILTER_STORAGE_KEY) {
+      localStorage.removeItem(FILTER_STORAGE_KEY);
+    }
     updateFilters({ search: '', status: '', priority: '', assigneeId: '', page: 1 });
   };
 
