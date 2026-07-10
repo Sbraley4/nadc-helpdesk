@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, User, Clock, CheckCircle, AlertCircle, Paperclip, CheckSquare, DollarSign, Mail } from 'lucide-react';
+import { ArrowLeft, Send, User, Clock, CheckCircle, AlertCircle, CheckSquare, DollarSign, Mail } from 'lucide-react';
+import { AttachmentList } from '../../components/shared/AttachmentPreview';
 import toast from 'react-hot-toast';
 import { portalTickets } from '../../api/portal';
 import usePortalAuthStore from '../../store/portalAuthStore';
@@ -134,25 +135,7 @@ export default function PortalTicketDetailPage() {
                 <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
                   {reply.body}
                 </div>
-                {reply.attachments?.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Attachments:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {reply.attachments.map((att) => (
-                        <a
-                          key={att.id}
-                          href={`/api/attachments/${att.id}/download`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200"
-                        >
-                          <Paperclip size={14} />
-                          {att.filename}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <AttachmentList attachments={reply.attachments} />
               </div>
             </div>
           ))}
