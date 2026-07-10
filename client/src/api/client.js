@@ -51,10 +51,23 @@ client.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Extract error data - handle blob responses (e.g. from responseType: 'blob' requests)
+    // When a blob request fails, axios returns error.response.data as a Blob instead of parsed JSON
+    let errorData = error.response?.data;
+    if (errorData instanceof Blob) {
+      try {
+        const text = await errorData.text();
+        errorData = JSON.parse(text);
+      } catch {
+        // If blob can't be parsed as JSON, leave errorData as-is (will fail the check below)
+        errorData = null;
+      }
+    }
+
     // If 401/403 with token expired and haven't retried yet
     if (
       (error.response?.status === 401 || error.response?.status === 403) &&
-      error.response?.data?.error === 'Token expired' &&
+      errorData?.error === 'Token expired' &&
       !originalRequest._retry
     ) {
       originalRequest._retry = true;
