@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Download, X, AlertCircle, FileText, Image as ImageIcon, Eye, FileIcon as FilePdfIcon } from 'lucide-react';
 import client from '../../api/client';
 import Spinner from './Spinner';
@@ -51,12 +51,8 @@ export default function AttachmentPreview({ attachment }) {
   const [error, setError] = useState(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  // PDF-specific state
-  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  // PDF preview loading state
   const [previewing, setPreviewing] = useState(false);
-  const [pdfModalOpen, setPdfModalOpen] = useState(false);
-  const pdfBlobUrlRef = useRef(null); // Track for cleanup
-  const [PdfViewerComponent, setPdfViewerComponent] = useState(null); // Dynamically loaded
 
   const isImage = isImageFile(attachment);
   const isPdf = isPdfFile(attachment);
@@ -165,73 +161,35 @@ export default function AttachmentPreview({ attachment }) {
     setLightboxOpen(false);
   }, []);
 
-  // PDF preview handler - fetch blob, dynamically load PdfViewer, and open modal
+  // PDF preview handler - get signed URL and navigate to it in current tab
   const handlePdfPreview = useCallback(async () => {
-    // If we already have the blob URL and component, just open the modal
-    if (pdfBlobUrl && PdfViewerComponent) {
-      setPdfModalOpen(true);
-      return;
-    }
-
     try {
       setPreviewing(true);
       setError(null);
 
-      // Dynamically import PdfViewer component (code-split, not in main bundle)
-      const [response, { default: PdfViewer }] = await Promise.all([
-        client.get(`/api/attachments/${attachment.id}/download`, {
-          responseType: 'blob',
-        }),
-        import('./PdfViewer'),
-      ]);
+      // Request a short-lived signed preview URL
+      const response = await client.get(`/api/attachments/${attachment.id}/preview-url`);
 
-      const objectUrl = URL.createObjectURL(response.data);
-      setPdfBlobUrl(objectUrl);
-      pdfBlobUrlRef.current = objectUrl;
-      setPdfViewerComponent(() => PdfViewer);
-      setPdfModalOpen(true);
+      // Navigate to the signed URL in the current tab
+      // User will use browser back button to return
+      window.location.href = response.data.url;
     } catch (err) {
-      console.error('Failed to load PDF:', err);
-      setError(err.response?.data?.error || 'Failed to load PDF');
-    } finally {
+      console.error('Failed to get preview URL:', err);
+      setError(err.response?.data?.error || 'Failed to preview PDF');
       setPreviewing(false);
     }
-  }, [pdfBlobUrl, PdfViewerComponent, attachment.id]);
+    // Note: setPreviewing(false) not called on success because we're navigating away
+  }, [attachment.id]);
 
-  // Close PDF modal and revoke blob URL
-  const closePdfModal = useCallback(() => {
-    setPdfModalOpen(false);
-    // Revoke the blob URL when modal closes to free memory
-    if (pdfBlobUrlRef.current) {
-      URL.revokeObjectURL(pdfBlobUrlRef.current);
-      pdfBlobUrlRef.current = null;
-      setPdfBlobUrl(null);
-    }
-  }, []);
-
-  // Cleanup PDF blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (pdfBlobUrlRef.current) {
-        URL.revokeObjectURL(pdfBlobUrlRef.current);
-      }
-    };
-  }, []);
-
-  // Handle escape key for lightbox (image) and PDF modal
+  // Handle escape key for lightbox (image only)
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
-        if (lightboxOpen) {
-          closeLightbox();
-        }
-        if (pdfModalOpen) {
-          closePdfModal();
-        }
+      if (e.key === 'Escape' && lightboxOpen) {
+        closeLightbox();
       }
     };
 
-    if (lightboxOpen || pdfModalOpen) {
+    if (lightboxOpen) {
       document.addEventListener('keydown', handleEscape);
       document.body.style.overflow = 'hidden';
     }
@@ -240,7 +198,7 @@ export default function AttachmentPreview({ attachment }) {
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
     };
-  }, [lightboxOpen, pdfModalOpen, closeLightbox, closePdfModal]);
+  }, [lightboxOpen, closeLightbox]);
 
   // Loading state
   if (loading) {
@@ -330,74 +288,36 @@ export default function AttachmentPreview({ attachment }) {
   // PDF attachment with preview and download buttons
   if (isPdf) {
     return (
-      <>
-        <div className="inline-flex items-center gap-1 bg-gray-100 rounded-lg text-sm text-gray-700 min-h-[44px]">
-          {/* Preview button */}
-          <button
-            onClick={handlePdfPreview}
-            disabled={previewing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-200 rounded-l-lg transition-colors min-h-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
-            title={previewing ? 'Loading...' : `Preview ${attachment.filename}`}
-          >
-            {previewing ? (
-              <Spinner size="sm" />
-            ) : (
-              <Eye size={14} />
-            )}
-            <span className="truncate max-w-[150px]">{attachment.filename}</span>
-          </button>
+      <div className="inline-flex items-center gap-1 bg-gray-100 rounded-lg text-sm text-gray-700 min-h-[44px]">
+        {/* Preview button - navigates to native PDF viewer */}
+        <button
+          onClick={handlePdfPreview}
+          disabled={previewing}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-200 rounded-l-lg transition-colors min-h-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
+          title={previewing ? 'Loading...' : `Preview ${attachment.filename}`}
+        >
+          {previewing ? (
+            <Spinner size="sm" />
+          ) : (
+            <Eye size={14} />
+          )}
+          <span className="truncate max-w-[150px]">{attachment.filename}</span>
+        </button>
 
-          {/* Download button */}
-          <button
-            onClick={handleDownload}
-            disabled={downloading}
-            className="inline-flex items-center justify-center px-2 py-1.5 hover:bg-gray-200 rounded-r-lg transition-colors min-h-[44px] min-w-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait border-l border-gray-200"
-            title={downloading ? 'Downloading...' : 'Download'}
-          >
-            {downloading ? (
-              <Spinner size="sm" />
-            ) : (
-              <Download size={14} className="text-gray-500" />
-            )}
-          </button>
-        </div>
-
-        {/* PDF Preview Modal */}
-        {pdfModalOpen && pdfBlobUrl && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black/90 animate-fadeIn"
-              onClick={closePdfModal}
-            />
-
-            {/* Close button */}
-            <button
-              onClick={closePdfModal}
-              className="absolute top-4 right-4 z-10 p-3 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-              aria-label="Close"
-            >
-              <X size={24} />
-            </button>
-
-            {/* Download button */}
-            <button
-              onClick={handleDownload}
-              className="absolute top-4 right-20 z-10 p-3 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
-              aria-label="Download"
-            >
-              <Download size={24} />
-            </button>
-
-            {/* PDF viewer - uses dynamically imported react-pdf component */}
-            <div className="relative z-10 w-[90vw] h-[90vh] animate-fadeIn flex flex-col">
-              {PdfViewerComponent && (
-                <PdfViewerComponent file={pdfBlobUrl} filename={attachment.filename} />
-              )}
-            </div>
-          </div>
-        )}
-      </>
+        {/* Download button */}
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="inline-flex items-center justify-center px-2 py-1.5 hover:bg-gray-200 rounded-r-lg transition-colors min-h-[44px] min-w-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait border-l border-gray-200"
+          title={downloading ? 'Downloading...' : 'Download'}
+        >
+          {downloading ? (
+            <Spinner size="sm" />
+          ) : (
+            <Download size={14} className="text-gray-500" />
+          )}
+        </button>
+      </div>
     );
   }
 

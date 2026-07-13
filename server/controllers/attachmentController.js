@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 const { deleteFile, getFileUrl } = require('../utils/fileUtils');
 const { UPLOAD_DIR } = require('../middleware/upload');
 
@@ -184,8 +185,45 @@ async function deleteAttachment(req, res, next) {
 }
 
 /**
+ * Generate a short-lived signed preview URL for an attachment
+ * GET /api/attachments/:id/preview-url
+ */
+async function getPreviewUrl(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    // Verify attachment exists
+    const attachment = await prisma.ticketAttachment.findUnique({
+      where: { id },
+    });
+
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    // Generate short-lived token (5 minute expiry) tied to this attachment
+    const token = jwt.sign(
+      {
+        attachmentId: id,
+        type: 'attachment_preview',
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+
+    // Return the signed URL
+    res.json({
+      url: `/api/attachments/${id}/download?token=${encodeURIComponent(token)}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Download an attachment
  * GET /api/attachments/:id/download
+ * Accepts either Authorization Bearer header OR ?token= query param
  */
 async function downloadAttachment(req, res, next) {
   try {
@@ -227,4 +265,5 @@ module.exports = {
   getTicketAttachments,
   deleteAttachment,
   downloadAttachment,
+  getPreviewUrl,
 };
