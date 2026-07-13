@@ -32,7 +32,8 @@ const requireAuthOrToken = (req, res, next) => {
         return res.status(403).json({ error: 'Token not valid for this attachment' });
       }
 
-      // Token is valid - proceed without needing req.user
+      // Token is valid - mark request as preview token auth and proceed
+      req.isPreviewToken = true;
       return next();
     } catch (err) {
       if (err.name === 'TokenExpiredError') {

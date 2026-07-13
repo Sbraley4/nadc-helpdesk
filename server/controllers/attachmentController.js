@@ -246,15 +246,25 @@ async function downloadAttachment(req, res, next) {
       return res.status(404).json({ error: 'File not found on disk' });
     }
 
-    // Set Content-Disposition header and stream file
-    res.download(filePath, attachment.filename, (err) => {
-      if (err) {
-        // Don't send error if headers already sent
-        if (!res.headersSent) {
+    // If authenticated via preview token, display inline (browser renders file)
+    // Otherwise, force download (Content-Disposition: attachment)
+    if (req.isPreviewToken) {
+      // Set Content-Disposition: inline for browser display
+      res.setHeader('Content-Disposition', `inline; filename="${attachment.filename}"`);
+      res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
+      res.sendFile(filePath, (err) => {
+        if (err && !res.headersSent) {
           next(err);
         }
-      }
-    });
+      });
+    } else {
+      // Standard download behavior (Content-Disposition: attachment)
+      res.download(filePath, attachment.filename, (err) => {
+        if (err && !res.headersSent) {
+          next(err);
+        }
+      });
+    }
   } catch (error) {
     next(error);
   }
