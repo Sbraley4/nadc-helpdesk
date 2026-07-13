@@ -56,6 +56,7 @@ export default function AttachmentPreview({ attachment }) {
   const [previewing, setPreviewing] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const pdfBlobUrlRef = useRef(null); // Track for cleanup
+  const [PdfViewerComponent, setPdfViewerComponent] = useState(null); // Dynamically loaded
 
   const isImage = isImageFile(attachment);
   const isPdf = isPdfFile(attachment);
@@ -164,10 +165,10 @@ export default function AttachmentPreview({ attachment }) {
     setLightboxOpen(false);
   }, []);
 
-  // PDF preview handler - fetch blob and open modal
+  // PDF preview handler - fetch blob, dynamically load PdfViewer, and open modal
   const handlePdfPreview = useCallback(async () => {
-    // If we already have the blob URL, just open the modal
-    if (pdfBlobUrl) {
+    // If we already have the blob URL and component, just open the modal
+    if (pdfBlobUrl && PdfViewerComponent) {
       setPdfModalOpen(true);
       return;
     }
@@ -176,13 +177,18 @@ export default function AttachmentPreview({ attachment }) {
       setPreviewing(true);
       setError(null);
 
-      const response = await client.get(`/api/attachments/${attachment.id}/download`, {
-        responseType: 'blob',
-      });
+      // Dynamically import PdfViewer component (code-split, not in main bundle)
+      const [response, { default: PdfViewer }] = await Promise.all([
+        client.get(`/api/attachments/${attachment.id}/download`, {
+          responseType: 'blob',
+        }),
+        import('./PdfViewer'),
+      ]);
 
       const objectUrl = URL.createObjectURL(response.data);
       setPdfBlobUrl(objectUrl);
       pdfBlobUrlRef.current = objectUrl;
+      setPdfViewerComponent(() => PdfViewer);
       setPdfModalOpen(true);
     } catch (err) {
       console.error('Failed to load PDF:', err);
@@ -190,7 +196,7 @@ export default function AttachmentPreview({ attachment }) {
     } finally {
       setPreviewing(false);
     }
-  }, [pdfBlobUrl, attachment.id]);
+  }, [pdfBlobUrl, PdfViewerComponent, attachment.id]);
 
   // Close PDF modal and revoke blob URL
   const closePdfModal = useCallback(() => {
@@ -383,17 +389,11 @@ export default function AttachmentPreview({ attachment }) {
               <Download size={24} />
             </button>
 
-            {/* PDF viewer */}
+            {/* PDF viewer - uses dynamically imported react-pdf component */}
             <div className="relative z-10 w-[90vw] h-[90vh] animate-fadeIn flex flex-col">
-              <iframe
-                src={pdfBlobUrl}
-                type="application/pdf"
-                className="w-full flex-1 rounded-t-lg bg-white"
-                title={attachment.filename}
-              />
-              <p className="bg-black/50 text-white text-center py-2 px-4 text-sm truncate rounded-b-lg">
-                {attachment.filename}
-              </p>
+              {PdfViewerComponent && (
+                <PdfViewerComponent file={pdfBlobUrl} filename={attachment.filename} />
+              )}
             </div>
           </div>
         )}
