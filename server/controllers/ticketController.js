@@ -64,6 +64,7 @@ const fullTicketInclude = {
       },
     },
   },
+  attachments: true,
   _count: {
     select: { replies: true, attachments: true },
   },
