@@ -45,6 +45,26 @@ export default function PortalTicketDetailPage() {
     replyMutation.mutate(replyContent.trim());
   };
 
+  // Helper function to format text with preserved line breaks
+  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
+  const formatContent = (text) => {
+    if (!text) return '';
+
+    // HTML-escape first to prevent XSS (must happen before any & substitutions)
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    // Normalize line endings (CRLF -> LF) to prevent extra spacing
+    const normalizedText = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Preserve double spaces (browsers collapse multiple spaces)
+    return normalizedText.replace(/  /g, '&nbsp;&nbsp;');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -106,9 +126,10 @@ export default function PortalTicketDetailPage() {
               </div>
             </div>
             <div className="p-4">
-              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                {ticket.description}
-              </div>
+              <div
+                  className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: formatContent(ticket.description) }}
+                />
             </div>
           </div>
 
@@ -132,9 +153,10 @@ export default function PortalTicketDetailPage() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
-                  {reply.body}
-                </div>
+                <div
+                    className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: formatContent(reply.body) }}
+                  />
                 <AttachmentList attachments={reply.attachments} />
               </div>
             </div>
@@ -246,7 +268,7 @@ export default function PortalTicketDetailPage() {
           {ticket.resolutionSummary && (
             <div className="bg-green-50 rounded-lg border border-green-200 p-4">
               <h3 className="font-medium text-green-900 mb-2">Resolution Summary</h3>
-              <p className="text-sm text-green-800 whitespace-pre-wrap">{ticket.resolutionSummary}</p>
+              <p className="text-sm text-green-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatContent(ticket.resolutionSummary) }} />
             </div>
           )}
         </div>

@@ -138,8 +138,16 @@ export default function TicketDetailPage() {
   const formatNoteBody = (body, isExpanded = true) => {
     if (!body) return '';
 
+    // HTML-escape first to prevent XSS (must happen before any & substitutions)
+    const escaped = body
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
     // Normalize line endings (CRLF -> LF) to prevent extra spacing
-    const normalizedBody = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const normalizedBody = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
     // Preserve double spaces (browsers collapse multiple spaces)
     const formattedBody = normalizedBody.replace(/  /g, '&nbsp;&nbsp;');
@@ -155,6 +163,26 @@ export default function TicketDetailPage() {
       return preview.replace(/  /g, '&nbsp;&nbsp;');
     }
     return formattedBody;
+  };
+
+  // Helper function to format ticket description with preserved line breaks
+  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
+  const formatDescription = (description) => {
+    if (!description) return '';
+
+    // HTML-escape first to prevent XSS (must happen before any & substitutions)
+    const escaped = description
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    // Normalize line endings (CRLF -> LF) to prevent extra spacing
+    const normalizedDescription = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    // Preserve double spaces (browsers collapse multiple spaces)
+    return normalizedDescription.replace(/  /g, '&nbsp;&nbsp;');
   };
 
   // Toggle note expansion
@@ -1207,7 +1235,11 @@ export default function TicketDetailPage() {
                   <span className="font-medium text-gray-900">{ticket.requester?.name}</span>
                   <span className="text-sm text-gray-500">{format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</span>
                 </div>
-                <div className="prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: ticket.description }} />
+                <div
+                  className="prose prose-sm max-w-none text-gray-700"
+                  style={{ whiteSpace: 'pre-wrap' }}
+                  dangerouslySetInnerHTML={{ __html: formatDescription(ticket.description) }}
+                />
                 {/* Ticket-level attachments */}
                 <AttachmentList attachments={ticket.attachments} />
               </div>
