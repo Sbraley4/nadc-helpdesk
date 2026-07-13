@@ -34,6 +34,19 @@ export default function PdfViewer({ file, filename }) {
   const [debugInfo, setDebugInfo] = useState(null); // For capturing detailed error info
   const containerRef = useRef(null);
 
+  // =============================================================================
+  // TEMPORARY DEBUG STATE - REMOVE AFTER iOS BLANK RENDER BUG IS FIXED
+  // This tracks the render pipeline to pinpoint where iOS fails
+  // =============================================================================
+  const [debugStatus, setDebugStatus] = useState('initializing...');
+  const [pageLoadStatus, setPageLoadStatus] = useState('waiting');
+  const [pageRenderStatus, setPageRenderStatus] = useState('waiting');
+
+  // TEMPORARY DEBUG - set initial loading status
+  useEffect(() => {
+    setDebugStatus('loading document...');
+  }, []);
+
   // Set up global error handlers to catch worker errors that might not propagate to callbacks
   useEffect(() => {
     const handleError = (event) => {
@@ -100,6 +113,10 @@ export default function PdfViewer({ file, filename }) {
     setPageNumber(1);
     setPdfLoading(false);
     setPdfError(null);
+    // TEMPORARY DEBUG - track document load success
+    setDebugStatus(`doc loaded, ${totalPages} pages`);
+    setPageLoadStatus('waiting');
+    setPageRenderStatus('waiting');
   }, []);
 
   // Handle document load error - capture actual error message for debugging
@@ -109,6 +126,8 @@ export default function PdfViewer({ file, filename }) {
     setPdfError(`Failed to load PDF: ${errorMsg}`);
     setDebugInfo(prev => prev ? `${prev}\nDoc: ${errorMsg}` : `Document error: ${errorMsg}`);
     setPdfLoading(false);
+    // TEMPORARY DEBUG
+    setDebugStatus(`ERROR: ${errorMsg}`);
   }, []);
 
   // Handle page load error
@@ -125,6 +144,22 @@ export default function PdfViewer({ file, filename }) {
     console.error('[PdfViewer] Page render error:', errorMsg, error);
     setPdfError(`Failed to render page: ${errorMsg}`);
     setDebugInfo(prev => prev ? `${prev}\nRender: ${errorMsg}` : `Render error: ${errorMsg}`);
+    // TEMPORARY DEBUG
+    setPageRenderStatus(`ERROR: ${errorMsg}`);
+  }, []);
+
+  // =============================================================================
+  // TEMPORARY DEBUG CALLBACKS - REMOVE AFTER iOS BLANK RENDER BUG IS FIXED
+  // =============================================================================
+  const onPageLoadSuccess = useCallback((page) => {
+    // page object contains: pageNumber, width, height, originalWidth, originalHeight
+    console.log('[PdfViewer DEBUG] Page loaded:', page);
+    setPageLoadStatus(`loaded (${page.width}x${page.height})`);
+  }, []);
+
+  const onPageRenderSuccess = useCallback((page) => {
+    console.log('[PdfViewer DEBUG] Page rendered:', page);
+    setPageRenderStatus('rendered OK');
   }, []);
 
   // Page navigation
@@ -139,7 +174,13 @@ export default function PdfViewer({ file, filename }) {
   // Error state - show detailed error info for debugging iOS issues
   if (pdfError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100 rounded-t-lg">
+      <div className="flex-1 flex flex-col bg-gray-100 rounded-t-lg">
+        {/* TEMPORARY DEBUG DISPLAY - also show in error state */}
+        <div className="bg-red-100 border-b border-red-300 px-2 py-1 text-xs font-mono text-gray-600 flex-shrink-0">
+          <div>📊 Status: {debugStatus} | width={containerWidth ?? 'null'}</div>
+          <div>📄 Page: load={pageLoadStatus} | render={pageRenderStatus}</div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
         <div className="text-center p-6 max-w-md">
           <AlertCircle className="mx-auto text-red-500 mb-3" size={48} />
           <p className="text-red-600 font-medium break-words">{pdfError}</p>
@@ -154,12 +195,22 @@ export default function PdfViewer({ file, filename }) {
             </details>
           )}
         </div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-gray-100 rounded-t-lg overflow-hidden">
+      {/* =================================================================== */}
+      {/* TEMPORARY DEBUG DISPLAY - REMOVE AFTER iOS BLANK RENDER BUG IS FIXED */}
+      {/* This shows render pipeline status to diagnose where iOS fails */}
+      {/* =================================================================== */}
+      <div className="bg-yellow-100 border-b border-yellow-300 px-2 py-1 text-xs font-mono text-gray-600 flex-shrink-0">
+        <div>📊 Status: {debugStatus} | width={containerWidth ?? 'null'}</div>
+        <div>📄 Page: load={pageLoadStatus} | render={pageRenderStatus}</div>
+      </div>
+
       {/* PDF Document container */}
       <div
         ref={containerRef}
@@ -188,7 +239,9 @@ export default function PdfViewer({ file, filename }) {
               renderTextLayer={true}
               renderAnnotationLayer={true}
               onLoadError={onPageLoadError}
+              onLoadSuccess={onPageLoadSuccess}
               onRenderError={onPageRenderError}
+              onRenderSuccess={onPageRenderSuccess}
             />
           )}
         </Document>
