@@ -307,59 +307,6 @@ export default function TicketDetailPage() {
     };
   }, [sendTypingStatus]);
 
-  // Handle FAB actions from store
-  useEffect(() => {
-    if (!pendingFabAction) return;
-
-    const { type } = pendingFabAction;
-
-    switch (type) {
-      case 'note':
-        // Same behavior as handleStartThread - focus textarea in internal note mode
-        setIsInternalNote(true);
-        document.querySelector('textarea')?.focus();
-        break;
-      case 'time':
-        setShowTimeForm(true);
-        break;
-      case 'material':
-        // Materials are managed via inventory - show info toast
-        toast('Materials are added via inventory deductions or parsed from notes', { icon: 'ℹ️' });
-        break;
-      case 'attachment':
-        setShowAttachmentModal(true);
-        break;
-      case 'calendar':
-        setScheduleModalMode('add');
-        setRescheduleId(null);
-        setShowScheduleModal(true);
-        break;
-      case 'duplicate':
-        // Inline duplicate logic - navigate to new ticket with pre-filled data
-        if (ticketData) {
-          navigate('/tickets/new', {
-            state: {
-              duplicateTicket: {
-                ticketNumber: ticketData.ticketNumber,
-                subject: ticketData.subject,
-                description: ticketData.description,
-                priority: ticketData.priority,
-                assigneeId: ticketData.assigneeId,
-                requesterId: ticketData.requesterId,
-                requester: ticketData.requester,
-                additionalAssignees: ticketData.additionalAssignees,
-              }
-            }
-          });
-        }
-        break;
-      default:
-        break;
-    }
-
-    clearFabAction();
-  }, [pendingFabAction, clearFabAction, ticketData, navigate]);
-
   // Fetch ticket
   const { data: ticketData, isLoading, error } = useQuery({
     queryKey: ['ticket', id],
@@ -420,6 +367,59 @@ export default function TicketDetailPage() {
     queryFn: () => timeEntries.getTimeEntries(id),
     enabled: !!id,
   });
+
+  // Handle FAB actions from store (must be after ticketData is declared)
+  useEffect(() => {
+    if (!pendingFabAction) return;
+
+    const { type } = pendingFabAction;
+
+    switch (type) {
+      case 'note':
+        // Same behavior as handleStartThread - focus textarea in internal note mode
+        setIsInternalNote(true);
+        document.querySelector('textarea')?.focus();
+        break;
+      case 'time':
+        setShowTimeForm(true);
+        break;
+      case 'material':
+        // Materials are managed via inventory - show info toast
+        toast('Materials are added via inventory deductions or parsed from notes', { icon: 'ℹ️' });
+        break;
+      case 'attachment':
+        setShowAttachmentModal(true);
+        break;
+      case 'calendar':
+        setScheduleModalMode('add');
+        setRescheduleId(null);
+        setShowScheduleModal(true);
+        break;
+      case 'duplicate':
+        // Inline duplicate logic - navigate to new ticket with pre-filled data
+        if (ticketData) {
+          navigate('/tickets/new', {
+            state: {
+              duplicateTicket: {
+                ticketNumber: ticketData.ticketNumber,
+                subject: ticketData.subject,
+                description: ticketData.description,
+                priority: ticketData.priority,
+                assigneeId: ticketData.assigneeId,
+                requesterId: ticketData.requesterId,
+                requester: ticketData.requester,
+                additionalAssignees: ticketData.additionalAssignees,
+              }
+            }
+          });
+        }
+        break;
+      default:
+        break;
+    }
+
+    clearFabAction();
+  }, [pendingFabAction, clearFabAction, ticketData, navigate]);
 
   const checklistItems = checklistData?.items || [];
   const schedulesList = schedulesData?.schedules || [];
