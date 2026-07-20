@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Download, X, AlertCircle, FileText, Image as ImageIcon, Eye, FileIcon as FilePdfIcon } from 'lucide-react';
+import { Download, X, AlertCircle, FileText, Image as ImageIcon, Eye, FileIcon as FilePdfIcon, Trash2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import client from '../../api/client';
+import { attachments as attachmentsApi } from '../../api';
+import useAuthStore from '../../store/authStore';
 import Spinner from './Spinner';
 
 /**
@@ -44,15 +48,24 @@ function getFileIcon(attachment) {
  * AttachmentPreview component - fetches attachments via authenticated axios client
  * and displays them appropriately (inline preview for images, download link for others)
  */
-export default function AttachmentPreview({ attachment }) {
+export default function AttachmentPreview({ attachment, ticketId, onDeleted }) {
   const [blobUrl, setBlobUrl] = useState(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // PDF preview loading state
   const [previewing, setPreviewing] = useState(false);
+
+  // Auth for permission check
+  const { user } = useAuthStore();
+
+  // Check if current user can delete this attachment (uploader or ADMIN)
+  const canDelete = user && (
+    attachment.uploadedById === user.id || user.role === 'ADMIN'
+  );
 
   const isImage = isImageFile(attachment);
   const isPdf = isPdfFile(attachment);
@@ -181,6 +194,36 @@ export default function AttachmentPreview({ attachment }) {
     // Note: setPreviewing(false) not called on success because we're navigating away
   }, [attachment.id]);
 
+  // Handle delete with confirmation
+  const handleDelete = useCallback(async () => {
+    if (!confirm(`Delete "${attachment.filename}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await attachmentsApi.deleteAttachment(attachment.id);
+      toast.success('Attachment deleted');
+      if (onDeleted) {
+        onDeleted(attachment.id);
+      }
+    } catch (err) {
+      console.error('Failed to delete attachment:', err);
+      if (err.response?.status === 403) {
+        toast.error('You are not authorized to delete this attachment');
+      } else if (err.response?.status === 404) {
+        toast.error('Attachment not found (may have been already deleted)');
+        if (onDeleted) {
+          onDeleted(attachment.id);
+        }
+      } else {
+        toast.error(err.response?.data?.error || 'Failed to delete attachment');
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }, [attachment.id, attachment.filename, onDeleted]);
+
   // Handle escape key for lightbox (image only)
   useEffect(() => {
     const handleEscape = (e) => {
@@ -226,19 +269,31 @@ export default function AttachmentPreview({ attachment }) {
   if (isImage && blobUrl) {
     return (
       <>
-        <button
-          onClick={openLightbox}
-          className="group relative inline-flex items-center gap-2 bg-gray-100 rounded-lg overflow-hidden hover:bg-gray-200 transition-colors min-h-[44px] min-w-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-          title={`View ${attachment.filename}`}
-        >
-          <img
-            src={blobUrl}
-            alt={attachment.filename}
-            className="h-16 w-auto max-w-[120px] object-cover rounded-lg"
-            onError={handleImageError}
-          />
-          <span className="sr-only">View {attachment.filename}</span>
-        </button>
+        <div className="inline-flex items-center gap-1">
+          <button
+            onClick={openLightbox}
+            className="group relative inline-flex items-center gap-2 bg-gray-100 rounded-lg overflow-hidden hover:bg-gray-200 transition-colors min-h-[44px] min-w-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            title={`View ${attachment.filename}`}
+          >
+            <img
+              src={blobUrl}
+              alt={attachment.filename}
+              className="h-16 w-auto max-w-[120px] object-cover rounded-lg"
+              onError={handleImageError}
+            />
+            <span className="sr-only">View {attachment.filename}</span>
+          </button>
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center touch-manipulation disabled:opacity-50"
+              title="Delete attachment"
+            >
+              {deleting ? <Spinner size="sm" /> : <Trash2 size={14} />}
+            </button>
+          )}
+        </div>
 
         {/* Lightbox modal */}
         {lightboxOpen && (
@@ -288,14 +343,15 @@ export default function AttachmentPreview({ attachment }) {
   // PDF attachment with preview and download buttons
   if (isPdf) {
     return (
-      <div className="inline-flex items-center gap-1 bg-gray-100 rounded-lg text-sm text-gray-700 min-h-[44px]">
-        {/* Preview button - navigates to native PDF viewer */}
-        <button
-          onClick={handlePdfPreview}
-          disabled={previewing}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-200 rounded-l-lg transition-colors min-h-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
-          title={previewing ? 'Loading...' : `Preview ${attachment.filename}`}
-        >
+      <div className="inline-flex items-center gap-1 text-sm text-gray-700 min-h-[44px]">
+        <div className="inline-flex items-center gap-1 bg-gray-100 rounded-lg">
+          {/* Preview button - navigates to native PDF viewer */}
+          <button
+            onClick={handlePdfPreview}
+            disabled={previewing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:bg-gray-200 rounded-l-lg transition-colors min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-wait"
+            title={previewing ? 'Loading...' : `Preview ${attachment.filename}`}
+          >
           {previewing ? (
             <Spinner size="sm" />
           ) : (
@@ -304,19 +360,30 @@ export default function AttachmentPreview({ attachment }) {
           <span className="truncate max-w-[150px]">{attachment.filename}</span>
         </button>
 
-        {/* Download button */}
-        <button
-          onClick={handleDownload}
-          disabled={downloading}
-          className="inline-flex items-center justify-center px-2 py-1.5 hover:bg-gray-200 rounded-r-lg transition-colors min-h-[44px] min-w-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait border-l border-gray-200"
-          title={downloading ? 'Downloading...' : 'Download'}
-        >
-          {downloading ? (
-            <Spinner size="sm" />
-          ) : (
-            <Download size={14} className="text-gray-500" />
-          )}
-        </button>
+          {/* Download button */}
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="inline-flex items-center justify-center px-2 py-1.5 hover:bg-gray-200 rounded-r-lg transition-colors min-h-[44px] min-w-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-wait border-l border-gray-200"
+            title={downloading ? 'Downloading...' : 'Download'}
+          >
+            {downloading ? (
+              <Spinner size="sm" />
+            ) : (
+              <Download size={14} className="text-gray-500" />
+            )}
+          </button>
+        </div>
+        {canDelete && (
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center touch-manipulation disabled:opacity-50"
+            title="Delete attachment"
+          >
+            {deleting ? <Spinner size="sm" /> : <Trash2 size={14} />}
+          </button>
+        )}
       </div>
     );
   }
@@ -324,27 +391,49 @@ export default function AttachmentPreview({ attachment }) {
   // Non-image, non-PDF attachment with download button
   const FileIcon = getFileIcon(attachment);
   return (
-    <button
-      onClick={handleDownload}
-      disabled={downloading}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200 transition-colors min-h-[44px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-wait"
-      title={downloading ? 'Downloading...' : `Download ${attachment.filename}`}
-    >
-      {downloading ? (
-        <Spinner size="sm" />
-      ) : (
-        <FileIcon size={14} />
+    <div className="inline-flex items-center gap-1">
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-lg text-sm text-gray-700 hover:bg-gray-200 transition-colors min-h-[44px] touch-manipulation disabled:opacity-60 disabled:cursor-wait"
+        title={downloading ? 'Downloading...' : `Download ${attachment.filename}`}
+      >
+        {downloading ? (
+          <Spinner size="sm" />
+        ) : (
+          <FileIcon size={14} />
+        )}
+        <span className="truncate max-w-[200px]">{attachment.filename}</span>
+        {!downloading && <Download size={14} className="text-gray-400 ml-1" />}
+      </button>
+      {canDelete && (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors min-w-[32px] min-h-[32px] flex items-center justify-center touch-manipulation disabled:opacity-50"
+          title="Delete attachment"
+        >
+          {deleting ? <Spinner size="sm" /> : <Trash2 size={14} />}
+        </button>
       )}
-      <span className="truncate max-w-[200px]">{attachment.filename}</span>
-      {!downloading && <Download size={14} className="text-gray-400 ml-1" />}
-    </button>
+    </div>
   );
 }
 
 /**
  * AttachmentList component - renders a list of attachments with proper layout
  */
-export function AttachmentList({ attachments, label = 'Attachments:' }) {
+export function AttachmentList({ attachments, label = 'Attachments:', ticketId }) {
+  const queryClient = useQueryClient();
+
+  // Handle deletion - invalidate both ticket and replies queries
+  const handleDeleted = useCallback((attachmentId) => {
+    if (ticketId) {
+      queryClient.invalidateQueries(['ticket', ticketId]);
+      queryClient.invalidateQueries(['replies', ticketId]);
+    }
+  }, [queryClient, ticketId]);
+
   if (!attachments?.length) return null;
 
   return (
@@ -352,7 +441,12 @@ export function AttachmentList({ attachments, label = 'Attachments:' }) {
       <p className="text-xs font-medium text-gray-500 mb-2">{label}</p>
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => (
-          <AttachmentPreview key={att.id} attachment={att} />
+          <AttachmentPreview
+            key={att.id}
+            attachment={att}
+            ticketId={ticketId}
+            onDeleted={handleDeleted}
+          />
         ))}
       </div>
     </div>

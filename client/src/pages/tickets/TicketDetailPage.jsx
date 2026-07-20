@@ -1293,7 +1293,7 @@ export default function TicketDetailPage() {
                   dangerouslySetInnerHTML={{ __html: formatDescription(ticket.description) }}
                 />
                 {/* Ticket-level attachments */}
-                <AttachmentList attachments={ticket.attachments} />
+                <AttachmentList attachments={ticket.attachments} ticketId={id} />
               </div>
             </div>
           </div>
@@ -1418,7 +1418,7 @@ export default function TicketDetailPage() {
                         </button>
                       )}
                       {/* Attachments */}
-                      <AttachmentList attachments={reply.attachments} />
+                      <AttachmentList attachments={reply.attachments} ticketId={id} />
                     </div>
                   )}
 
