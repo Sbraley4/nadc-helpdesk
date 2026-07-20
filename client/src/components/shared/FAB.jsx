@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, FileText, Clock, Wrench, Paperclip } from 'lucide-react';
+import { Plus, X, FileText, Clock, Wrench, Paperclip, Copy, Calendar } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const ticketDetailActions = [
@@ -7,6 +7,8 @@ const ticketDetailActions = [
   { icon: Clock, label: 'Log Time', action: 'time', color: 'bg-green-500' },
   { icon: Wrench, label: 'Add Material', action: 'material', color: 'bg-orange-500' },
   { icon: Paperclip, label: 'Attach File', action: 'attachment', color: 'bg-purple-500' },
+  { icon: Calendar, label: 'Add to Calendar', action: 'calendar', color: 'bg-teal-500' },
+  { icon: Copy, label: 'Duplicate Ticket', action: 'duplicate', color: 'bg-slate-500' },
 ];
 
 export default function FAB({ onAction }) {

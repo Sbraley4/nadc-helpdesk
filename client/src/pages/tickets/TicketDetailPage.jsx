@@ -4,10 +4,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload } from '../../components/shared';
+import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory, attachments } from '../../api';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload, Modal } from '../../components/shared';
 import { AttachmentList } from '../../components/shared/AttachmentPreview';
 import useAuthStore from '../../store/authStore';
+import useFabActionStore from '../../store/fabActionStore';
 import { useTicketSocket } from '../../hooks/useSocket';
 
 const statusConfig = {
@@ -132,6 +133,15 @@ export default function TicketDetailPage() {
   const [timeFormEndTime, setTimeFormEndTime] = useState('');
   const [timeFormNotes, setTimeFormNotes] = useState('');
   const [editingTimeEntryId, setEditingTimeEntryId] = useState(null);
+
+  // Attachment modal state (FAB quick upload)
+  const [showAttachmentModal, setShowAttachmentModal] = useState(false);
+  const [attachmentFiles, setAttachmentFiles] = useState([]);
+  const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+
+  // FAB action store subscription
+  const pendingFabAction = useFabActionStore((state) => state.pendingAction);
+  const clearFabAction = useFabActionStore((state) => state.clearAction);
 
   // Helper function to format note body with preserved line breaks
   // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
@@ -296,6 +306,59 @@ export default function TicketDetailPage() {
       }
     };
   }, [sendTypingStatus]);
+
+  // Handle FAB actions from store
+  useEffect(() => {
+    if (!pendingFabAction) return;
+
+    const { type } = pendingFabAction;
+
+    switch (type) {
+      case 'note':
+        // Same behavior as handleStartThread - focus textarea in internal note mode
+        setIsInternalNote(true);
+        document.querySelector('textarea')?.focus();
+        break;
+      case 'time':
+        setShowTimeForm(true);
+        break;
+      case 'material':
+        // Materials are managed via inventory - show info toast
+        toast('Materials are added via inventory deductions or parsed from notes', { icon: 'ℹ️' });
+        break;
+      case 'attachment':
+        setShowAttachmentModal(true);
+        break;
+      case 'calendar':
+        setScheduleModalMode('add');
+        setRescheduleId(null);
+        setShowScheduleModal(true);
+        break;
+      case 'duplicate':
+        // Inline duplicate logic - navigate to new ticket with pre-filled data
+        if (ticketData) {
+          navigate('/tickets/new', {
+            state: {
+              duplicateTicket: {
+                ticketNumber: ticketData.ticketNumber,
+                subject: ticketData.subject,
+                description: ticketData.description,
+                priority: ticketData.priority,
+                assigneeId: ticketData.assigneeId,
+                requesterId: ticketData.requesterId,
+                requester: ticketData.requester,
+                additionalAssignees: ticketData.additionalAssignees,
+              }
+            }
+          });
+        }
+        break;
+      default:
+        break;
+    }
+
+    clearFabAction();
+  }, [pendingFabAction, clearFabAction, ticketData, navigate]);
 
   // Fetch ticket
   const { data: ticketData, isLoading, error } = useQuery({
@@ -948,6 +1011,33 @@ export default function TicketDetailPage() {
     });
   };
 
+  // Handle attachment upload from FAB modal
+  const handleAttachmentUpload = async () => {
+    if (attachmentFiles.length === 0) {
+      toast.error('Please select at least one file');
+      return;
+    }
+
+    setIsUploadingAttachments(true);
+    try {
+      const formData = new FormData();
+      attachmentFiles.forEach((file) => {
+        formData.append('files', file);
+      });
+      await attachments.uploadAttachment(id, formData);
+      toast.success(`${attachmentFiles.length} file${attachmentFiles.length > 1 ? 's' : ''} uploaded successfully`);
+      setShowAttachmentModal(false);
+      setAttachmentFiles([]);
+      // Refetch ticket to show new attachments
+      queryClient.invalidateQueries(['ticket', id]);
+    } catch (error) {
+      console.error('Failed to upload attachments:', error);
+      toast.error(error.response?.data?.error || 'Failed to upload attachments');
+    } finally {
+      setIsUploadingAttachments(false);
+    }
+  };
+
   const agentOptions = [
     { value: '', label: 'Unassigned' },
     ...(agentsData?.agents || []).map((agent) => ({
@@ -1009,18 +1099,6 @@ export default function TicketDetailPage() {
                       Edit Ticket
                     </button>
                     <button
-                      onClick={() => {
-                        setScheduleModalMode('add');
-                        setRescheduleId(null);
-                        setShowScheduleModal(true);
-                        setShowTicketMenu(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                    >
-                      <Calendar size={16} />
-                      Add to Calendar
-                    </button>
-                    <button
                       onClick={handleStartThread}
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
                     >
@@ -1033,13 +1111,6 @@ export default function TicketDetailPage() {
                     >
                       <Forward size={16} />
                       Forward Ticket
-                    </button>
-                    <button
-                      onClick={handleDuplicateTicket}
-                      className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 min-h-[44px] touch-manipulation"
-                    >
-                      <Copy size={16} />
-                      Duplicate Ticket
                     </button>
                     <hr className="my-1" />
                     <button
@@ -1068,18 +1139,6 @@ export default function TicketDetailPage() {
                           Edit Ticket
                         </button>
                         <button
-                          onClick={() => {
-                            setScheduleModalMode('add');
-                            setRescheduleId(null);
-                            setShowScheduleModal(true);
-                            setShowTicketMenu(false);
-                          }}
-                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
-                        >
-                          <Calendar size={20} />
-                          Add to Calendar
-                        </button>
-                        <button
                           onClick={handleStartThread}
                           className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
                         >
@@ -1092,13 +1151,6 @@ export default function TicketDetailPage() {
                         >
                           <Forward size={20} />
                           Forward Ticket
-                        </button>
-                        <button
-                          onClick={handleDuplicateTicket}
-                          className="w-full flex items-center gap-3 px-4 py-4 text-base text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl touch-manipulation"
-                        >
-                          <Copy size={20} />
-                          Duplicate Ticket
                         </button>
                         <div className="pt-2 mt-2 border-t border-gray-200">
                           <button
@@ -2107,6 +2159,55 @@ export default function TicketDetailPage() {
                   className="w-full sm:w-auto"
                 >
                   Forward
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attachment Upload Modal (FAB) */}
+      {showAttachmentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Attach Files</h3>
+              <button
+                onClick={() => {
+                  setShowAttachmentModal(false);
+                  setAttachmentFiles([]);
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <FileUpload
+                files={attachmentFiles}
+                onChange={setAttachmentFiles}
+                maxFiles={5}
+                disabled={isUploadingAttachments}
+              />
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowAttachmentModal(false);
+                    setAttachmentFiles([]);
+                  }}
+                  className="w-full sm:w-auto"
+                  disabled={isUploadingAttachments}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleAttachmentUpload}
+                  isLoading={isUploadingAttachments}
+                  disabled={attachmentFiles.length === 0 || isUploadingAttachments}
+                  className="w-full sm:w-auto"
+                >
+                  Upload {attachmentFiles.length > 0 && `(${attachmentFiles.length})`}
                 </Button>
               </div>
             </div>

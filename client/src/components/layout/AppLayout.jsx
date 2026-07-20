@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import FAB from '../shared/FAB';
 import useSocket from '../../hooks/useSocket';
+import useFabActionStore from '../../store/fabActionStore';
 
 const pageTitles = {
   '/dashboard': 'Dashboard',
@@ -105,11 +106,15 @@ export default function AppLayout() {
     }
   };
 
+  const triggerFabAction = useFabActionStore((state) => state.triggerAction);
+
   const handleFABAction = (action) => {
-    // Handle FAB actions - these will be processed by the ticket detail page
-    // via props or context
-    console.log('FAB action:', action);
+    triggerFabAction(action);
   };
+
+  // Only show FAB on ticket detail pages (matches /tickets/:id but not /tickets or /tickets/new)
+  const isTicketDetailPage = /^\/tickets\/[^/]+$/.test(location.pathname) &&
+    !location.pathname.endsWith('/new');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -188,8 +193,8 @@ export default function AppLayout() {
         </nav>
       )}
 
-      {/* Floating Action Button - hidden on mobile since we have bottom nav */}
-      {!isMobile && <FAB onAction={handleFABAction} />}
+      {/* Floating Action Button - only on ticket detail pages */}
+      {isTicketDetailPage && <FAB onAction={handleFABAction} />}
     </div>
   );
 }
