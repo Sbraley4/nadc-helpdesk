@@ -8,7 +8,7 @@ import { Badge, Button, Avatar, CenteredSpinner, EmptyState } from '../../compon
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
   PENDING: { label: 'Pending', variant: 'pending' },
-  RESOLVED: { label: 'Resolved', variant: 'resolved' },
+  WORKING: { label: 'Working', variant: 'working' },
   INVOICED: { label: 'Invoiced', variant: 'invoiced' },
   POSTED: { label: 'Posted', variant: 'posted' },
 };

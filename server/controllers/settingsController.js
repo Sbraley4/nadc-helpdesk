@@ -188,7 +188,7 @@ async function previewEmailTemplate(req, res, next) {
       '{{requester_name}}': 'John Smith',
       '{{agent_name}}': 'Sam Admin',
       '{{reply_content}}': 'This is a sample reply content for preview purposes.',
-      '{{status}}': 'RESOLVED',
+      '{{status}}': 'WORKING',
       '{{company_name}}': 'NADC Helpdesk',
       '{{survey_link}}': '#',
     };

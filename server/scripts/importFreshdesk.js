@@ -29,10 +29,11 @@ const xmlParser = new XMLParser({
 });
 
 // Status mapping from Freshdesk integer values
+// Note: Freshdesk status 4 ("resolved") maps to INVOICED since WORKING is a new concept
 const STATUS_MAP = {
   2: 'OPEN',
   3: 'PENDING',
-  4: 'RESOLVED',
+  4: 'INVOICED',
   5: 'INVOICED',
 };
 
@@ -415,7 +416,7 @@ async function importTickets(importDir) {
             assigneeId: dbAssigneeId,
             dueDate,
             createdAt: createdDate,
-            resolvedAt: ['RESOLVED', 'INVOICED'].includes(status) ? createdDate : null,
+            resolvedAt: ['INVOICED'].includes(status) ? createdDate : null,
           },
         });
 

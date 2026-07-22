@@ -279,7 +279,7 @@ export default function TicketSearchModal({
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           ticket.status === 'OPEN' ? 'bg-yellow-100 text-yellow-800' :
                           ticket.status === 'PENDING' ? 'bg-gray-100 text-gray-700' :
-                          ticket.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                          ticket.status === 'WORKING' ? 'bg-teal-100 text-teal-800' :
                           'bg-gray-100 text-gray-600'
                         }`}>
                           {ticket.status}

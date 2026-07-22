@@ -376,10 +376,10 @@ async function testTickets() {
     }
   });
 
-  await test('PUT /api/tickets/:id status=RESOLVED → resolvedAt set', async () => {
-    const res = await api.put(`/api/tickets/${testTicketId}`, { status: 'RESOLVED' });
+  await test('PUT /api/tickets/:id status=WORKING → status updated', async () => {
+    const res = await api.put(`/api/tickets/${testTicketId}`, { status: 'WORKING' });
     expect(res.status === 200, 'Should return 200');
-    expect(res.data.resolvedAt, 'resolvedAt should be set');
+    expect(res.data.status === 'WORKING', 'status should be WORKING');
   });
 
   await test('PUT /api/tickets/:id status change → activity created', async () => {
@@ -468,8 +468,8 @@ async function testReplies() {
     expect(ticketRes.data.firstResponseAt, 'firstResponseAt should be set');
   });
 
-  await test('POST /api/tickets/:id/replies on RESOLVED → reopens', async () => {
-    await api.put(`/api/tickets/${testTicketId}`, { status: 'RESOLVED' });
+  await test('POST /api/tickets/:id/replies on WORKING → reopens', async () => {
+    await api.put(`/api/tickets/${testTicketId}`, { status: 'WORKING' });
     const res = await api.post(`/api/tickets/${testTicketId}/replies`, { body: 'This should reopen' });
     expect(res.status === 201 || res.status === 200, 'Should return 200/201');
     const ticketRes = await api.get(`/api/tickets/${testTicketId}`);

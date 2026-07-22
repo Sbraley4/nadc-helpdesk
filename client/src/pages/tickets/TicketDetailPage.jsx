@@ -14,7 +14,7 @@ import { useTicketSocket } from '../../hooks/useSocket';
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
   PENDING: { label: 'Pending', variant: 'pending' },
-  RESOLVED: { label: 'Resolved', variant: 'resolved' },
+  WORKING: { label: 'Working', variant: 'working' },
   INVOICED: { label: 'Invoiced', variant: 'invoiced' },
   POSTED: { label: 'Posted', variant: 'posted' },
 };
@@ -29,7 +29,7 @@ const priorityConfig = {
 const statusOptions = [
   { value: 'OPEN', label: 'Open' },
   { value: 'PENDING', label: 'Pending' },
-  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'WORKING', label: 'Working' },
   { value: 'INVOICED', label: 'Invoiced' },
   { value: 'POSTED', label: 'Posted' },
 ];

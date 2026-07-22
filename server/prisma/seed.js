@@ -292,7 +292,7 @@ async function main() {
       description: 'New employee starting next Monday. Need laptop configured with standard software suite and email access.',
       priority: 'LOW',
       type: 'FEATURE_REQUEST',
-      status: 'RESOLVED',
+      status: 'WORKING',
       requesterId: sarahLee.id,
       companyId: techFirm.id,
       assigneeId: agent1.id,
@@ -314,7 +314,7 @@ async function main() {
     data: {
       ticketId: ticket4.id,
       type: 'status_changed',
-      description: 'Status changed from OPEN to RESOLVED',
+      description: 'Status changed from OPEN to WORKING',
       userId: agent1.id,
     },
   });
@@ -566,10 +566,10 @@ Apologies for any inconvenience.
 
   const rule2 = await prisma.automationRule.create({
     data: {
-      name: 'Close stale resolved tickets',
+      name: 'Close stale working tickets',
       trigger: 'TIME_BASED',
       conditions: [
-        { field: 'status', operator: 'is', value: 'RESOLVED' },
+        { field: 'status', operator: 'is', value: 'WORKING' },
         { field: 'ticketAgeDays', operator: 'greater_than', value: '7' },
       ],
       actions: [

@@ -3,7 +3,7 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import useAuthStore from '../../store/authStore';
 import { format } from 'date-fns';
-import { Plus, AlertCircle, Clock, CheckCircle, XCircle, ChevronDown, Filter, X, DollarSign, Send } from 'lucide-react';
+import { Plus, AlertCircle, Clock, CheckCircle, XCircle, ChevronDown, Filter, X, DollarSign, Send, Wrench } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, agents } from '../../api';
 import { Badge, Button, SearchInput, Select, Pagination, EmptyState, CenteredSpinner, Avatar } from '../../components/shared';
@@ -11,7 +11,7 @@ import { Badge, Button, SearchInput, Select, Pagination, EmptyState, CenteredSpi
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open', icon: AlertCircle },
   PENDING: { label: 'Pending', variant: 'pending', icon: Clock },
-  RESOLVED: { label: 'Resolved', variant: 'resolved', icon: CheckCircle },
+  WORKING: { label: 'Working', variant: 'working', icon: Wrench },
   INVOICED: { label: 'Invoiced', variant: 'invoiced', icon: DollarSign },
   POSTED: { label: 'Posted', variant: 'posted', icon: Send },
 };
@@ -27,7 +27,7 @@ const statusOptions = [
   { value: '', label: 'All Statuses' },
   { value: 'OPEN', label: 'Open' },
   { value: 'PENDING', label: 'Pending' },
-  { value: 'RESOLVED', label: 'Resolved' },
+  { value: 'WORKING', label: 'Working' },
   { value: 'INVOICED', label: 'Invoiced' },
   { value: 'POSTED', label: 'Posted' },
 ];
@@ -352,7 +352,7 @@ function TicketRow({ ticket, onStatusChange, onNavigate }) {
           <>
             <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setShowStatusDropdown(false); }} />
             <div className="absolute z-20 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]">
-              {['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'].map((status) => (
+              {['OPEN', 'PENDING', 'WORKING', 'INVOICED', 'POSTED'].map((status) => (
                 <button
                   key={status}
                   onClick={(e) => { e.stopPropagation(); handleStatusChange(status); }}
@@ -417,7 +417,7 @@ function MobileTicketCard({ ticket, onStatusChange, onClick }) {
                 onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
               />
               <div className="absolute right-0 z-20 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[120px]">
-                {['OPEN', 'PENDING', 'INVOICED', 'POSTED', 'CLOSED'].map((status) => (
+                {['OPEN', 'PENDING', 'WORKING', 'INVOICED', 'POSTED'].map((status) => (
                   <button
                     key={status}
                     onClick={(e) => {

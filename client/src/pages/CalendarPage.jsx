@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 const statusStripeColors = {
   OPEN: null,          // No status stripe for OPEN tickets
   PENDING: '#6B7280',  // gray-500
-  RESOLVED: '#64748B', // slate-500
+  WORKING: '#5EEAD4',  // teal-300
   INVOICED: '#22C55E', // green-500
   POSTED: '#EC4899',   // pink-500
 };

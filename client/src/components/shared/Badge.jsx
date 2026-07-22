@@ -2,11 +2,10 @@ const variants = {
   // Status badges
   open: 'bg-blue-100 text-blue-800',
   pending: 'bg-gray-200 text-gray-700',
+  working: 'bg-teal-100 text-teal-700',
   invoiced: 'bg-green-100 text-green-800',
   posted: 'bg-pink-100 text-pink-800',
   closed: 'bg-gray-100 text-gray-600',
-  // Resolved status
-  resolved: 'bg-slate-100 text-slate-700',
 
   // Priority badges
   low: 'bg-gray-100 text-gray-700',
