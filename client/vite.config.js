@@ -31,6 +31,22 @@ export default defineConfig({
   plugins: [react(), swVersionPlugin()],
   build: {
     chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split heavy vendor libraries into separate chunks
+          if (id.includes('node_modules/@fullcalendar')) {
+            return 'vendor-fullcalendar';
+          }
+          if (id.includes('node_modules/@tiptap') || id.includes('node_modules/prosemirror')) {
+            return 'vendor-tiptap';
+          }
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            return 'vendor-recharts';
+          }
+        },
+      },
+    },
   },
   define: {
     // Make build time available to the app

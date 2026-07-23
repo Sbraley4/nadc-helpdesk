@@ -1,54 +1,44 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/authStore';
 import usePortalAuthStore from './store/portalAuthStore';
+import { FullPageSpinner } from './components/shared/Spinner';
 
-// Layout
+// Layout (keep static - used on every authenticated page)
 import AppLayout from './components/layout/AppLayout';
 
-// Pages
-import LoginPage from './pages/auth/LoginPage';
-import SetupPasswordPage from './pages/auth/SetupPasswordPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
-import TicketListPage from './pages/tickets/TicketListPage';
-import NewTicketPage from './pages/tickets/NewTicketPage';
-import TicketDetailPage from './pages/tickets/TicketDetailPage';
-import ContactListPage from './pages/contacts/ContactListPage';
-import ContactDetailPage from './pages/contacts/ContactDetailPage';
-import CompanyListPage from './pages/companies/CompanyListPage';
-import CompanyDetailPage from './pages/companies/CompanyDetailPage';
-import CalendarPage from './pages/CalendarPage';
-import WorkloadPage from './pages/WorkloadPage';
-import DevicesPage from './pages/DevicesPage';
-import InventoryPage from './pages/inventory/InventoryPage';
-import TemplatesPage from './pages/TemplatesPage';
-import SatisfactionPage from './pages/SatisfactionPage';
-import SettingsPage from './pages/SettingsPage';
-import NotFoundPage from './pages/NotFoundPage';
-import ReviewPage from './pages/ReviewPage';
+// Lazy-loaded Pages
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const SetupPasswordPage = lazy(() => import('./pages/auth/SetupPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const TicketListPage = lazy(() => import('./pages/tickets/TicketListPage'));
+const NewTicketPage = lazy(() => import('./pages/tickets/NewTicketPage'));
+const TicketDetailPage = lazy(() => import('./pages/tickets/TicketDetailPage'));
+const ContactListPage = lazy(() => import('./pages/contacts/ContactListPage'));
+const ContactDetailPage = lazy(() => import('./pages/contacts/ContactDetailPage'));
+const CompanyListPage = lazy(() => import('./pages/companies/CompanyListPage'));
+const CompanyDetailPage = lazy(() => import('./pages/companies/CompanyDetailPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const WorkloadPage = lazy(() => import('./pages/WorkloadPage'));
+const DevicesPage = lazy(() => import('./pages/DevicesPage'));
+const InventoryPage = lazy(() => import('./pages/inventory/InventoryPage'));
+const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
+const SatisfactionPage = lazy(() => import('./pages/SatisfactionPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const ReviewPage = lazy(() => import('./pages/ReviewPage'));
 
 // Phase 7 Pages
-import DashboardPage from './pages/dashboard/DashboardPage';
-import ReportsPage from './pages/reports/ReportsPage';
-import AutomationsPage from './pages/settings/AutomationsPage';
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
+const AutomationsPage = lazy(() => import('./pages/settings/AutomationsPage'));
 
 // Admin Pages
-import ImportPage from './pages/admin/ImportPage';
+const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
 
 // Phase 8 Pages
-import { KnowledgeBasePage } from './pages/kb';
-import {
-  PortalLayout,
-  PortalLoginPage,
-  PortalForgotPasswordPage,
-  PortalResetPasswordPage,
-  PortalTicketsPage,
-  PortalTicketDetailPage,
-  PortalNewTicketPage,
-  PortalKBPage,
-  PortalAccountPage,
-  PortalComingSoonPage,
-} from './pages/portal';
+const KnowledgeBasePage = lazy(() => import('./pages/kb').then(m => ({ default: m.KnowledgeBasePage })));
+const PortalComingSoonPage = lazy(() => import('./pages/portal').then(m => ({ default: m.PortalComingSoonPage })));
 
 // Protected Route wrapper (Agent/Admin)
 function ProtectedRoute({ children }) {
@@ -100,6 +90,7 @@ function App() {
   }, []); // Empty dependency - run once on mount only
 
   return (
+    <Suspense fallback={<FullPageSpinner />}>
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
@@ -176,6 +167,7 @@ function App() {
       {/* 404 */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+    </Suspense>
   );
 }
 
