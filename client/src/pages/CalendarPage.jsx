@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal, TemplateSelectModal, DuplicateTicketModal } from '../components/shared';
+import FormattedText from '../components/shared/FormattedText';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
@@ -1696,9 +1697,7 @@ export default function CalendarPage() {
                 <span className="text-sm font-medium text-gray-900">{tooltip.eventData.title || 'Calendar Event'}</span>
               </div>
               {tooltip.eventData.description && (
-                <p className="text-xs text-gray-600 line-clamp-3">
-                  {tooltip.eventData.description}
-                </p>
+                <FormattedText text={tooltip.eventData.description} as="p" className="text-xs text-gray-600 line-clamp-3" />
               )}
               {tooltip.eventData.assignees?.length > 0 && (
                 <div className="flex items-start gap-2 text-xs text-gray-600">

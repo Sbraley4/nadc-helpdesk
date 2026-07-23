@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ArrowLeft, Send, User, Clock, CheckCircle, AlertCircle, CheckSquare, DollarSign, Mail } from 'lucide-react';
 import { AttachmentList } from '../../components/shared/AttachmentPreview';
+import FormattedText from '../../components/shared/FormattedText';
 import toast from 'react-hot-toast';
 import { portalTickets } from '../../api/portal';
 import usePortalAuthStore from '../../store/portalAuthStore';
@@ -43,26 +44,6 @@ export default function PortalTicketDetailPage() {
       return;
     }
     replyMutation.mutate(replyContent.trim());
-  };
-
-  // Helper function to format text with preserved line breaks
-  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
-  const formatContent = (text) => {
-    if (!text) return '';
-
-    // HTML-escape first to prevent XSS (must happen before any & substitutions)
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
-    // Normalize line endings (CRLF -> LF) to prevent extra spacing
-    const normalizedText = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    // Preserve double spaces (browsers collapse multiple spaces)
-    return normalizedText.replace(/  /g, '&nbsp;&nbsp;');
   };
 
   if (isLoading) {
@@ -126,10 +107,10 @@ export default function PortalTicketDetailPage() {
               </div>
             </div>
             <div className="p-4">
-              <div
-                  className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: formatContent(ticket.description) }}
-                />
+              <FormattedText
+                text={ticket.description}
+                className="prose prose-sm max-w-none text-gray-700"
+              />
             </div>
           </div>
 
@@ -153,10 +134,10 @@ export default function PortalTicketDetailPage() {
                 </div>
               </div>
               <div className="p-4">
-                <div
-                    className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: formatContent(reply.body) }}
-                  />
+                <FormattedText
+                  text={reply.body}
+                  className="prose prose-sm max-w-none text-gray-700"
+                />
                 <AttachmentList attachments={reply.attachments} />
               </div>
             </div>
@@ -268,7 +249,7 @@ export default function PortalTicketDetailPage() {
           {ticket.resolutionSummary && (
             <div className="bg-green-50 rounded-lg border border-green-200 p-4">
               <h3 className="font-medium text-green-900 mb-2">Resolution Summary</h3>
-              <p className="text-sm text-green-800 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatContent(ticket.resolutionSummary) }} />
+              <FormattedText text={ticket.resolutionSummary} as="p" className="text-sm text-green-800" />
             </div>
           )}
         </div>

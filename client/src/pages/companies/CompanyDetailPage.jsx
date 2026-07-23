@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { ArrowLeft, Globe, Users, Ticket } from 'lucide-react';
 import { companies } from '../../api';
 import { Badge, Button, Avatar, CenteredSpinner, EmptyState } from '../../components/shared';
+import FormattedText from '../../components/shared/FormattedText';
 
 const statusConfig = {
   OPEN: { label: 'Open', variant: 'open' },
@@ -70,7 +71,7 @@ export default function CompanyDetailPage() {
               {company.notes && (
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Notes</p>
-                  <p className="text-sm text-gray-700">{company.notes}</p>
+                  <FormattedText text={company.notes} as="p" className="text-sm text-gray-700" />
                 </div>
               )}
             </div>

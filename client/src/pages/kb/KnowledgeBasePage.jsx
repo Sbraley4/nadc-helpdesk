@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { kb } from '../../api';
 import { Button, Badge, CenteredSpinner, EmptyState } from '../../components/shared';
+import FormattedText from '../../components/shared/FormattedText';
 import toast from 'react-hot-toast';
 
 export default function KnowledgeBasePage() {
@@ -213,7 +214,7 @@ export default function KnowledgeBasePage() {
                   </div>
                 </div>
                 {category.description && (
-                  <p className="text-sm text-gray-500 mb-3">{category.description}</p>
+                  <FormattedText text={category.description} as="p" className="text-sm text-gray-500 mb-3" />
                 )}
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-500">{category.articleCount || 0} articles</span>
@@ -252,7 +253,7 @@ export default function KnowledgeBasePage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{category?.name}</h1>
             {category?.description && (
-              <p className="text-sm text-gray-500">{category.description}</p>
+              <FormattedText text={category.description} as="p" className="text-sm text-gray-500" />
             )}
           </div>
         </div>
@@ -384,7 +385,7 @@ export default function KnowledgeBasePage() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="prose max-w-none" dangerouslySetInnerHTML={{ __html: article.body.replace(/\n/g, '<br />') }} />
+          <FormattedText text={article.body} className="prose max-w-none" />
         </div>
       </div>
     );

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory, attachments } from '../../api';
 import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload, Modal } from '../../components/shared';
 import { AttachmentList } from '../../components/shared/AttachmentPreview';
+import FormattedText, { needsTruncation } from '../../components/shared/FormattedText';
 import useAuthStore from '../../store/authStore';
 import useFabActionStore from '../../store/fabActionStore';
 import { useTicketSocket } from '../../hooks/useSocket';
@@ -143,71 +144,12 @@ export default function TicketDetailPage() {
   const pendingFabAction = useFabActionStore((state) => state.pendingAction);
   const clearFabAction = useFabActionStore((state) => state.clearAction);
 
-  // Helper function to format note body with preserved line breaks
-  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
-  const formatNoteBody = (body, isExpanded = true) => {
-    if (!body) return '';
-
-    // HTML-escape first to prevent XSS (must happen before any & substitutions)
-    const escaped = body
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
-    // Normalize line endings (CRLF -> LF) to prevent extra spacing
-    const normalizedBody = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    // Preserve double spaces (browsers collapse multiple spaces)
-    const formattedBody = normalizedBody.replace(/  /g, '&nbsp;&nbsp;');
-
-    // If not expanded, truncate to first 150 chars or first 2 lines
-    if (!isExpanded) {
-      const lines = normalizedBody.split('\n');
-      const previewLines = lines.slice(0, 2);
-      let preview = previewLines.join('\n');
-      if (lines.length > 2 || preview.length > 150) {
-        preview = preview.substring(0, 150) + '...';
-      }
-      return preview.replace(/  /g, '&nbsp;&nbsp;');
-    }
-    return formattedBody;
-  };
-
-  // Helper function to format ticket description with preserved line breaks
-  // Note: CSS white-space: pre-wrap handles newlines, so we only need to handle spaces
-  const formatDescription = (description) => {
-    if (!description) return '';
-
-    // HTML-escape first to prevent XSS (must happen before any & substitutions)
-    const escaped = description
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-
-    // Normalize line endings (CRLF -> LF) to prevent extra spacing
-    const normalizedDescription = escaped.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-    // Preserve double spaces (browsers collapse multiple spaces)
-    return normalizedDescription.replace(/  /g, '&nbsp;&nbsp;');
-  };
-
   // Toggle note expansion
   const toggleNoteExpanded = (replyId) => {
     setExpandedNotes(prev => ({
       ...prev,
       [replyId]: !prev[replyId],
     }));
-  };
-
-  // Check if a note needs expansion (more than 2 lines or > 150 chars)
-  const needsExpansion = (body) => {
-    if (!body) return false;
-    const lines = body.split('\n');
-    return lines.length > 2 || body.length > 150;
   };
 
   // Connect to ticket socket room
@@ -1287,10 +1229,9 @@ export default function TicketDetailPage() {
                   <span className="font-medium text-gray-900">{ticket.requester?.name}</span>
                   <span className="text-sm text-gray-500">{format(new Date(ticket.createdAt), 'MMM d, yyyy h:mm a')}</span>
                 </div>
-                <div
+                <FormattedText
+                  text={ticket.description}
                   className="prose prose-sm max-w-none text-gray-700"
-                  style={{ whiteSpace: 'pre-wrap' }}
-                  dangerouslySetInnerHTML={{ __html: formatDescription(ticket.description) }}
                 />
                 {/* Ticket-level attachments */}
                 <AttachmentList attachments={ticket.attachments} ticketId={id} />
@@ -1392,14 +1333,12 @@ export default function TicketDetailPage() {
                     </div>
                   ) : (
                     <div>
-                      <div
+                      <FormattedText
+                        text={reply.body}
                         className="prose prose-sm max-w-none text-gray-700"
-                        style={{ whiteSpace: 'pre-wrap' }}
-                        dangerouslySetInnerHTML={{
-                          __html: formatNoteBody(reply.body, expandedNotes[reply.id] !== false || !needsExpansion(reply.body))
-                        }}
+                        truncate={needsTruncation(reply.body) && expandedNotes[reply.id] === false}
                       />
-                      {needsExpansion(reply.body) && (
+                      {needsTruncation(reply.body) && (
                         <button
                           onClick={() => toggleNoteExpanded(reply.id)}
                           className="mt-2 text-sm text-primary hover:text-primary/80 font-medium flex items-center gap-1"
@@ -2490,7 +2429,7 @@ export default function TicketDetailPage() {
                               </span>
                             </div>
                             {entry.notes && (
-                              <p className="text-xs text-gray-500 mt-1 truncate">{entry.notes}</p>
+                              <FormattedText text={entry.notes} as="p" className="text-xs text-gray-500 mt-1 truncate" preWrap={false} />
                             )}
                           </div>
                           {/* Edit/Delete - only visible to entry owner or ADMIN */}

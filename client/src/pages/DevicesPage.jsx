@@ -31,6 +31,7 @@ import {
   ConfirmDialog,
   Pagination,
 } from '../components/shared';
+import FormattedText from '../components/shared/FormattedText';
 
 const deviceTypeIcons = {
   DESKTOP: Monitor,
@@ -317,7 +318,7 @@ export default function DevicesPage() {
               {selectedDevice.notes && (
                 <div>
                   <dt className="text-sm text-gray-500">Notes</dt>
-                  <dd className="text-gray-700 whitespace-pre-wrap">{selectedDevice.notes}</dd>
+                  <FormattedText text={selectedDevice.notes} as="dd" className="text-gray-700" />
                 </div>
               )}
             </dl>

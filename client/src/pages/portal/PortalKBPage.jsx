@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Search, BookOpen, ChevronRight, ArrowLeft } from 'lucide-react';
 import { portalKB } from '../../api/portal';
+import FormattedText from '../../components/shared/FormattedText';
 
 export default function PortalKBPage() {
   const { categorySlug, articleSlug } = useParams();
@@ -106,7 +107,7 @@ function KBHome({ searchQuery, setSearchQuery }) {
                         {category.name}
                       </h3>
                       {category.description && (
-                        <p className="text-sm text-gray-500 mt-1">{category.description}</p>
+                        <FormattedText text={category.description} as="p" className="text-sm text-gray-500 mt-1" />
                       )}
                       <p className="text-sm text-gray-400 mt-2">
                         {category.articleCount} {category.articleCount === 1 ? 'article' : 'articles'}
@@ -157,7 +158,7 @@ function CategoryView({ slug }) {
       </Link>
 
       <h1 className="text-2xl font-bold text-gray-900 mb-2">{category.name}</h1>
-      {category.description && <p className="text-gray-600 mb-6">{category.description}</p>}
+      {category.description && <FormattedText text={category.description} as="p" className="text-gray-600 mb-6" />}
 
       {category.articles?.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
@@ -228,9 +229,7 @@ function ArticleView({ slug }) {
         <p className="text-sm text-gray-500 mb-6">
           By {article.authorName} | Updated {new Date(article.updatedAt).toLocaleDateString()}
         </p>
-        <div className="prose max-w-none text-gray-700 whitespace-pre-wrap">
-          {article.body}
-        </div>
+        <FormattedText text={article.body} className="prose max-w-none text-gray-700" />
       </article>
 
       <div className="mt-6 p-4 bg-blue-50 rounded-lg">
