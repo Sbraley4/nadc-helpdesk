@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy, Mail, Phone, MapPin } from 'lucide-react';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal, TemplateSelectModal, DuplicateTicketModal } from '../components/shared';
 import FormattedText from '../components/shared/FormattedText';
@@ -567,6 +567,7 @@ export default function CalendarPage() {
           priority: ticket.priority,
           assignee: ticket.assignee,
           additionalAssignees: ticket.additionalAssignees,
+          requester: ticket.requester,
           company: companyName,
           statusColor: statusColor,
           scheduledStart: startTime,
@@ -1655,6 +1656,40 @@ export default function CalendarPage() {
                   {tooltip.eventData.subject}
                 </p>
               </div>
+
+              {/* Requester */}
+              {tooltip.eventData.requester && (
+                <div className="space-y-1">
+                  {tooltip.eventData.requester.name && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <User size={14} className="flex-shrink-0" />
+                      <span className="truncate font-medium">{tooltip.eventData.requester.name}</span>
+                    </div>
+                  )}
+                  {tooltip.eventData.requester.email && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <Mail size={14} className="flex-shrink-0" />
+                      <a href={`mailto:${tooltip.eventData.requester.email}`} className="truncate text-primary hover:underline pointer-events-auto">
+                        {tooltip.eventData.requester.email}
+                      </a>
+                    </div>
+                  )}
+                  {tooltip.eventData.requester.phone && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <Phone size={14} className="flex-shrink-0" />
+                      <a href={`tel:${tooltip.eventData.requester.phone}`} className="truncate text-primary hover:underline pointer-events-auto">
+                        {tooltip.eventData.requester.phone}
+                      </a>
+                    </div>
+                  )}
+                  {tooltip.eventData.requester.address && (
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <MapPin size={14} className="flex-shrink-0" />
+                      <span className="truncate">{tooltip.eventData.requester.address}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Company/Location */}
               {tooltip.eventData.company && (

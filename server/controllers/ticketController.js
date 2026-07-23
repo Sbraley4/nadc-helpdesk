@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
 // Common include for ticket relations
 const ticketInclude = {
   requester: {
-    select: { id: true, name: true, email: true, phone: true },
+    select: { id: true, name: true, email: true, phone: true, address: true },
   },
   company: {
     select: { id: true, name: true, domain: true },
@@ -488,7 +488,7 @@ const createTicket = async (req, res, next) => {
       const ticketForAutomation = await prisma.ticket.findUnique({
         where: { id: ticket.id },
         include: {
-          requester: { select: { id: true, name: true, email: true } },
+          requester: { select: { id: true, name: true, email: true, phone: true, address: true } },
           company: { select: { id: true, name: true } },
           assignee: { select: { id: true, name: true, email: true } },
           group: { select: { id: true, name: true } },
@@ -868,7 +868,7 @@ const updateTicket = async (req, res, next) => {
       const ticketForAutomation = await prisma.ticket.findUnique({
         where: { id },
         include: {
-          requester: { select: { id: true, name: true, email: true } },
+          requester: { select: { id: true, name: true, email: true, phone: true, address: true } },
           company: { select: { id: true, name: true } },
           assignee: { select: { id: true, name: true, email: true } },
           group: { select: { id: true, name: true } },
@@ -1393,7 +1393,7 @@ const calculateMileage = async (req, res, next) => {
       where: { id },
       include: {
         company: { select: { id: true, name: true, address: true } },
-        requester: { select: { id: true, name: true } },
+        requester: { select: { id: true, name: true, address: true } },
       },
     });
 

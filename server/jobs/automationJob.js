@@ -73,7 +73,7 @@ async function findMatchingTickets(conditions) {
   const tickets = await prisma.ticket.findMany({
     where,
     include: {
-      requester: { select: { id: true, name: true, email: true } },
+      requester: { select: { id: true, name: true, email: true, phone: true, address: true } },
       company: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true, email: true } },
       group: { select: { id: true, name: true } },

@@ -72,7 +72,7 @@ async function getCalendarTickets(req, res, next) {
               },
             },
             requester: {
-              select: { id: true, name: true },
+              select: { id: true, name: true, email: true, phone: true, address: true },
             },
             company: {
               select: { id: true, name: true },
@@ -240,7 +240,7 @@ async function getWorkloadSummary(req, res, next) {
               priority: true,
               dueDate: true,
               requester: {
-                select: { id: true, name: true },
+                select: { id: true, name: true, email: true, phone: true, address: true },
               },
               schedules: {
                 where: scheduleInRange,
@@ -302,7 +302,7 @@ async function getWorkloadSummary(req, res, next) {
         priority: true,
         dueDate: true,
         requester: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, email: true, phone: true, address: true },
         },
         schedules: {
           where: scheduleInRange,

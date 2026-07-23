@@ -369,6 +369,9 @@ export default function WorkloadPage() {
                       {ticket.contact && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                           <p className="text-xs text-gray-500 truncate">{ticket.contact.name}</p>
+                          {ticket.contact.email && (
+                            <p className="text-xs text-gray-400 truncate">{ticket.contact.email}</p>
+                          )}
                         </div>
                       )}
                     </div>

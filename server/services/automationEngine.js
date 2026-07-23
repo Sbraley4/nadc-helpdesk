@@ -57,7 +57,7 @@ async function runAutomations(trigger, ticket, changes = {}) {
         currentTicket = await prisma.ticket.findUnique({
           where: { id: currentTicket.id },
           include: {
-            requester: { select: { id: true, name: true, email: true } },
+            requester: { select: { id: true, name: true, email: true, phone: true, address: true } },
             company: { select: { id: true, name: true } },
             assignee: { select: { id: true, name: true, email: true } },
             group: { select: { id: true, name: true } },
@@ -300,7 +300,7 @@ async function testAutomation(ruleId, ticketId) {
   const ticket = await prisma.ticket.findUnique({
     where: { id: ticketId },
     include: {
-      requester: { select: { id: true, name: true, email: true } },
+      requester: { select: { id: true, name: true, email: true, phone: true, address: true } },
       company: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true, email: true } },
       group: { select: { id: true, name: true } },
