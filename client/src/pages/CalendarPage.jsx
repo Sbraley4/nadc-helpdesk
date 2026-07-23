@@ -646,17 +646,7 @@ export default function CalendarPage() {
   };
 
   const navigate_date = (direction) => {
-    const newDate = new Date(currentDate);
-    if (view === 'month') {
-      newDate.setMonth(newDate.getMonth() + direction);
-    } else if (view === 'week') {
-      newDate.setDate(newDate.getDate() + direction * 7);
-    } else {
-      newDate.setDate(newDate.getDate() + direction);
-    }
-    setCurrentDate(newDate);
-
-    // Also update FullCalendar
+    // Let FullCalendar handle navigation; datesSet callback will update currentDate
     if (calendarRef.current) {
       const api = calendarRef.current.getApi();
       if (direction > 0) {
@@ -677,7 +667,10 @@ export default function CalendarPage() {
   const handleViewChange = (newView) => {
     setView(newView);
     if (calendarRef.current) {
-      calendarRef.current.getApi().changeView(fcViewMap[newView]);
+      const api = calendarRef.current.getApi();
+      // Use FullCalendar's getDate() which returns the focused date, not currentDate which
+      // may have been set to week-start (Sunday) by datesSet after viewing a week
+      api.changeView(fcViewMap[newView], api.getDate());
     }
   };
 
@@ -1690,7 +1683,8 @@ export default function CalendarPage() {
                   meridiem: 'short',
                 }}
                 datesSet={(dateInfo) => {
-                  setCurrentDate(dateInfo.start);
+                  // Use currentStart (true start of the logical view period) not start (grid start which may include trailing days from prior month)
+                  setCurrentDate(dateInfo.view.currentStart);
                 }}
               />
             </div>
