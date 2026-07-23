@@ -4,7 +4,8 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy, Mail, Phone, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, CalendarRange, List, Grid3X3, Clock, User, X, Plus, Ticket, CalendarDays, Pencil, Trash2, ListTodo, Search, Eye, RotateCcw, FileText, Copy, Mail, Phone, MapPin, Repeat } from 'lucide-react';
+import { addMonths, addYears, differenceInMonths, differenceInYears } from 'date-fns';
 import { calendar, calendarEvents, agents, tickets as ticketsApi, contacts, companies } from '../api';
 import { Spinner, Badge, Avatar, Button, Input, Textarea, Select, Modal, ContactTypeahead, CompanyTypeahead, MultiSelectAgents, PhoneInput, ScheduleTicketModal, TicketSearchModal, TemplateSelectModal, DuplicateTicketModal } from '../components/shared';
 import FormattedText from '../components/shared/FormattedText';
@@ -30,6 +31,7 @@ const AGENT_COLORS = {
   'Tech 2': '#8B5CF6',        // Purple/Violet
 };
 const UNASSIGNED_COLOR = '#6B7280'; // Grey
+const MAX_RECURRENCE_COUNT = 60; // Maximum number of recurring occurrences
 
 // Helper to get agent color by name or from agent object
 const getAgentColor = (agent) => {
@@ -354,6 +356,8 @@ export default function CalendarPage() {
     startTime: '',
     endTime: '',
     assigneeIds: [],
+    repeatFrequency: '', // '' | 'MONTHLY' | 'YEARLY'
+    repeatUntil: '',
   });
 
   // Ticket search modal state
@@ -1193,6 +1197,8 @@ export default function CalendarPage() {
         startTime: formatDateTimeLocal(new Date(contextMenu.clickedEvent.startTime)),
         endTime: contextMenu.clickedEvent.endTime ? formatDateTimeLocal(new Date(contextMenu.clickedEvent.endTime)) : '',
         assigneeIds: contextMenu.clickedEvent.assignees?.map(a => a.id) || [],
+        repeatFrequency: '', // No recurring when editing existing event
+        repeatUntil: '',
       });
       setShowEventModal(true);
     }
@@ -1258,6 +1264,8 @@ export default function CalendarPage() {
       startTime: formatDateTimeLocal(startDateTime),
       endTime: formatDateTimeLocal(endDateTime),
       assigneeIds: [],
+      repeatFrequency: '',
+      repeatUntil: '',
     });
     setShowEventModal(true);
   };
@@ -1354,6 +1362,43 @@ export default function CalendarPage() {
     }
   };
 
+  // Calculate estimated occurrence count for recurring events
+  const estimatedEventOccurrences = useMemo(() => {
+    if (!eventForm.repeatFrequency || !eventForm.startTime || !eventForm.repeatUntil) return 0;
+    const start = new Date(eventForm.startTime);
+    const until = new Date(eventForm.repeatUntil);
+    if (until < start) return 0;
+
+    if (eventForm.repeatFrequency === 'MONTHLY') {
+      return Math.min(differenceInMonths(until, start) + 1, MAX_RECURRENCE_COUNT);
+    } else if (eventForm.repeatFrequency === 'YEARLY') {
+      return Math.min(differenceInYears(until, start) + 1, MAX_RECURRENCE_COUNT);
+    }
+    return 0;
+  }, [eventForm.repeatFrequency, eventForm.startTime, eventForm.repeatUntil]);
+
+  // Handle repeat frequency change for events - set default repeatUntil
+  const handleEventRepeatFrequencyChange = (newFrequency) => {
+    setEventForm(prev => {
+      const newForm = { ...prev, repeatFrequency: newFrequency };
+      if (newFrequency && prev.startTime) {
+        const start = new Date(prev.startTime);
+        let defaultUntil;
+        if (newFrequency === 'MONTHLY') {
+          defaultUntil = addYears(start, 1); // 1 year out for monthly
+        } else if (newFrequency === 'YEARLY') {
+          defaultUntil = addYears(start, 5); // 5 years out for yearly
+        }
+        if (defaultUntil) {
+          newForm.repeatUntil = defaultUntil.toISOString().split('T')[0];
+        }
+      } else {
+        newForm.repeatUntil = '';
+      }
+      return newForm;
+    });
+  };
+
   // Save calendar event (create or update)
   const handleSaveEvent = async (e) => {
     e.preventDefault();
@@ -1361,6 +1406,18 @@ export default function CalendarPage() {
       toast.error('Title and start time are required');
       return;
     }
+
+    // Validate recurring settings
+    if (eventForm.repeatFrequency && !eventForm.repeatUntil) {
+      toast.error('Please select an end date for the recurring event');
+      return;
+    }
+
+    if (eventForm.repeatFrequency && estimatedEventOccurrences >= MAX_RECURRENCE_COUNT) {
+      toast.error(`Would create ${estimatedEventOccurrences} events, which exceeds the maximum of ${MAX_RECURRENCE_COUNT}. Please choose a shorter date range.`);
+      return;
+    }
+
     setSaving(true);
     try {
       const eventData = {
@@ -1372,12 +1429,22 @@ export default function CalendarPage() {
         color: null,
       };
 
+      // Add recurring fields if creating a new recurring event
+      if (!editingEvent && eventForm.repeatFrequency) {
+        eventData.repeatFrequency = eventForm.repeatFrequency;
+        eventData.repeatUntil = new Date(`${eventForm.repeatUntil}T23:59:59`).toISOString();
+      }
+
       if (editingEvent) {
         await calendarEvents.updateEvent(editingEvent.id, eventData);
         toast.success('Event updated successfully');
       } else {
-        await calendarEvents.createEvent(eventData);
-        toast.success('Event created successfully');
+        const result = await calendarEvents.createEvent(eventData);
+        if (result.createdCount && result.createdCount > 1) {
+          toast.success(`Created ${result.createdCount} recurring events`);
+        } else {
+          toast.success('Event created successfully');
+        }
       }
 
       setShowEventModal(false);
@@ -2080,6 +2147,62 @@ export default function CalendarPage() {
             placeholder="Optional notes or details"
             rows={3}
           />
+
+          {/* Recurring Event (only for new events, not editing) */}
+          {!editingEvent && (
+            <div className="space-y-3 pt-3 border-t border-gray-200">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Repeat size={14} className="inline mr-1.5 mb-0.5" />
+                  Repeats
+                </label>
+                <Select
+                  value={eventForm.repeatFrequency}
+                  onChange={(e) => handleEventRepeatFrequencyChange(e.target.value)}
+                  options={[
+                    { value: '', label: 'Does not repeat' },
+                    { value: 'MONTHLY', label: 'Monthly' },
+                    { value: 'YEARLY', label: 'Yearly' },
+                  ]}
+                />
+              </div>
+
+              {eventForm.repeatFrequency && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <CalendarIcon size={14} className="inline mr-1.5 mb-0.5" />
+                      Repeat Until
+                    </label>
+                    <input
+                      type="date"
+                      value={eventForm.repeatUntil}
+                      min={eventForm.startTime ? eventForm.startTime.split('T')[0] : ''}
+                      onChange={(e) => setEventForm(prev => ({ ...prev, repeatUntil: e.target.value }))}
+                      className="w-full px-3 py-2.5 text-base md:text-sm border border-gray-300 rounded-lg focus:ring-primary focus:border-primary min-h-[44px]"
+                    />
+                  </div>
+
+                  {/* Occurrence count indicator */}
+                  {estimatedEventOccurrences > 0 && (
+                    <div className={`text-sm px-3 py-2 rounded-lg ${
+                      estimatedEventOccurrences >= MAX_RECURRENCE_COUNT
+                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
+                    }`}>
+                      {estimatedEventOccurrences >= MAX_RECURRENCE_COUNT ? (
+                        <>
+                          <strong>Warning:</strong> This would create {estimatedEventOccurrences} events, exceeding the maximum of {MAX_RECURRENCE_COUNT}. Please choose a shorter date range.
+                        </>
+                      ) : (
+                        <>Will create <strong>{estimatedEventOccurrences}</strong> calendar {estimatedEventOccurrences === 1 ? 'event' : 'events'}</>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t">

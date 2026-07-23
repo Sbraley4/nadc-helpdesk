@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Calendar, Clock, User, CalendarRange } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, User, CalendarRange, Repeat } from 'lucide-react';
+import { addMonths, addYears, differenceInMonths, differenceInYears } from 'date-fns';
 import Modal from './Modal';
 import Button from './Button';
 import Select from './Select';
 import Spinner from './Spinner';
 import { tickets as ticketsApi, agents as agentsApi } from '../../api';
 import toast from 'react-hot-toast';
+
+// Maximum number of recurring occurrences
+const MAX_RECURRENCE_COUNT = 60;
 
 export default function ScheduleTicketModal({
   isOpen,
@@ -37,6 +41,10 @@ export default function ScheduleTicketModal({
   const [isAllDay, setIsAllDay] = useState(false);
   const [assigneeId, setAssigneeId] = useState('');
 
+  // Recurring state
+  const [repeatFrequency, setRepeatFrequency] = useState(''); // '' | 'MONTHLY' | 'YEARLY'
+  const [repeatUntil, setRepeatUntil] = useState('');
+
   // Load agents on mount
   useEffect(() => {
     const loadAgents = async () => {
@@ -55,6 +63,10 @@ export default function ScheduleTicketModal({
   // Initialize form when modal opens
   useEffect(() => {
     if (isOpen && ticket) {
+      // Reset recurring state
+      setRepeatFrequency('');
+      setRepeatUntil('');
+
       // Use pre-filled date/time if provided (from calendar click)
       if (prefilledDate) {
         const date = new Date(prefilledDate);
@@ -105,6 +117,40 @@ export default function ScheduleTicketModal({
     }
   }, [isOpen, ticket, prefilledDate, prefilledTime]);
 
+  // Handle repeat frequency change - set default repeatUntil
+  const handleRepeatFrequencyChange = (newFrequency) => {
+    setRepeatFrequency(newFrequency);
+    if (newFrequency && startDate) {
+      const start = new Date(startDate);
+      let defaultUntil;
+      if (newFrequency === 'MONTHLY') {
+        defaultUntil = addYears(start, 1); // 1 year out for monthly
+      } else if (newFrequency === 'YEARLY') {
+        defaultUntil = addYears(start, 5); // 5 years out for yearly
+      }
+      if (defaultUntil) {
+        setRepeatUntil(formatLocalDate(defaultUntil));
+      }
+    } else {
+      setRepeatUntil('');
+    }
+  };
+
+  // Calculate estimated occurrence count
+  const estimatedOccurrences = useMemo(() => {
+    if (!repeatFrequency || !startDate || !repeatUntil) return 0;
+    const start = new Date(startDate);
+    const until = new Date(repeatUntil);
+    if (until < start) return 0;
+
+    if (repeatFrequency === 'MONTHLY') {
+      return Math.min(differenceInMonths(until, start) + 1, MAX_RECURRENCE_COUNT);
+    } else if (repeatFrequency === 'YEARLY') {
+      return Math.min(differenceInYears(until, start) + 1, MAX_RECURRENCE_COUNT);
+    }
+    return 0;
+  }, [repeatFrequency, startDate, repeatUntil]);
+
   // Auto-update end time when start time changes (only if same day)
   const handleStartTimeChange = (newStartTime) => {
     setStartTime(newStartTime);
@@ -145,6 +191,17 @@ export default function ScheduleTicketModal({
       return;
     }
 
+    // Validate recurring settings
+    if (repeatFrequency && !repeatUntil) {
+      toast.error('Please select an end date for the recurring schedule');
+      return;
+    }
+
+    if (repeatFrequency && estimatedOccurrences >= MAX_RECURRENCE_COUNT) {
+      toast.error(`Would create ${estimatedOccurrences} entries, which exceeds the maximum of ${MAX_RECURRENCE_COUNT}. Please choose a shorter date range.`);
+      return;
+    }
+
     setSaving(true);
     try {
       // Combine date and time for scheduledStart
@@ -158,7 +215,7 @@ export default function ScheduleTicketModal({
 
       // Create or update the schedule entry
       if (mode === 'reschedule' && scheduleId) {
-        // Update existing schedule
+        // Update existing schedule (no recurring support for updates)
         await ticketsApi.updateSchedule(ticket.id, scheduleId, {
           scheduledStart: scheduledStart.toISOString(),
           scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
@@ -166,13 +223,24 @@ export default function ScheduleTicketModal({
         });
         toast.success('Schedule updated successfully');
       } else {
-        // Create new schedule entry
-        await ticketsApi.createSchedule(ticket.id, {
+        // Create new schedule entry (with optional recurring)
+        const scheduleData = {
           scheduledStart: scheduledStart.toISOString(),
           scheduledEnd: scheduledEnd ? scheduledEnd.toISOString() : null,
           isAllDay,
-        });
-        toast.success('Ticket added to calendar');
+        };
+
+        if (repeatFrequency) {
+          scheduleData.repeatFrequency = repeatFrequency;
+          scheduleData.repeatUntil = new Date(`${repeatUntil}T23:59:59`).toISOString();
+        }
+
+        const result = await ticketsApi.createSchedule(ticket.id, scheduleData);
+        if (result.createdCount && result.createdCount > 1) {
+          toast.success(`Created ${result.createdCount} calendar entries`);
+        } else {
+          toast.success('Ticket added to calendar');
+        }
       }
 
       // Update assignee if changed
@@ -328,6 +396,62 @@ export default function ScheduleTicketModal({
             />
           )}
         </div>
+
+        {/* Recurring Schedule (only for new schedules, not reschedule) */}
+        {mode !== 'reschedule' && (
+          <div className="space-y-3 pt-3 border-t border-gray-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <Repeat size={14} className="inline mr-1.5 mb-0.5" />
+                Repeats
+              </label>
+              <Select
+                value={repeatFrequency}
+                onChange={(e) => handleRepeatFrequencyChange(e.target.value)}
+                options={[
+                  { value: '', label: 'Does not repeat' },
+                  { value: 'MONTHLY', label: 'Monthly' },
+                  { value: 'YEARLY', label: 'Yearly' },
+                ]}
+              />
+            </div>
+
+            {repeatFrequency && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Calendar size={14} className="inline mr-1.5 mb-0.5" />
+                    Repeat Until
+                  </label>
+                  <input
+                    type="date"
+                    value={repeatUntil}
+                    min={startDate}
+                    onChange={(e) => setRepeatUntil(e.target.value)}
+                    className="w-full px-3 py-2.5 text-base border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                  />
+                </div>
+
+                {/* Occurrence count indicator */}
+                {estimatedOccurrences > 0 && (
+                  <div className={`text-sm px-3 py-2 rounded-lg ${
+                    estimatedOccurrences >= MAX_RECURRENCE_COUNT
+                      ? 'bg-red-50 text-red-700 border border-red-200'
+                      : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  }`}>
+                    {estimatedOccurrences >= MAX_RECURRENCE_COUNT ? (
+                      <>
+                        <strong>Warning:</strong> This would create {estimatedOccurrences} entries, exceeding the maximum of {MAX_RECURRENCE_COUNT}. Please choose a shorter date range.
+                      </>
+                    ) : (
+                      <>Will create <strong>{estimatedOccurrences}</strong> calendar {estimatedOccurrences === 1 ? 'entry' : 'entries'}</>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">

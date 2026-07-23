@@ -660,15 +660,16 @@ model AppSetting {
 
 // CalendarEvent - non-ticket calendar events
 model CalendarEvent {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  startTime   DateTime
-  endTime     DateTime?
-  allDay      Boolean   @default(false)
-  color       String?   // Custom color (hex) or null for agent color
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  title              String
+  description        String?
+  startTime          DateTime
+  endTime            DateTime?
+  allDay             Boolean   @default(false)
+  color              String?   // Custom color (hex) or null for agent color
+  recurrenceGroupId  String?   // Shared UUID across all occurrences created from a recurring series
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   // Relations
   assignees CalendarEventAssignee[]
@@ -698,14 +699,15 @@ model TicketAssignee {
 
 // TicketSchedule - multiple calendar placements for tickets
 model TicketSchedule {
-  id             String    @id @default(cuid())
-  ticketId       String
-  ticket         Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  scheduledStart DateTime
-  scheduledEnd   DateTime?
-  isAllDay       Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  ticketId           String
+  ticket             Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  scheduledStart     DateTime
+  scheduledEnd       DateTime?
+  isAllDay           Boolean   @default(false)
+  recurrenceGroupId  String?   // Shared UUID across all occurrences created from a recurring series
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 }
 
 // InventoryItem - standalone inventory management

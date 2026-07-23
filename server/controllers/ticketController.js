@@ -1,4 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
+const { addMonths, addYears, differenceInMonths, differenceInYears } = require('date-fns');
+const { v4: uuidv4 } = require('uuid');
 const { scheduleReviewRequest } = require('./satisfactionController');
 const {
   sendTicketConfirmation,
@@ -10,6 +12,51 @@ const { runAutomations } = require('../services/automationEngine');
 const { calculateMileage: calculateMileageFromService } = require('../services/mileageService');
 
 const prisma = new PrismaClient();
+
+// Maximum number of recurring occurrences to prevent runaway creation
+const MAX_RECURRENCE_COUNT = 60;
+
+/**
+ * Calculate the total number of occurrences for a recurring series
+ */
+function calculateTotalOccurrences(startDate, frequency, untilDate) {
+  if (frequency === 'MONTHLY') {
+    return differenceInMonths(untilDate, startDate) + 1;
+  } else if (frequency === 'YEARLY') {
+    return differenceInYears(untilDate, startDate) + 1;
+  }
+  return 1;
+}
+
+/**
+ * Generate recurring dates based on frequency
+ * Handles month-length edge cases (e.g., Jan 31 -> Feb 28)
+ * Generates up to MAX_RECURRENCE_COUNT + 1 dates to allow detection of overflow
+ */
+function generateRecurringDates(startDate, frequency, untilDate) {
+  const dates = [new Date(startDate)];
+  let currentDate = new Date(startDate);
+
+  // Generate up to 61 dates (one past the cap) to detect overflow
+  while (dates.length <= MAX_RECURRENCE_COUNT) {
+    if (frequency === 'MONTHLY') {
+      currentDate = addMonths(currentDate, 1);
+    } else if (frequency === 'YEARLY') {
+      currentDate = addYears(currentDate, 1);
+    } else {
+      break;
+    }
+
+    // Stop if we've passed the until date
+    if (currentDate > untilDate) {
+      break;
+    }
+
+    dates.push(new Date(currentDate));
+  }
+
+  return dates;
+}
 
 // Common include for ticket relations
 const ticketInclude = {
@@ -1238,12 +1285,18 @@ const getTicketSchedules = async (req, res, next) => {
 
 /**
  * POST /api/tickets/:id/schedules
- * Create a new schedule entry for a ticket
+ * Create a new schedule entry for a ticket (with optional recurring support)
  */
 const createTicketSchedule = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { scheduledStart, scheduledEnd, isAllDay } = req.body;
+    const {
+      scheduledStart,
+      scheduledEnd,
+      isAllDay,
+      repeatFrequency = null, // 'MONTHLY' | 'YEARLY' | null
+      repeatUntil = null, // ISO date string
+    } = req.body;
 
     // Validate required fields
     if (!scheduledStart) {
@@ -1256,27 +1309,97 @@ const createTicketSchedule = async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
-    // Create the schedule entry
-    const schedule = await prisma.ticketSchedule.create({
-      data: {
-        ticketId: id,
-        scheduledStart: new Date(scheduledStart),
-        scheduledEnd: scheduledEnd ? new Date(scheduledEnd) : null,
-        isAllDay: isAllDay || false,
-      },
+    const startDateTime = new Date(scheduledStart);
+    const endDateTime = scheduledEnd ? new Date(scheduledEnd) : null;
+    const duration = endDateTime ? endDateTime.getTime() - startDateTime.getTime() : null;
+
+    // Handle non-recurring schedule (existing behavior)
+    if (!repeatFrequency) {
+      const schedule = await prisma.ticketSchedule.create({
+        data: {
+          ticketId: id,
+          scheduledStart: startDateTime,
+          scheduledEnd: endDateTime,
+          isAllDay: isAllDay || false,
+          recurrenceGroupId: null,
+        },
+      });
+
+      // Create activity log entry
+      await prisma.ticketActivity.create({
+        data: {
+          ticketId: id,
+          type: 'schedule_added',
+          description: `Added to calendar: ${startDateTime.toLocaleDateString()}`,
+          userId: req.user.id,
+        },
+      });
+
+      return res.status(201).json(schedule);
+    }
+
+    // Handle recurring schedule
+    if (!repeatUntil) {
+      return res.status(400).json({ error: 'repeatUntil is required when repeatFrequency is set' });
+    }
+
+    if (!['MONTHLY', 'YEARLY'].includes(repeatFrequency)) {
+      return res.status(400).json({ error: 'repeatFrequency must be MONTHLY or YEARLY' });
+    }
+
+    const untilDate = new Date(repeatUntil);
+    const recurringDates = generateRecurringDates(startDateTime, repeatFrequency, untilDate);
+
+    // Check if we would exceed the limit
+    if (recurringDates.length > MAX_RECURRENCE_COUNT) {
+      // Calculate the actual total for an accurate error message
+      const actualCount = calculateTotalOccurrences(startDateTime, repeatFrequency, untilDate);
+      return res.status(400).json({
+        error: `Recurring series would create ${actualCount} schedule entries, which exceeds the maximum of ${MAX_RECURRENCE_COUNT}. Please choose a shorter date range.`,
+      });
+    }
+
+    const recurrenceGroupId = uuidv4();
+
+    const schedules = await prisma.$transaction(async (tx) => {
+      const createdSchedules = [];
+
+      for (const occurrenceStart of recurringDates) {
+        const occurrenceEnd = duration
+          ? new Date(occurrenceStart.getTime() + duration)
+          : null;
+
+        const newSchedule = await tx.ticketSchedule.create({
+          data: {
+            ticketId: id,
+            scheduledStart: occurrenceStart,
+            scheduledEnd: occurrenceEnd,
+            isAllDay: isAllDay || false,
+            recurrenceGroupId,
+          },
+        });
+
+        createdSchedules.push(newSchedule);
+      }
+
+      return createdSchedules;
     });
 
-    // Create activity log entry
+    // Create activity log entry for all occurrences
     await prisma.ticketActivity.create({
       data: {
         ticketId: id,
         type: 'schedule_added',
-        description: `Added to calendar: ${new Date(scheduledStart).toLocaleDateString()}`,
+        description: `Added ${schedules.length} recurring ${repeatFrequency.toLowerCase()} calendar entries starting ${startDateTime.toLocaleDateString()}`,
         userId: req.user.id,
       },
     });
 
-    res.status(201).json(schedule);
+    res.status(201).json({
+      schedules,
+      createdCount: schedules.length,
+      recurrenceGroupId,
+    });
   } catch (error) {
     next(error);
   }
