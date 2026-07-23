@@ -274,7 +274,7 @@ export default function CalendarPage() {
   const queryClient = useQueryClient();
   const calendarRef = useRef(null);
   const dragStartInfoRef = useRef(null); // Track drag start position for tap vs drag detection
-  const [view, setView] = useState('week');
+  const [view, setView] = useState(() => (window.innerWidth < 768 ? 'day' : 'week'));
   const [currentDate, setCurrentDate] = useState(new Date());
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
