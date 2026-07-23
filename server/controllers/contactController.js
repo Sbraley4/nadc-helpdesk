@@ -118,7 +118,7 @@ async function getContact(req, res, next) {
 async function createContact(req, res, next) {
   try {
     console.log('[CreateContact] Request body:', req.body);
-    const { name, email, phone, companyId, notes } = req.body;
+    const { name, email, phone, address, companyId, notes } = req.body;
 
     // Validate required fields
     if (!name || name.trim() === '') {
@@ -148,6 +148,7 @@ async function createContact(req, res, next) {
         name: name.trim(),
         email: email.toLowerCase().trim(),
         phone: phone?.trim() || null,
+        address: address?.trim() || null,
         companyId: companyId || null,
         notes: notes?.trim() || null,
       },
@@ -169,7 +170,7 @@ async function createContact(req, res, next) {
 async function updateContact(req, res, next) {
   try {
     const { id } = req.params;
-    const { name, email, phone, companyId, notes } = req.body;
+    const { name, email, phone, address, companyId, notes } = req.body;
 
     // Check contact exists
     const existing = await prisma.contact.findUnique({
@@ -216,6 +217,10 @@ async function updateContact(req, res, next) {
 
     if (phone !== undefined) {
       updateData.phone = phone?.trim() || null;
+    }
+
+    if (address !== undefined) {
+      updateData.address = address?.trim() || null;
     }
 
     if (companyId !== undefined) {

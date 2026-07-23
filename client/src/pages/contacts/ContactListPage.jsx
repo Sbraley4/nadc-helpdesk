@@ -9,14 +9,14 @@ import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, M
 export default function ContactListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: '', email: '', phone: '', companyId: '' });
+  const [createForm, setCreateForm] = useState({ name: '', email: '', phone: '', address: '', companyId: '' });
   const [showInlineCompanyForm, setShowInlineCompanyForm] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
   const [newCompanyAddress, setNewCompanyAddress] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', companyId: '' });
+  const [editForm, setEditForm] = useState({ name: '', email: '', phone: '', address: '', companyId: '' });
   const [showEditInlineCompanyForm, setShowEditInlineCompanyForm] = useState(false);
   const [deletingContact, setDeletingContact] = useState(null);
   const queryClient = useQueryClient();
@@ -58,7 +58,7 @@ export default function ContactListPage() {
       queryClient.invalidateQueries({ queryKey: ['contacts'] });
       toast.success('Contact created successfully');
       setShowCreateModal(false);
-      setCreateForm({ name: '', email: '', phone: '', companyId: '' });
+      setCreateForm({ name: '', email: '', phone: '', address: '', companyId: '' });
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to create contact');
@@ -131,6 +131,7 @@ export default function ContactListPage() {
       name: contact.name || '',
       email: contact.email || '',
       phone: contact.phone || '',
+      address: contact.address || '',
       companyId: contact.company?.id || '',
     });
     setShowEditInlineCompanyForm(false);
@@ -152,6 +153,7 @@ export default function ContactListPage() {
         name: editForm.name,
         email: editForm.email,
         phone: editForm.phone || undefined,
+        address: editForm.address || undefined,
         companyId: editForm.companyId || undefined,
       },
     });
@@ -177,6 +179,7 @@ export default function ContactListPage() {
       name: createForm.name,
       email: createForm.email,
       phone: createForm.phone || undefined,
+      address: createForm.address || undefined,
       companyId: createForm.companyId || undefined,
     });
   };
@@ -368,6 +371,12 @@ export default function ContactListPage() {
             value={createForm.phone}
             onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
           />
+          <Input
+            label="Address"
+            value={createForm.address}
+            onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+            placeholder="Enter address"
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
             {!showInlineCompanyForm ? (
@@ -466,6 +475,12 @@ export default function ContactListPage() {
             label="Phone"
             value={editForm.phone}
             onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+          />
+          <Input
+            label="Address"
+            value={editForm.address}
+            onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+            placeholder="Enter address"
           />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>

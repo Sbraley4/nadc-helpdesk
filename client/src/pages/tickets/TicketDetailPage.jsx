@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory, attachments } from '../../api';
 import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload, Modal } from '../../components/shared';
@@ -2286,6 +2286,12 @@ export default function TicketDetailPage() {
                   <p className="text-xs text-gray-500 truncate">{ticket.requester?.email}</p>
                   {ticket.requester?.phone && (
                     <p className="text-xs text-gray-500">{ticket.requester.phone}</p>
+                  )}
+                  {ticket.requester?.address && (
+                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                      <MapPin size={10} className="flex-shrink-0" />
+                      <span className="truncate">{ticket.requester.address}</span>
+                    </p>
                   )}
                 </div>
               </div>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Mail, Phone, Building2, Ticket, ExternalLink, Key, UserCheck, UserX, Send } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Building2, Ticket, ExternalLink, Key, UserCheck, UserX, Send, MapPin } from 'lucide-react';
 import { contacts } from '../../api';
 import { Badge, Button, Avatar, CenteredSpinner, EmptyState } from '../../components/shared';
 import toast from 'react-hot-toast';
@@ -116,6 +116,12 @@ export default function ContactDetailPage() {
                 <div className="flex items-center gap-3">
                   <Phone size={18} className="text-gray-400" />
                   <span className="text-sm text-gray-700">{contact.phone}</span>
+                </div>
+              )}
+              {contact.address && (
+                <div className="flex items-center gap-3">
+                  <MapPin size={18} className="text-gray-400" />
+                  <span className="text-sm text-gray-700">{contact.address}</span>
                 </div>
               )}
               {contact.company && (

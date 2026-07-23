@@ -134,6 +134,7 @@ model Contact {
   name                   String
   email                  String                   @unique
   phone                  String?
+  address                String?
   portalPassword         String?
   portalLastLoginAt      DateTime?
   notes                  String?
