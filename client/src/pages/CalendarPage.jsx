@@ -279,6 +279,7 @@ export default function CalendarPage() {
   const dragStartInfoRef = useRef(null); // Track drag start position for tap vs drag detection
   const [view, setView] = useState(() => (window.innerWidth < 768 ? 'day' : 'week'));
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [focusedDate, setFocusedDate] = useState(new Date()); // User's intended day, preserved across view switches
   const [tickets, setTickets] = useState([]);
   const [events, setEvents] = useState([]);
   const [agentsList, setAgentsList] = useState([]);
@@ -667,10 +668,8 @@ export default function CalendarPage() {
   const handleViewChange = (newView) => {
     setView(newView);
     if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      // Use FullCalendar's getDate() which returns the focused date, not currentDate which
-      // may have been set to week-start (Sunday) by datesSet after viewing a week
-      api.changeView(fcViewMap[newView], api.getDate());
+      // Use focusedDate (user's intended day) not api.getDate() which returns view-boundary dates (Sunday for week)
+      calendarRef.current.getApi().changeView(fcViewMap[newView], focusedDate);
     }
   };
 
@@ -1685,6 +1684,10 @@ export default function CalendarPage() {
                 datesSet={(dateInfo) => {
                   // Use currentStart (true start of the logical view period) not start (grid start which may include trailing days from prior month)
                   setCurrentDate(dateInfo.view.currentStart);
+                  // Only update focusedDate in day view where currentStart unambiguously IS the focused day
+                  if (dateInfo.view.type === 'timeGridDay') {
+                    setFocusedDate(dateInfo.view.currentStart);
+                  }
                 }}
               />
             </div>
