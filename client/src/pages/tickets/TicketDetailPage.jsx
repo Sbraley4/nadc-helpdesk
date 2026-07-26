@@ -255,6 +255,9 @@ export default function TicketDetailPage() {
     queryFn: () => tickets.getTicket(id),
   });
 
+  // Alias for convenience - declare early to avoid TDZ issues in handlers
+  const ticket = ticketData;
+
   // Fetch replies
   const { data: repliesData } = useQuery({
     queryKey: ['replies', id],
@@ -934,25 +937,6 @@ export default function TicketDetailPage() {
     document.querySelector('textarea')?.focus();
   };
 
-  // Handle duplicate ticket - navigate to new ticket page with pre-filled data
-  const handleDuplicateTicket = () => {
-    setShowTicketMenu(false);
-    navigate('/tickets/new', {
-      state: {
-        duplicateTicket: {
-          ticketNumber: ticket.ticketNumber,
-          subject: ticket.subject,
-          description: ticket.description,
-          priority: ticket.priority,
-          assigneeId: ticket.assigneeId,
-          requesterId: ticket.requesterId,
-          requester: ticket.requester,
-          additionalAssignees: ticket.additionalAssignees,
-        }
-      }
-    });
-  };
-
   // Handle attachment upload from FAB modal
   const handleAttachmentUpload = async () => {
     if (attachmentFiles.length === 0) {
@@ -1000,7 +984,6 @@ export default function TicketDetailPage() {
     );
   }
 
-  const ticket = ticketData;
   const replyList = repliesData?.replies || [];
   return (
     <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
