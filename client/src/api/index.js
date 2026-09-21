@@ -222,6 +222,7 @@ export const inventory = {
   createItem: (data) => client.post('/api/inventory', data).then((r) => r.data),
   updateItem: (id, data) => client.put('/api/inventory/' + id, data).then((r) => r.data),
   deleteItem: (id) => client.delete('/api/inventory/' + id).then((r) => r.data),
+  restockItem: (id, amount) => client.patch('/api/inventory/' + id + '/restock', { amount }).then((r) => r.data),
   // Deduction suggestions
   getPendingDeductions: () => client.get('/api/inventory/deductions').then((r) => r.data),
   approveDeduction: (id) => client.put('/api/inventory/deductions/' + id + '/approve').then((r) => r.data),

@@ -45,6 +45,10 @@ export default function InventoryPage() {
   const [loadingDeductions, setLoadingDeductions] = useState(true);
   const [processingDeduction, setProcessingDeduction] = useState(null);
 
+  // Inline restock state
+  const [restockInputs, setRestockInputs] = useState({}); // { [itemId]: string }
+  const [restocking, setRestocking] = useState(null); // itemId being restocked
+
   const [form, setForm] = useState({
     name: '',
     category: '',
@@ -94,6 +98,26 @@ export default function InventoryPage() {
       toast.error(error.response?.data?.error || 'Failed to reject deduction');
     } finally {
       setProcessingDeduction(null);
+    }
+  };
+
+  const handleRestock = async (itemId) => {
+    const amount = parseInt(restockInputs[itemId], 10);
+    if (!amount || amount <= 0) {
+      toast.error('Enter a positive quantity');
+      return;
+    }
+    setRestocking(itemId);
+    try {
+      const updated = await inventory.restockItem(itemId, amount);
+      // Update item in local state
+      setItems((prev) => prev.map((it) => (it.id === itemId ? updated : it)));
+      setRestockInputs((prev) => ({ ...prev, [itemId]: '' }));
+      toast.success(`Added ${amount} to ${updated.name}`);
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to restock');
+    } finally {
+      setRestocking(null);
     }
   };
 
@@ -368,6 +392,9 @@ export default function InventoryPage() {
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
                       Quantity
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Restock
+                    </th>
                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase hidden md:table-cell">
                       Threshold
                     </th>
@@ -400,6 +427,28 @@ export default function InventoryPage() {
                         <span className={`font-medium ${item.quantity <= item.threshold ? 'text-yellow-600' : 'text-gray-900'}`}>
                           {item.quantity}
                         </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center justify-center gap-1">
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="+"
+                            value={restockInputs[item.id] || ''}
+                            onChange={(e) =>
+                              setRestockInputs((prev) => ({ ...prev, [item.id]: e.target.value }))
+                            }
+                            className="w-14 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary focus:border-primary"
+                            disabled={restocking === item.id}
+                          />
+                          <button
+                            onClick={() => handleRestock(item.id)}
+                            disabled={restocking === item.id || !restockInputs[item.id]}
+                            className="px-2 py-1 text-xs font-medium text-primary bg-primary/10 rounded hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {restocking === item.id ? '...' : 'Add'}
+                          </button>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-600 hidden md:table-cell">
                         {item.threshold}

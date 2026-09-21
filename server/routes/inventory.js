@@ -9,6 +9,7 @@ const {
   getPendingDeductions,
   approveDeduction,
   rejectDeduction,
+  restockItem,
 } = require('../controllers/inventoryController');
 
 // All routes require authentication
@@ -25,6 +26,9 @@ router.put('/:id', updateItem);
 
 // DELETE /api/inventory/:id
 router.delete('/:id', deleteItem);
+
+// PATCH /api/inventory/:id/restock - quick restock
+router.patch('/:id/restock', restockItem);
 
 // Deduction routes
 // GET /api/inventory/deductions - get all pending deductions

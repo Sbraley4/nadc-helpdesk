@@ -2,11 +2,86 @@
  * Inventory AI Service
  *
  * Parses internal notes for inventory usage and creates deduction suggestions.
- * Looks for a "Used" section with dash/bullet items and fuzzy-matches to inventory.
+ * Uses Claude API for extraction with regex fallback.
+ * Fuzzy-matches extracted items to inventory.
  */
 
 const { PrismaClient } = require('@prisma/client');
+const Anthropic = require('@anthropic-ai/sdk').default;
 const prisma = new PrismaClient();
+
+/**
+ * Extract used items from note body using Claude API (tool_use)
+ * Returns array of items or null on any error (fallback to regex)
+ *
+ * @param {string} noteBody - The note body to parse
+ * @returns {Promise<Array<{ itemName: string, quantity: number, unit: string|null }> | null>}
+ */
+async function extractUsedItemsWithClaude(noteBody) {
+  // Skip if no "used" keyword at all (quick pre-check)
+  if (!noteBody || !/\bused\b/i.test(noteBody)) {
+    return [];
+  }
+
+  try {
+    const client = new Anthropic({ timeout: 8000 }); // 8 second hard timeout
+
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: `You are parsing field-service technician notes to extract inventory items used.
+ONLY extract items from a "Used:" section (or similar like "Materials Used:").
+Ignore everything outside that section.
+If there is no "Used:" section or no usable items in it, return an empty items array.
+Extract itemName, quantity (default 1 if not specified), and unit (null if not specified).`,
+      tools: [
+        {
+          name: 'extract_used_items',
+          description: 'Extract the list of inventory items used from the note',
+          input_schema: {
+            type: 'object',
+            properties: {
+              items: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    itemName: { type: 'string', description: 'Name of the item used' },
+                    quantity: { type: 'number', description: 'Quantity used (default 1)' },
+                    unit: { type: ['string', 'null'], description: 'Unit of measure or null' },
+                  },
+                  required: ['itemName', 'quantity'],
+                },
+              },
+            },
+            required: ['items'],
+          },
+        },
+      ],
+      tool_choice: { type: 'tool', name: 'extract_used_items' },
+      messages: [{ role: 'user', content: noteBody }],
+    });
+
+    // Find the tool_use block
+    const toolUse = response.content.find((block) => block.type === 'tool_use');
+    if (!toolUse || toolUse.name !== 'extract_used_items') {
+      console.warn('[InventoryAI] Claude response missing expected tool_use block');
+      return null;
+    }
+
+    const { items } = toolUse.input;
+    if (!Array.isArray(items)) {
+      console.warn('[InventoryAI] Claude tool_use input.items is not an array');
+      return null;
+    }
+
+    console.log(`[InventoryAI] Claude extracted ${items.length} items`);
+    return items;
+  } catch (error) {
+    console.warn('[InventoryAI] Claude API error, falling back to regex:', error.message);
+    return null;
+  }
+}
 
 /**
  * Parse a line item from the "Used" section
@@ -184,8 +259,14 @@ function findBestMatch(itemName, inventoryItems) {
  */
 async function processNoteForInventory(noteBody, ticketId, replyId = null) {
   try {
-    // Parse the "Used" section
-    const parsedItems = parseUsedSection(noteBody);
+    // Try Claude extraction first, fall back to regex
+    let parsedItems = await extractUsedItemsWithClaude(noteBody);
+
+    if (parsedItems === null) {
+      // Claude failed, use regex fallback
+      console.log('[InventoryAI] Using regex fallback');
+      parsedItems = parseUsedSection(noteBody);
+    }
 
     if (parsedItems.length === 0) {
       console.log('[InventoryAI] No items found in Used section');
@@ -256,4 +337,5 @@ module.exports = {
   parseUsedLine,
   findBestMatch,
   calculateSimilarity,
+  extractUsedItemsWithClaude,
 };

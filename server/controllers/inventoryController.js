@@ -286,6 +286,45 @@ async function rejectDeduction(req, res, next) {
   }
 }
 
+// PATCH /api/inventory/:id/restock
+// Quick restock - increment quantity by amount
+async function restockItem(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+
+    // Validate amount
+    const restockAmount = parseInt(amount, 10);
+    if (!restockAmount || restockAmount <= 0) {
+      return res.status(400).json({ error: 'Amount must be a positive integer' });
+    }
+
+    // Verify item exists
+    const existing = await prisma.inventoryItem.findUnique({
+      where: { id },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    // Update quantity and re-evaluate isLow
+    const newQuantity = existing.quantity + restockAmount;
+    const isLow = newQuantity <= existing.threshold;
+
+    const item = await prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        quantity: newQuantity,
+        isLow,
+      },
+    });
+
+    res.json(item);
+  } catch (error) {
+    next(error);
+  }
+}
+
 // GET /api/tickets/:ticketId/inventory-deductions
 // Get all deductions for a specific ticket
 async function getTicketDeductions(req, res, next) {
@@ -322,4 +361,5 @@ module.exports = {
   approveDeduction,
   rejectDeduction,
   getTicketDeductions,
+  restockItem,
 };
