@@ -15,7 +15,7 @@ const prisma = new PrismaClient();
  * Returns array of items or null on any error (fallback to regex)
  *
  * @param {string} noteBody - The note body to parse
- * @returns {Promise<Array<{ itemName: string, quantity: number, unit: string|null }> | null>}
+ * @returns {Promise<Array<{ itemName: string, quantity: number, unit: string|null, matchedItemName: string|null }> | null>}
  */
 async function extractUsedItemsWithClaude(noteBody) {
   // Skip if no "used" keyword at all (quick pre-check)
@@ -24,6 +24,10 @@ async function extractUsedItemsWithClaude(noteBody) {
   }
 
   try {
+    // Fetch current inventory item names to provide as context
+    const currentItems = await prisma.inventoryItem.findMany({ select: { name: true } });
+    const itemNameList = currentItems.map((i) => i.name);
+
     const client = new Anthropic({ timeout: 8000 }); // 8 second hard timeout
 
     const response = await client.messages.create({
@@ -31,9 +35,17 @@ async function extractUsedItemsWithClaude(noteBody) {
       max_tokens: 1024,
       system: `You are parsing field-service technician notes to extract inventory items used.
 ONLY extract items from a "Used:" section (or similar like "Materials Used:").
-Ignore everything outside that section.
+Ignore everything outside that section, and ignore any "--- Time Logged ---" block if present.
 If there is no "Used:" section or no usable items in it, return an empty items array.
-Extract itemName, quantity (default 1 if not specified), and unit (null if not specified).`,
+
+Here is the current inventory item list, verbatim:
+${itemNameList.map((n) => `- ${n}`).join('\n')}
+
+For each item mentioned, try to match it to the closest name in this list, using common IT/AV field terminology and abbreviations technicians actually use (e.g. "FP" = faceplate, "PP" = patch panel, "KS" = keystone). If you find a confident match, return it in matchedItemName using the EXACT string from the list above.
+If genuinely ambiguous (could plausibly be more than one item in the list) or there's no reasonable match, set matchedItemName to null — do not guess.
+Always still return itemName as the raw text the technician wrote, regardless of whether you found a match.
+
+Extract quantity (default 1 if not specified) and unit (null if not specified).`,
       tools: [
         {
           name: 'extract_used_items',
@@ -49,6 +61,11 @@ Extract itemName, quantity (default 1 if not specified), and unit (null if not s
                     itemName: { type: 'string', description: 'Name of the item used' },
                     quantity: { type: 'number', description: 'Quantity used (default 1)' },
                     unit: { type: ['string', 'null'], description: 'Unit of measure or null' },
+                    matchedItemName: {
+                      type: ['string', 'null'],
+                      description:
+                        'Exact name from the provided inventory list if confidently matched, otherwise null',
+                    },
                   },
                   required: ['itemName', 'quantity'],
                 },
@@ -283,8 +300,26 @@ async function processNoteForInventory(noteBody, ticketId, replyId = null) {
     const deductions = [];
 
     for (const parsedItem of parsedItems) {
-      // Find best matching inventory item
-      const { item: matchedItem, score } = findBestMatch(parsedItem.itemName, inventoryItems);
+      let matchedItem = null;
+      let score = 0;
+
+      // If Claude provided a confident match, try exact lookup first
+      if (parsedItem.matchedItemName) {
+        matchedItem = inventoryItems.find((i) => i.name === parsedItem.matchedItemName) || null;
+        if (matchedItem) {
+          score = 1.0; // Exact match from Claude
+          console.log(
+            `[InventoryAI] Claude matched "${parsedItem.itemName}" -> "${parsedItem.matchedItemName}"`
+          );
+        }
+      }
+
+      // Fall back to fuzzy matching if no Claude match or exact lookup failed
+      if (!matchedItem) {
+        const fuzzyResult = findBestMatch(parsedItem.itemName, inventoryItems);
+        matchedItem = fuzzyResult.item;
+        score = fuzzyResult.score;
+      }
 
       // Create deduction record
       const deduction = await prisma.inventoryDeduction.create({
