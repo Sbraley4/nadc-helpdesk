@@ -227,6 +227,7 @@ export const inventory = {
   getPendingDeductions: () => client.get('/api/inventory/deductions').then((r) => r.data),
   approveDeduction: (id) => client.put('/api/inventory/deductions/' + id + '/approve').then((r) => r.data),
   rejectDeduction: (id) => client.put('/api/inventory/deductions/' + id + '/reject').then((r) => r.data),
+  recheckDeduction: (id) => client.patch('/api/inventory/deductions/' + id + '/recheck').then((r) => r.data),
   getTicketDeductions: (ticketId) => client.get('/api/tickets/' + ticketId + '/inventory-deductions').then((r) => r.data),
 };
 

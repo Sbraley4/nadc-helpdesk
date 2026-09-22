@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { findBestMatch } = require('../services/inventoryAiService');
 
 // GET /api/inventory
 async function getItems(req, res, next) {
@@ -286,6 +287,77 @@ async function rejectDeduction(req, res, next) {
   }
 }
 
+// PATCH /api/inventory/deductions/:id/recheck
+// Re-run matching for a pending deduction against current inventory
+async function recheckDeductionMatch(req, res, next) {
+  try {
+    const { id } = req.params;
+
+    // Find the deduction
+    const deduction = await prisma.inventoryDeduction.findUnique({
+      where: { id },
+      include: {
+        ticket: {
+          select: {
+            id: true,
+            ticketNumber: true,
+            subject: true,
+          },
+        },
+        inventoryItem: true,
+      },
+    });
+
+    if (!deduction) {
+      return res.status(404).json({ error: 'Deduction not found' });
+    }
+
+    // If already matched, return as-is
+    if (deduction.inventoryItemId) {
+      return res.json(deduction);
+    }
+
+    // Fetch current inventory items for matching
+    const inventoryItems = await prisma.inventoryItem.findMany({
+      select: { id: true, name: true, category: true },
+    });
+
+    // Run matching
+    const { item: matchedItem } = findBestMatch(deduction.itemName, inventoryItems);
+
+    if (matchedItem) {
+      // Update the deduction with the matched item
+      const updatedDeduction = await prisma.inventoryDeduction.update({
+        where: { id },
+        data: { inventoryItemId: matchedItem.id },
+        include: {
+          ticket: {
+            select: {
+              id: true,
+              ticketNumber: true,
+              subject: true,
+            },
+          },
+          inventoryItem: {
+            select: {
+              id: true,
+              name: true,
+              quantity: true,
+              category: true,
+            },
+          },
+        },
+      });
+      return res.json(updatedDeduction);
+    }
+
+    // Still no match - return unchanged deduction
+    res.json(deduction);
+  } catch (error) {
+    next(error);
+  }
+}
+
 // PATCH /api/inventory/:id/restock
 // Quick restock - increment quantity by amount
 async function restockItem(req, res, next) {
@@ -360,6 +432,7 @@ module.exports = {
   getPendingDeductions,
   approveDeduction,
   rejectDeduction,
+  recheckDeductionMatch,
   getTicketDeductions,
   restockItem,
 };

@@ -11,6 +11,7 @@ import {
   XCircle,
   Sparkles,
   ExternalLink,
+  RefreshCw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { inventory } from '../../api';
@@ -44,6 +45,7 @@ export default function InventoryPage() {
   const [pendingDeductions, setPendingDeductions] = useState([]);
   const [loadingDeductions, setLoadingDeductions] = useState(true);
   const [processingDeduction, setProcessingDeduction] = useState(null);
+  const [recheckingDeduction, setRecheckingDeduction] = useState(null);
 
   // Inline restock state
   const [restockInputs, setRestockInputs] = useState({}); // { [itemId]: string }
@@ -98,6 +100,26 @@ export default function InventoryPage() {
       toast.error(error.response?.data?.error || 'Failed to reject deduction');
     } finally {
       setProcessingDeduction(null);
+    }
+  };
+
+  const handleRecheckDeduction = async (deductionId) => {
+    setRecheckingDeduction(deductionId);
+    try {
+      const updated = await inventory.recheckDeduction(deductionId);
+      // Update the deduction in local state
+      setPendingDeductions((prev) =>
+        prev.map((d) => (d.id === deductionId ? updated : d))
+      );
+      if (updated.inventoryItem) {
+        toast.success(`Match found: ${updated.inventoryItem.name}`);
+      } else {
+        toast('Still no match found', { icon: '🔍' });
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to recheck deduction');
+    } finally {
+      setRecheckingDeduction(null);
     }
   };
 
@@ -319,11 +341,29 @@ export default function InventoryPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {!deduction.inventoryItem && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleRecheckDeduction(deduction.id)}
+                      disabled={recheckingDeduction === deduction.id || processingDeduction === deduction.id}
+                      title="Re-run matching against current inventory"
+                    >
+                      {recheckingDeduction === deduction.id ? (
+                        <Spinner size="sm" />
+                      ) : (
+                        <>
+                          <RefreshCw size={16} className="mr-1" />
+                          Recheck
+                        </>
+                      )}
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleRejectDeduction(deduction.id)}
-                    disabled={processingDeduction === deduction.id}
+                    disabled={processingDeduction === deduction.id || recheckingDeduction === deduction.id}
                     className="text-red-600 border-red-200 hover:bg-red-50"
                   >
                     {processingDeduction === deduction.id ? (
@@ -338,7 +378,7 @@ export default function InventoryPage() {
                   <Button
                     size="sm"
                     onClick={() => handleApproveDeduction(deduction.id)}
-                    disabled={processingDeduction === deduction.id || !deduction.inventoryItem}
+                    disabled={processingDeduction === deduction.id || recheckingDeduction === deduction.id || !deduction.inventoryItem}
                     title={!deduction.inventoryItem ? 'Cannot approve without matched inventory item' : ''}
                   >
                     {processingDeduction === deduction.id ? (

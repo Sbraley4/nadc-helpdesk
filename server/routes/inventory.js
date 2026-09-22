@@ -9,6 +9,7 @@ const {
   getPendingDeductions,
   approveDeduction,
   rejectDeduction,
+  recheckDeductionMatch,
   restockItem,
 } = require('../controllers/inventoryController');
 
@@ -39,5 +40,8 @@ router.put('/deductions/:id/approve', approveDeduction);
 
 // PUT /api/inventory/deductions/:id/reject - reject a deduction
 router.put('/deductions/:id/reject', rejectDeduction);
+
+// PATCH /api/inventory/deductions/:id/recheck - re-run matching for a deduction
+router.patch('/deductions/:id/recheck', recheckDeductionMatch);
 
 module.exports = router;
