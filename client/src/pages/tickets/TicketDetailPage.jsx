@@ -1890,12 +1890,12 @@ export default function TicketDetailPage() {
 
             {/* Devices Section - Desktop: collapsible header, Mobile: controlled by toggle above */}
             {isInternalNote && (
-              <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+              <div className="mt-3 border border-gray-200 rounded-lg">
                 {/* Desktop toggle header */}
                 <button
                   type="button"
                   onClick={() => setShowDevices(!showDevices)}
-                  className="hidden lg:flex w-full items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className={`hidden lg:flex w-full items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors rounded-t-lg ${!showDevices ? 'rounded-b-lg' : ''}`}
                 >
                   <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
                     <Monitor size={14} />
