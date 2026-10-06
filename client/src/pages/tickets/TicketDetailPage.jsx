@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy, MapPin } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Clock, User, Building2, MoreVertical, BookOpen, Search, X, FileText, Bell, Pencil, Trash2, Forward, MessageSquare, CheckSquare, Square, Plus, ChevronDown, ChevronUp, Zap, Settings2, Calendar, Package, CheckCircle, XCircle, Car, Calculator, Copy, MapPin, Monitor } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory, attachments } from '../../api';
-import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload, Modal } from '../../components/shared';
+import { tickets, replies, agents, kb, templates, checklist, timeEntries, inventory, attachments, devices } from '../../api';
+import { Badge, Button, Select, Avatar, CenteredSpinner, EmptyState, Textarea, MentionTextarea, Input, MultiSelectAgents, ScheduleTicketModal, FileUpload, Modal, DeviceTypeahead } from '../../components/shared';
 import { AttachmentList } from '../../components/shared/AttachmentPreview';
 import FormattedText, { needsTruncation } from '../../components/shared/FormattedText';
 import useAuthStore from '../../store/authStore';
@@ -79,6 +79,19 @@ export default function TicketDetailPage() {
   const [timeLogBtoTime, setTimeLogBtoTime] = useState('');
   const [timeLogBtoLocation, setTimeLogBtoLocation] = useState('');
   const [timeLogDescription, setTimeLogDescription] = useState('');
+
+  // Device linking in notes state
+  const [showDevices, setShowDevices] = useState(false);
+  const [pendingDevices, setPendingDevices] = useState([]); // Array of { kind: 'existing'|'new', tempId, device?, fields? }
+  const [showNewDeviceModal, setShowNewDeviceModal] = useState(false);
+  const [newDeviceName, setNewDeviceName] = useState('');
+  const [newDeviceType, setNewDeviceType] = useState('DESKTOP');
+  const [newDeviceMake, setNewDeviceMake] = useState('');
+  const [newDeviceModel, setNewDeviceModel] = useState('');
+  const [newDeviceSerialNumber, setNewDeviceSerialNumber] = useState('');
+  const [newDeviceOS, setNewDeviceOS] = useState('');
+  const [newDeviceIP, setNewDeviceIP] = useState('');
+  const [newDeviceNotes, setNewDeviceNotes] = useState('');
 
   // Smart note parser state
   const [parsedData, setParsedData] = useState(null);
@@ -264,6 +277,14 @@ export default function TicketDetailPage() {
     queryFn: () => replies.getReplies(id),
     enabled: !!id,
   });
+
+  // Fetch linked devices for this ticket (used to exclude already-linked devices from picker)
+  const { data: linkedDevicesData } = useQuery({
+    queryKey: ['ticket-devices', id],
+    queryFn: () => devices.getTicketDevices(id),
+    enabled: !!id,
+  });
+  const linkedDeviceIds = linkedDevicesData?.devices?.map(d => d.id) || [];
 
   // Fetch agents for assignment
   const { data: agentsData } = useQuery({
@@ -745,6 +766,85 @@ export default function TicketDetailPage() {
       }
     }
 
+    // Process pending devices before submitting the note
+    const deviceTypeLabels = {
+      DESKTOP: 'Desktop', LAPTOP: 'Laptop', SERVER: 'Server', PRINTER: 'Printer',
+      ROUTER: 'Router', SWITCH: 'Switch', FIREWALL: 'Firewall', PHONE: 'Phone',
+      TABLET: 'Tablet', OTHER: 'Other'
+    };
+    const succeededDevices = [];
+    const succeededTempIds = [];
+
+    if (isInternalNote && pendingDevices.length > 0 && ticket?.company?.id) {
+      for (const entry of pendingDevices) {
+        try {
+          let deviceToLink = entry.kind === 'existing' ? entry.device : null;
+
+          if (entry.kind === 'new') {
+            // Create the device first
+            const payload = {
+              name: entry.fields.name,
+              type: entry.fields.type,
+              companyId: ticket.company.id,
+              make: entry.fields.make || null,
+              model: entry.fields.model || null,
+              serialNumber: entry.fields.serialNumber || null,
+              operatingSystem: entry.fields.operatingSystem || null,
+              ipAddress: entry.fields.ipAddress || null,
+              notes: entry.fields.notes || null,
+            };
+            // createDevice returns the device directly (not wrapped in { device })
+            const createdDevice = await devices.createDevice(payload);
+            deviceToLink = createdDevice;
+            // Convert entry to 'existing' in case link fails - prevents duplicate creation on retry
+            setPendingDevices(prev => prev.map(p => p.tempId === entry.tempId ? { kind: 'existing', tempId: p.tempId, device: createdDevice } : p));
+          }
+
+          // Link the device to the ticket
+          try {
+            await devices.linkDevice(id, deviceToLink.id);
+          } catch (linkErr) {
+            // Treat 400 "already linked" as success
+            if (linkErr.response?.status === 400 && linkErr.response?.data?.error?.includes('already linked')) {
+              // Already linked is fine - treat as success
+            } else {
+              throw linkErr;
+            }
+          }
+
+          // Success!
+          succeededDevices.push({
+            name: deviceToLink.name,
+            type: deviceToLink.type
+          });
+          succeededTempIds.push(entry.tempId);
+        } catch (err) {
+          // Device failure - leave in pendingDevices, show error, continue
+          const deviceName = entry.kind === 'existing' ? entry.device?.name : entry.fields?.name;
+          toast.error(`Failed to link device: ${deviceName || 'Unknown'}`);
+        }
+      }
+
+      // Show success toast if any succeeded
+      if (succeededDevices.length > 0) {
+        toast.success(`${succeededDevices.length} device${succeededDevices.length > 1 ? 's' : ''} linked`);
+
+        // Append device summary to note body
+        let deviceSummary = '\n\n--- Devices Linked ---';
+        for (const d of succeededDevices) {
+          deviceSummary += `\n${d.name} (${deviceTypeLabels[d.type] || d.type})`;
+        }
+        noteBody += deviceSummary;
+      }
+
+      // Remove succeeded entries from pendingDevices
+      setPendingDevices(prev => prev.filter(p => !succeededTempIds.includes(p.tempId)));
+
+      // Invalidate device caches
+      queryClient.invalidateQueries(['ticket-devices', id]);
+      queryClient.invalidateQueries({ queryKey: ['devices-search'] });
+    }
+
     const formData = new FormData();
     formData.append('body', noteBody);
     formData.append('isInternal', isInternalNote);
@@ -765,6 +865,10 @@ export default function TicketDetailPage() {
     setTimeLogBtoLocation('');
     setTimeLogDescription('');
     setShowTimeLog(false);
+    const failedDeviceCount = pendingDevices.length - succeededTempIds.length;
+    if (failedDeviceCount === 0) {
+      setShowDevices(false);
+    }
   };
 
   // Smart note parser - parses time patterns and material entries
@@ -1526,6 +1630,23 @@ export default function TicketDetailPage() {
                 </button>
               )}
 
+              {/* Devices button - Prominent, always visible on mobile when internal note */}
+              {isInternalNote && (
+                <button
+                  type="button"
+                  onClick={() => setShowDevices(!showDevices)}
+                  className={"w-full px-4 py-3 text-sm font-semibold rounded-xl transition-colors min-h-[52px] touch-manipulation flex items-center justify-center gap-2 mt-2 " + (showDevices ? 'bg-purple-500 text-white shadow-md' : 'bg-purple-50 text-purple-700 border-2 border-purple-200 active:bg-purple-100')}
+                >
+                  <Monitor size={18} />
+                  {showDevices ? 'Hide Devices' : 'Link Devices'}
+                  {pendingDevices.length > 0 && (
+                    <span className="bg-white/30 px-1.5 py-0.5 rounded text-xs">{pendingDevices.length}</span>
+                  )}
+                  {showDevices && <ChevronUp size={16} />}
+                  {!showDevices && <ChevronDown size={16} />}
+                </button>
+              )}
+
               {/* Secondary actions row */}
               <div className="flex gap-2 mt-3">
                 <button
@@ -1761,6 +1882,114 @@ export default function TicketDetailPage() {
                           </span>
                         )}
                       </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Devices Section - Desktop: collapsible header, Mobile: controlled by toggle above */}
+            {isInternalNote && (
+              <div className="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                {/* Desktop toggle header */}
+                <button
+                  type="button"
+                  onClick={() => setShowDevices(!showDevices)}
+                  className="hidden lg:flex w-full items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <Monitor size={14} />
+                    Devices
+                    {pendingDevices.length > 0 && (
+                      <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs">{pendingDevices.length}</span>
+                    )}
+                  </span>
+                  {showDevices ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {showDevices && (
+                  <div className="p-3 space-y-3 bg-white">
+                    {/* No company warning */}
+                    {!ticket?.company ? (
+                      <div className="text-sm text-amber-700 bg-amber-50 p-3 rounded-lg">
+                        This ticket has no company. Assign a company before adding devices.
+                      </div>
+                    ) : (
+                      <>
+                        {/* Device Typeahead */}
+                        <DeviceTypeahead
+                          companyId={ticket.company.id}
+                          excludeIds={[
+                            ...linkedDeviceIds,
+                            ...pendingDevices.filter(p => p.kind === 'existing').map(p => p.device.id)
+                          ]}
+                          onSelect={(device) => {
+                            // Prevent duplicates
+                            if (pendingDevices.some(p => p.kind === 'existing' && p.device.id === device.id)) {
+                              return;
+                            }
+                            setPendingDevices(prev => [
+                              ...prev,
+                              { kind: 'existing', tempId: `existing-${Date.now()}`, device }
+                            ]);
+                          }}
+                          onCreateNew={() => setShowNewDeviceModal(true)}
+                          placeholder="Search devices to link..."
+                        />
+
+                        {/* Pending devices list */}
+                        {pendingDevices.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="block text-xs text-gray-500">Devices to link:</label>
+                            {pendingDevices.map((entry) => (
+                              <div
+                                key={entry.tempId}
+                                className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <Monitor size={14} className="text-gray-400 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                      {entry.kind === 'existing' ? entry.device.name : entry.fields.name}
+                                      {entry.kind === 'new' && (
+                                        <span className="ml-1.5 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">New</span>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      {entry.kind === 'existing'
+                                        ? (entry.device.type === 'DESKTOP' ? 'Desktop' :
+                                           entry.device.type === 'LAPTOP' ? 'Laptop' :
+                                           entry.device.type === 'SERVER' ? 'Server' :
+                                           entry.device.type === 'PRINTER' ? 'Printer' :
+                                           entry.device.type === 'ROUTER' ? 'Router' :
+                                           entry.device.type === 'SWITCH' ? 'Switch' :
+                                           entry.device.type === 'FIREWALL' ? 'Firewall' :
+                                           entry.device.type === 'PHONE' ? 'Phone' :
+                                           entry.device.type === 'TABLET' ? 'Tablet' : 'Other')
+                                        : (entry.fields.type === 'DESKTOP' ? 'Desktop' :
+                                           entry.fields.type === 'LAPTOP' ? 'Laptop' :
+                                           entry.fields.type === 'SERVER' ? 'Server' :
+                                           entry.fields.type === 'PRINTER' ? 'Printer' :
+                                           entry.fields.type === 'ROUTER' ? 'Router' :
+                                           entry.fields.type === 'SWITCH' ? 'Switch' :
+                                           entry.fields.type === 'FIREWALL' ? 'Firewall' :
+                                           entry.fields.type === 'PHONE' ? 'Phone' :
+                                           entry.fields.type === 'TABLET' ? 'Tablet' : 'Other')
+                                      }
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDevices(prev => prev.filter(p => p.tempId !== entry.tempId))}
+                                  className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -2081,6 +2310,197 @@ export default function TicketDetailPage() {
                   className="w-full sm:w-auto"
                 >
                   Forward
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Device Modal */}
+      {showNewDeviceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">New Device</h3>
+              <button
+                onClick={() => {
+                  setShowNewDeviceModal(false);
+                  setNewDeviceName('');
+                  setNewDeviceType('DESKTOP');
+                  setNewDeviceMake('');
+                  setNewDeviceModel('');
+                  setNewDeviceSerialNumber('');
+                  setNewDeviceOS('');
+                  setNewDeviceIP('');
+                  setNewDeviceNotes('');
+                }}
+                className="p-1 hover:bg-gray-100 rounded"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Company (read-only) */}
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Company:</span> {ticket?.company?.name || 'No company'}
+                </p>
+              </div>
+
+              {/* Name (required) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={newDeviceName}
+                  onChange={(e) => setNewDeviceName(e.target.value)}
+                  placeholder="e.g., Front Desk Computer"
+                />
+              </div>
+
+              {/* Type (required) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <Select
+                  value={newDeviceType}
+                  onChange={(e) => setNewDeviceType(e.target.value)}
+                  options={[
+                    { value: 'DESKTOP', label: 'Desktop' },
+                    { value: 'LAPTOP', label: 'Laptop' },
+                    { value: 'SERVER', label: 'Server' },
+                    { value: 'PRINTER', label: 'Printer' },
+                    { value: 'ROUTER', label: 'Router' },
+                    { value: 'SWITCH', label: 'Switch' },
+                    { value: 'FIREWALL', label: 'Firewall' },
+                    { value: 'PHONE', label: 'Phone' },
+                    { value: 'TABLET', label: 'Tablet' },
+                    { value: 'OTHER', label: 'Other' },
+                  ]}
+                />
+              </div>
+
+              {/* Make and Model */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
+                  <Input
+                    value={newDeviceMake}
+                    onChange={(e) => setNewDeviceMake(e.target.value)}
+                    placeholder="e.g., Dell"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                  <Input
+                    value={newDeviceModel}
+                    onChange={(e) => setNewDeviceModel(e.target.value)}
+                    placeholder="e.g., OptiPlex 7090"
+                  />
+                </div>
+              </div>
+
+              {/* Serial Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                <Input
+                  value={newDeviceSerialNumber}
+                  onChange={(e) => setNewDeviceSerialNumber(e.target.value)}
+                  placeholder="S/N"
+                />
+              </div>
+
+              {/* OS and IP */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Operating System</label>
+                  <Input
+                    value={newDeviceOS}
+                    onChange={(e) => setNewDeviceOS(e.target.value)}
+                    placeholder="e.g., Windows 11"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">IP Address</label>
+                  <Input
+                    value={newDeviceIP}
+                    onChange={(e) => setNewDeviceIP(e.target.value)}
+                    placeholder="e.g., 192.168.1.100"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <Textarea
+                  value={newDeviceNotes}
+                  onChange={(e) => setNewDeviceNotes(e.target.value)}
+                  placeholder="Additional notes about this device..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowNewDeviceModal(false);
+                    setNewDeviceName('');
+                    setNewDeviceType('DESKTOP');
+                    setNewDeviceMake('');
+                    setNewDeviceModel('');
+                    setNewDeviceSerialNumber('');
+                    setNewDeviceOS('');
+                    setNewDeviceIP('');
+                    setNewDeviceNotes('');
+                  }}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!newDeviceName.trim()) {
+                      toast.error('Device name is required');
+                      return;
+                    }
+                    setPendingDevices(prev => [
+                      ...prev,
+                      {
+                        kind: 'new',
+                        tempId: `new-${Date.now()}`,
+                        fields: {
+                          name: newDeviceName.trim(),
+                          type: newDeviceType,
+                          make: newDeviceMake.trim(),
+                          model: newDeviceModel.trim(),
+                          serialNumber: newDeviceSerialNumber.trim(),
+                          operatingSystem: newDeviceOS.trim(),
+                          ipAddress: newDeviceIP.trim(),
+                          notes: newDeviceNotes.trim(),
+                        }
+                      }
+                    ]);
+                    setShowNewDeviceModal(false);
+                    setNewDeviceName('');
+                    setNewDeviceType('DESKTOP');
+                    setNewDeviceMake('');
+                    setNewDeviceModel('');
+                    setNewDeviceSerialNumber('');
+                    setNewDeviceOS('');
+                    setNewDeviceIP('');
+                    setNewDeviceNotes('');
+                    toast.success('Device added to queue');
+                  }}
+                  disabled={!newDeviceName.trim()}
+                  className="w-full sm:w-auto"
+                >
+                  Add Device
                 </Button>
               </div>
             </div>

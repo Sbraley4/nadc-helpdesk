@@ -6,6 +6,7 @@ export { default as ChangePasswordModal } from './ChangePasswordModal';
 export { default as CompanyTypeahead } from './CompanyTypeahead';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as ContactTypeahead } from './ContactTypeahead';
+export { default as DeviceTypeahead } from './DeviceTypeahead';
 export { default as EmptyState } from './EmptyState';
 export { default as FAB } from './FAB';
 export { default as FileUpload } from './FileUpload';
