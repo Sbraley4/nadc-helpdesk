@@ -5,6 +5,7 @@ import Modal from './Modal';
 import Button from './Button';
 import Select from './Select';
 import Spinner from './Spinner';
+import MultiSelectAgents from './MultiSelectAgents';
 import { tickets as ticketsApi, agents as agentsApi } from '../../api';
 import toast from 'react-hot-toast';
 
@@ -40,6 +41,7 @@ export default function ScheduleTicketModal({
   const [endTime, setEndTime] = useState('10:00');
   const [isAllDay, setIsAllDay] = useState(false);
   const [assigneeId, setAssigneeId] = useState('');
+  const [additionalAssigneeIds, setAdditionalAssigneeIds] = useState([]);
 
   // Recurring state
   const [repeatFrequency, setRepeatFrequency] = useState(''); // '' | 'MONTHLY' | 'YEARLY'
@@ -112,8 +114,9 @@ export default function ScheduleTicketModal({
         setIsAllDay(false);
       }
 
-      // Set assignee
+      // Set assignees
       setAssigneeId(ticket.assigneeId || ticket.assignee?.id || '');
+      setAdditionalAssigneeIds(ticket.additionalAssignees?.map(a => a.id) || []);
     }
   }, [isOpen, ticket, prefilledDate, prefilledTime]);
 
@@ -135,6 +138,18 @@ export default function ScheduleTicketModal({
       setRepeatUntil('');
     }
   };
+
+  // Handle primary assignee change - filter out from additional list
+  const handlePrimaryAssigneeChange = (newAssigneeId) => {
+    setAssigneeId(newAssigneeId);
+    // Remove new primary from additional assignees if present
+    if (newAssigneeId) {
+      setAdditionalAssigneeIds(prev => prev.filter(id => id !== newAssigneeId));
+    }
+  };
+
+  // Filter agents for additional assignees - exclude current primary
+  const additionalAgentsOptions = agents.filter(a => a.id !== assigneeId);
 
   // Calculate estimated occurrence count
   const estimatedOccurrences = useMemo(() => {
@@ -243,10 +258,23 @@ export default function ScheduleTicketModal({
         }
       }
 
-      // Update assignee if changed
+      // Update assignees if changed
       const currentAssigneeId = ticket.assigneeId || ticket.assignee?.id || '';
-      if (assigneeId !== currentAssigneeId) {
-        await ticketsApi.updateTicket(ticket.id, { assigneeId: assigneeId || null });
+      const currentAdditionalIds = (ticket.additionalAssignees?.map(a => a.id) || []).slice().sort();
+      const newAdditionalIds = additionalAssigneeIds.slice().sort();
+
+      const primaryChanged = assigneeId !== currentAssigneeId;
+      const additionalChanged = JSON.stringify(currentAdditionalIds) !== JSON.stringify(newAdditionalIds);
+
+      if (primaryChanged || additionalChanged) {
+        const updatePayload = {};
+        if (primaryChanged) {
+          updatePayload.assigneeId = assigneeId || null;
+        }
+        if (additionalChanged) {
+          updatePayload.additionalAssigneeIds = additionalAssigneeIds;
+        }
+        await ticketsApi.updateTicket(ticket.id, updatePayload);
       }
 
       onScheduled?.();
@@ -388,7 +416,7 @@ export default function ScheduleTicketModal({
           ) : (
             <Select
               value={assigneeId}
-              onChange={(e) => setAssigneeId(e.target.value)}
+              onChange={(e) => handlePrimaryAssigneeChange(e.target.value)}
               options={[
                 { value: '', label: 'Unassigned' },
                 ...agents.map(a => ({ value: a.id, label: a.name })),
@@ -396,6 +424,17 @@ export default function ScheduleTicketModal({
             />
           )}
         </div>
+
+        {/* Additional Assignees */}
+        {!loadingAgents && (
+          <MultiSelectAgents
+            label="Additional Assignees"
+            agents={additionalAgentsOptions}
+            selectedIds={additionalAssigneeIds}
+            onChange={setAdditionalAssigneeIds}
+            placeholder="Add more agents..."
+          />
+        )}
 
         {/* Recurring Schedule (only for new schedules, not reschedule) */}
         {mode !== 'reschedule' && (
