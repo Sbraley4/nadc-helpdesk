@@ -9,6 +9,16 @@ async function processReviewRequests() {
   console.log('[ReviewRequestJob] Starting...');
 
   try {
+    // Check if satisfaction surveys are enabled
+    const satisfactionSetting = await prisma.appSetting.findUnique({
+      where: { key: 'satisfaction_enabled' },
+    });
+    // Default: enabled unless explicitly 'false'
+    if (satisfactionSetting?.value === 'false') {
+      console.log('[ReviewRequestJob] Satisfaction disabled, skipping');
+      return;
+    }
+
     // Find all tickets where:
     // - status = INVOICED
     // - reviewRequestScheduledFor <= now()

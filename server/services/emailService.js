@@ -104,10 +104,16 @@ function clearSettingsCache() {
 /**
  * Send an email using Microsoft Graph API
  */
-async function sendEmail({ to, subject, html, text, attachments = [] }) {
+async function sendEmail({ to, subject, html, text, attachments = [], saveToSentItems = false }) {
   if (!to) {
     console.warn('[Email Service] No recipient email provided, skipping');
     return { success: false, error: 'No recipient email' };
+  }
+
+  // Skip undeliverable placeholder addresses
+  if (to.trim().toLowerCase().endsWith('.internal')) {
+    console.log(`[Email Service] Skipping undeliverable placeholder address: ${to}`);
+    return { success: false, skipped: true, error: 'Undeliverable placeholder address' };
   }
 
   const companyName = (await getAppSetting('company_name')) || 'NADC Tickets';
@@ -155,7 +161,7 @@ async function sendEmail({ to, subject, html, text, attachments = [] }) {
       .api(`/users/${fromAddress}/sendMail`)
       .post({
         message,
-        saveToSentItems: false,
+        saveToSentItems,
       });
 
     console.log(`[Email Service] Email sent to ${to}: ${subject}`);
@@ -192,10 +198,10 @@ async function renderTemplate(templateName, variables = {}) {
 /**
  * Send a templated email
  */
-async function sendTemplatedEmail({ to, subject, templateName, variables }) {
+async function sendTemplatedEmail({ to, subject, templateName, variables, saveToSentItems = false }) {
   try {
     const html = await renderTemplate(templateName, variables);
-    return await sendEmail({ to, subject, html });
+    return await sendEmail({ to, subject, html, saveToSentItems });
   } catch (error) {
     console.error(`[Email Service] Failed to send templated email:`, error.message);
     return { success: false, error: error.message };
@@ -434,6 +440,7 @@ async function sendReviewRequestEmail(contact, ticket, tokens) {
       opt_out_url: `${helpdeskUrl}/api/satisfaction/opt-out?token=${tokens.optOutToken}`,
       company_name: companyName,
     },
+    saveToSentItems: true,
   });
 }
 

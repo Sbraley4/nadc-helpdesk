@@ -9,6 +9,12 @@ const prisma = new PrismaClient();
  */
 async function sendReviewRequest(ticket, contact) {
   try {
+    // Check if contact has a valid email
+    if (!contact.email) {
+      console.log(`[Satisfaction] Contact ${contact.id} has no email, skipping review request`);
+      return { success: false, error: 'Contact has no email' };
+    }
+
     // Check if contact has opted out
     if (contact.optedOutOfReviews || contact.reviewOptOut) {
       console.log(`[Satisfaction] Contact ${contact.email} has opted out of review requests`);
@@ -35,6 +41,12 @@ async function sendReviewRequest(ticket, contact) {
       reviewToken,
       optOutToken,
     });
+
+    // If email service is in stub mode, don't mark as sent so it retries later
+    if (result.stubMode) {
+      console.warn(`[Satisfaction] Email service not configured (stub mode), review request for ticket #${ticket.id} will retry`);
+      return { success: false, error: 'Email service not configured (stub mode)' };
+    }
 
     if (result.success) {
       // Update contact and ticket timestamps

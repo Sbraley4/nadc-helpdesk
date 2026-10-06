@@ -5,7 +5,8 @@ const { requireRole } = require('../middleware/requireRole');
 const {
   getReviewDetails,
   submitReview,
-  optOut,
+  optOutPage,
+  optOutConfirm,
   getRatings,
 } = require('../controllers/satisfactionController');
 
@@ -17,8 +18,11 @@ router.get('/review/:token', getReviewDetails);
 // POST /api/satisfaction/review/:token - Submit star rating and comment
 router.post('/review/:token', submitReview);
 
-// GET /api/satisfaction/opt-out - Opt out from review requests
-router.get('/opt-out', optOut);
+// GET /api/satisfaction/opt-out - Show opt-out confirmation page
+router.get('/opt-out', optOutPage);
+
+// POST /api/satisfaction/opt-out - Actually perform the opt-out
+router.post('/opt-out', optOutConfirm);
 
 // PROTECTED routes - Admin only
 // GET /api/satisfaction/ratings - Get all ratings with stats

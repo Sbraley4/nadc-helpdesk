@@ -18,6 +18,13 @@ async function scheduleReviewRequest(ticket) {
       return acc;
     }, {});
 
+    // Check if satisfaction surveys are enabled (default: enabled unless explicitly 'false')
+    const satisfactionEnabled = settingsMap.satisfaction_enabled !== 'false';
+    if (!satisfactionEnabled) {
+      console.log(`[ReviewScheduler] Satisfaction surveys disabled, skipping ticket ${ticket.id}`);
+      return false;
+    }
+
     const cooldownDays = parseInt(settingsMap.review_cooldown_days || '90', 10);
     const delayHours = parseInt(settingsMap.review_send_delay_hours || '24', 10);
 
@@ -223,10 +230,89 @@ async function submitReview(req, res) {
 }
 
 // GET /api/satisfaction/opt-out - PUBLIC
-// Handles opt-out from review requests
-async function optOut(req, res) {
+// Shows confirmation page for opt-out (two-step process)
+async function optOutPage(req, res) {
   try {
     const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).send('<h1>Invalid request - missing token</h1>');
+    }
+
+    // Verify token (but don't update yet)
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      return res.status(400).send('<h1>Invalid or expired link</h1>');
+    }
+
+    // HTML-escape the token for safe embedding in the form
+    const escapedToken = token.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unsubscribe</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #1B2A4A; }
+    p { color: #333; line-height: 1.6; }
+    button {
+      background-color: #1B2A4A;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    button:hover {
+      background-color: #2d3f5e;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Unsubscribe from review requests?</h1>
+    <p>You will no longer receive review request emails from us.</p>
+    <form method="POST" action="/api/satisfaction/opt-out">
+      <input type="hidden" name="token" value="${escapedToken}">
+      <button type="submit">Yes, unsubscribe me</button>
+    </form>
+  </div>
+</body>
+</html>
+    `);
+  } catch (error) {
+    console.error('Error showing opt-out page:', error);
+    return res.status(500).send('<h1>Something went wrong. Please try again later.</h1>');
+  }
+}
+
+// POST /api/satisfaction/opt-out - PUBLIC
+// Actually performs the opt-out
+async function optOutConfirm(req, res) {
+  try {
+    // Accept token from body (form submission or JSON)
+    const token = req.body.token;
 
     if (!token) {
       return res.status(400).send('<h1>Invalid request - missing token</h1>');
@@ -401,6 +487,7 @@ module.exports = {
   scheduleReviewRequest,
   getReviewDetails,
   submitReview,
-  optOut,
+  optOutPage,
+  optOutConfirm,
   getRatings,
 };

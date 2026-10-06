@@ -641,8 +641,10 @@ const updateTicket = async (req, res, next) => {
       // Handle timestamp updates based on status change
       if (status === 'INVOICED') {
         updateData.closedAt = new Date();
-        // Schedule review request when ticket is invoiced
-        scheduleReviewRequest({ id, ...existingTicket });
+        // Schedule review request only when actually moving INTO INVOICED (not already INVOICED)
+        if (existingTicket.status !== 'INVOICED') {
+          scheduleReviewRequest({ id, ...existingTicket });
+        }
       } else if (status === 'OPEN' && existingTicket.status === 'INVOICED') {
         updateData.closedAt = null;
       }
