@@ -74,6 +74,7 @@ enum DeviceType {
   PHONE
   TABLET
   OTHER
+  ACCESS_POINT
 }
 
 enum RecurringFrequency {

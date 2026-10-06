@@ -10,6 +10,7 @@ import {
   Smartphone,
   Router,
   HardDrive,
+  Wifi,
   Edit2,
   Trash2,
   ArrowLeft,
@@ -43,6 +44,7 @@ const deviceTypeIcons = {
   FIREWALL: Router,
   PHONE: Smartphone,
   TABLET: Smartphone,
+  ACCESS_POINT: Wifi,
   OTHER: HardDrive,
 };
 
@@ -56,6 +58,7 @@ const deviceTypeOptions = [
   { value: 'FIREWALL', label: 'Firewall' },
   { value: 'PHONE', label: 'Phone' },
   { value: 'TABLET', label: 'Tablet' },
+  { value: 'ACCESS_POINT', label: 'Access Point' },
   { value: 'OTHER', label: 'Other' },
 ];
 

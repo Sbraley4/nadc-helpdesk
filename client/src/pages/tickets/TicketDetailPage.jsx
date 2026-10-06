@@ -41,6 +41,21 @@ const priorityOptions = [
   { value: 'HIGH', label: 'High' },
   { value: 'URGENT', label: 'Urgent' },
 ];
+
+const deviceTypeLabels = {
+  DESKTOP: 'Desktop',
+  LAPTOP: 'Laptop',
+  SERVER: 'Server',
+  PRINTER: 'Printer',
+  ROUTER: 'Router',
+  SWITCH: 'Switch',
+  FIREWALL: 'Firewall',
+  PHONE: 'Phone',
+  TABLET: 'Tablet',
+  ACCESS_POINT: 'Access Point',
+  OTHER: 'Other',
+};
+
 export default function TicketDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -767,11 +782,6 @@ export default function TicketDetailPage() {
     }
 
     // Process pending devices before submitting the note
-    const deviceTypeLabels = {
-      DESKTOP: 'Desktop', LAPTOP: 'Laptop', SERVER: 'Server', PRINTER: 'Printer',
-      ROUTER: 'Router', SWITCH: 'Switch', FIREWALL: 'Firewall', PHONE: 'Phone',
-      TABLET: 'Tablet', OTHER: 'Other'
-    };
     const succeededDevices = [];
     const succeededTempIds = [];
 
@@ -1955,26 +1965,7 @@ export default function TicketDetailPage() {
                                       )}
                                     </p>
                                     <p className="text-xs text-gray-500">
-                                      {entry.kind === 'existing'
-                                        ? (entry.device.type === 'DESKTOP' ? 'Desktop' :
-                                           entry.device.type === 'LAPTOP' ? 'Laptop' :
-                                           entry.device.type === 'SERVER' ? 'Server' :
-                                           entry.device.type === 'PRINTER' ? 'Printer' :
-                                           entry.device.type === 'ROUTER' ? 'Router' :
-                                           entry.device.type === 'SWITCH' ? 'Switch' :
-                                           entry.device.type === 'FIREWALL' ? 'Firewall' :
-                                           entry.device.type === 'PHONE' ? 'Phone' :
-                                           entry.device.type === 'TABLET' ? 'Tablet' : 'Other')
-                                        : (entry.fields.type === 'DESKTOP' ? 'Desktop' :
-                                           entry.fields.type === 'LAPTOP' ? 'Laptop' :
-                                           entry.fields.type === 'SERVER' ? 'Server' :
-                                           entry.fields.type === 'PRINTER' ? 'Printer' :
-                                           entry.fields.type === 'ROUTER' ? 'Router' :
-                                           entry.fields.type === 'SWITCH' ? 'Switch' :
-                                           entry.fields.type === 'FIREWALL' ? 'Firewall' :
-                                           entry.fields.type === 'PHONE' ? 'Phone' :
-                                           entry.fields.type === 'TABLET' ? 'Tablet' : 'Other')
-                                      }
+                                      {deviceTypeLabels[entry.kind === 'existing' ? entry.device.type : entry.fields.type] || 'Other'}
                                     </p>
                                   </div>
                                 </div>
@@ -2378,6 +2369,7 @@ export default function TicketDetailPage() {
                     { value: 'FIREWALL', label: 'Firewall' },
                     { value: 'PHONE', label: 'Phone' },
                     { value: 'TABLET', label: 'Tablet' },
+                    { value: 'ACCESS_POINT', label: 'Access Point' },
                     { value: 'OTHER', label: 'Other' },
                   ]}
                 />

@@ -13,6 +13,7 @@ const deviceTypeLabels = {
   FIREWALL: 'Firewall',
   PHONE: 'Phone',
   TABLET: 'Tablet',
+  ACCESS_POINT: 'Access Point',
   OTHER: 'Other',
 };
 
