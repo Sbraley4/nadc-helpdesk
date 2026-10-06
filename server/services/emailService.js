@@ -419,28 +419,6 @@ async function sendSLABreachEmail(ticket, recipient, breachType) {
 }
 
 /**
- * Escape HTML special characters in a string (for embedding in HTML attributes)
- */
-function escapeHtmlAttr(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/**
- * Check if a Google review URL is valid (non-empty, https://, not placeholder)
- */
-function isValidGoogleReviewUrl(url) {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  return trimmed.length > 0 &&
-    trimmed.startsWith('https://') &&
-    trimmed !== 'PLACEHOLDER_GOOGLE_REVIEW_URL';
-}
-
-/**
  * Send review request email
  */
 async function sendReviewRequestEmail(contact, ticket, tokens) {
@@ -448,29 +426,6 @@ async function sendReviewRequestEmail(contact, ticket, tokens) {
   const helpdeskUrl = process.env.HELPDESK_URL || process.env.CLIENT_URL || 'http://localhost:5173';
   const agentName = ticket.assignee?.name || 'the NADC team';
   const displayNumber = ticket.ticketNumber || ticket.id;
-
-  // Check for valid Google review URL
-  const googleReviewUrl = await getAppSetting('google_review_url');
-  let googleSection = '';
-
-  if (isValidGoogleReviewUrl(googleReviewUrl)) {
-    const escapedUrl = escapeHtmlAttr(googleReviewUrl.trim());
-    googleSection = `
-              <p style="margin: 0 0 16px 0; color: #374151; font-size: 14px; line-height: 1.6;">
-                You're also welcome to share your experience publicly on Google.
-              </p>
-
-              <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin: 0 auto 16px auto;">
-                <tr>
-                  <td>
-                    <a href="${escapedUrl}" target="_blank" style="display: inline-block; padding: 16px 48px; background-color: #ffffff; color: #1B2A4A; text-decoration: none; font-size: 18px; font-weight: 600; border-radius: 8px; border: 2px solid #1B2A4A;">
-                      Review us on Google
-                    </a>
-                  </td>
-                </tr>
-              </table>
-`;
-  }
 
   return await sendTemplatedEmail({
     to: contact.email,
@@ -484,7 +439,6 @@ async function sendReviewRequestEmail(contact, ticket, tokens) {
       review_url: `${helpdeskUrl}/review/${tokens.reviewToken}`,
       opt_out_url: `${helpdeskUrl}/api/satisfaction/opt-out?token=${tokens.optOutToken}`,
       company_name: companyName,
-      google_section: googleSection,
     },
     saveToSentItems: true,
   });
