@@ -141,8 +141,6 @@ async function getReviewDetails(req, res) {
 
     res.json({
       ticketId: ticket.id,
-      ticketNumber: ticket.ticketNumber,
-      ticketSubject: ticket.subject,
       contactName: contact.name,
       googleReviewUrl: googleUrlSetting?.value || GOOGLE_BUSINESS_REVIEW_URL,
     });
@@ -483,6 +481,114 @@ async function getRatings(req, res, next) {
   }
 }
 
+// GET /api/satisfaction/requests - ADMIN only
+// Returns review request stats and pending requests list
+async function getReviewRequests(req, res, next) {
+  try {
+    const { startDate, endDate, agentId, page = 1, limit = 20 } = req.query;
+
+    // Build where clause for the cohort: all tickets with reviewRequestedAt set
+    const where = {
+      reviewRequestedAt: { not: null },
+    };
+
+    // Filter by reviewRequestedAt date range
+    if (startDate || endDate) {
+      where.reviewRequestedAt = {
+        not: null,
+        ...(startDate && { gte: new Date(startDate) }),
+        ...(endDate && { lte: new Date(endDate) }),
+      };
+    }
+
+    // Filter by agent (assignee)
+    if (agentId) {
+      where.assigneeId = agentId;
+    }
+
+    // Pending = sent but no rating
+    const pendingWhere = {
+      ...where,
+      satisfactionRating: null,
+    };
+
+    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const take = parseInt(limit, 10);
+
+    // Token expiration is 30 days (from satisfactionEmailService.js)
+    const TOKEN_EXPIRY_DAYS = 30;
+    const expirationCutoff = new Date(Date.now() - TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+    const [sent, answered, pending, pendingTickets] = await Promise.all([
+      // Count all sent
+      prisma.ticket.count({ where }),
+      // Count answered (has a satisfactionRating)
+      prisma.ticket.count({
+        where: {
+          ...where,
+          satisfactionRating: { isNot: null },
+        },
+      }),
+      // Count pending (no rating)
+      prisma.ticket.count({ where: pendingWhere }),
+      // Get pending tickets page
+      prisma.ticket.findMany({
+        where: pendingWhere,
+        orderBy: { reviewRequestedAt: 'desc' },
+        skip,
+        take,
+        select: {
+          id: true,
+          ticketNumber: true,
+          subject: true,
+          reviewRequestedAt: true,
+          requester: {
+            select: { id: true, name: true, email: true, reviewOptOut: true },
+          },
+          company: {
+            select: { name: true },
+          },
+          assignee: {
+            select: { id: true, name: true, avatar: true },
+          },
+        },
+      }),
+    ]);
+
+    const responseRate = sent > 0 ? Math.round((answered / sent) * 100) : 0;
+
+    res.json({
+      stats: {
+        sent,
+        answered,
+        pending,
+        responseRate,
+      },
+      pending: pendingTickets.map((t) => ({
+        ticketId: t.id,
+        ticketNumber: t.ticketNumber,
+        subject: t.subject,
+        requestedAt: t.reviewRequestedAt,
+        requester: {
+          name: t.requester?.name,
+          email: t.requester?.email,
+        },
+        optedOut: t.requester?.reviewOptOut || false,
+        company: t.company?.name || null,
+        agent: t.assignee,
+        expired: t.reviewRequestedAt < expirationCutoff,
+      })),
+      pagination: {
+        page: parseInt(page, 10),
+        limit: take,
+        totalPages: Math.ceil(pending / take),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   scheduleReviewRequest,
   getReviewDetails,
@@ -490,4 +596,5 @@ module.exports = {
   optOutPage,
   optOutConfirm,
   getRatings,
+  getReviewRequests,
 };

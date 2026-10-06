@@ -5,6 +5,15 @@ import { Star, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
 // Google Business Review URL placeholder
 const GOOGLE_BUSINESS_REVIEW_URL = 'PLACEHOLDER_GOOGLE_REVIEW_URL';
 
+// Check if a Google review URL is valid
+function isValidGoogleUrl(url) {
+  return url &&
+    typeof url === 'string' &&
+    url.trim().length > 0 &&
+    url.trim().startsWith('https://') &&
+    url !== GOOGLE_BUSINESS_REVIEW_URL;
+}
+
 export default function ReviewPage() {
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
@@ -93,6 +102,31 @@ export default function ReviewPage() {
     }
   };
 
+  // Google Review Section component (reused on form and thank-you screen)
+  const GoogleReviewSection = () => {
+    if (!isValidGoogleUrl(googleReviewUrl)) {
+      return null;
+    }
+
+    return (
+      <div className="border-t border-gray-200 pt-6 mt-6">
+        <p className="text-gray-700 mb-4">
+          You can also share your experience publicly on Google.
+        </p>
+        <a
+          href={googleReviewUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#1B2A4A] font-semibold rounded-lg border-2 border-[#1B2A4A] hover:bg-gray-50 transition-colors"
+        >
+          <Star className="w-5 h-5" />
+          Review us on Google
+          <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+    );
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -117,7 +151,7 @@ export default function ReviewPage() {
             Already Submitted
           </h1>
           <p className="text-gray-600">
-            You have already submitted feedback for this ticket. Thank you!
+            You've already submitted feedback. Thank you!
           </p>
         </div>
       </div>
@@ -143,8 +177,6 @@ export default function ReviewPage() {
 
   // Success state
   if (submitted) {
-    const isGoogleUrlValid = googleReviewUrl && googleReviewUrl !== GOOGLE_BUSINESS_REVIEW_URL;
-
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-sm p-8 max-w-md w-full text-center">
@@ -158,23 +190,7 @@ export default function ReviewPage() {
             We appreciate you taking the time to share your feedback. It helps us improve our service!
           </p>
 
-          {isGoogleUrlValid && (
-            <div className="border-t border-gray-200 pt-6 mt-6">
-              <p className="text-gray-700 mb-4">
-                If you had a great experience, we'd love for you to share it on Google too!
-              </p>
-              <a
-                href={googleReviewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#1B2A4A] text-white font-semibold rounded-lg hover:bg-[#2d3f5e] transition-colors"
-              >
-                <Star className="w-5 h-5" />
-                Leave a Google Review
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-          )}
+          <GoogleReviewSection />
         </div>
       </div>
     );
@@ -190,16 +206,8 @@ export default function ReviewPage() {
             How did we do?
           </h1>
           <p className="text-gray-600">
-            Hi {reviewData?.contactName || 'there'}! We'd love to hear your feedback about your recent support experience.
+            Hi {reviewData?.contactName || 'there'}! We'd love to hear about your recent experience with NADC.
           </p>
-          {reviewData?.ticketSubject && (
-            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Regarding:</p>
-              <p className="font-medium text-gray-900">
-                Ticket #{reviewData.ticketNumber}: {reviewData.ticketSubject}
-              </p>
-            </div>
-          )}
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -275,12 +283,19 @@ export default function ReviewPage() {
             )}
           </button>
 
+          <p className="text-center mt-3 text-sm text-gray-500">
+            Your feedback goes directly to our team.
+          </p>
+
           {rating === 0 && (
             <p className="text-center mt-3 text-sm text-gray-500">
               Please select a star rating to continue
             </p>
           )}
         </form>
+
+        {/* Google Review Section on form */}
+        <GoogleReviewSection />
       </div>
     </div>
   );

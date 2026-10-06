@@ -160,6 +160,7 @@ export const resolution = {
 
 export const satisfaction = {
   getRatings: (params) => client.get('/api/satisfaction/ratings', { params }).then((r) => r.data),
+  getRequests: (params) => client.get('/api/satisfaction/requests', { params }).then((r) => r.data),
 };
 
 export const settings = {

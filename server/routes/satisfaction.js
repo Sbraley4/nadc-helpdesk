@@ -8,6 +8,7 @@ const {
   optOutPage,
   optOutConfirm,
   getRatings,
+  getReviewRequests,
 } = require('../controllers/satisfactionController');
 
 // PUBLIC routes - accessed via email links (no auth)
@@ -27,5 +28,8 @@ router.post('/opt-out', optOutConfirm);
 // PROTECTED routes - Admin only
 // GET /api/satisfaction/ratings - Get all ratings with stats
 router.get('/ratings', requireAuth, requireRole('ADMIN'), getRatings);
+
+// GET /api/satisfaction/requests - Get review request stats and pending list
+router.get('/requests', requireAuth, requireRole('ADMIN'), getReviewRequests);
 
 module.exports = router;

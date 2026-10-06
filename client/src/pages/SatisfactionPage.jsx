@@ -7,9 +7,13 @@ import {
   Calendar,
   User,
   MessageSquare,
+  Send,
+  CheckCircle,
+  Clock,
+  Percent,
 } from 'lucide-react';
 import { satisfaction, agents } from '../api';
-import { Spinner, Avatar, Select, Pagination } from '../components/shared';
+import { Spinner, Avatar, Select, Pagination, Badge } from '../components/shared';
 
 // Star rating display component
 function StarRating({ rating, size = 16 }) {
@@ -52,6 +56,18 @@ export default function SatisfactionPage() {
   const [dateRange, setDateRange] = useState('30');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Review request tracking state
+  const [requestStats, setRequestStats] = useState({
+    sent: 0,
+    answered: 0,
+    pending: 0,
+    responseRate: 0,
+  });
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [pendingTotalPages, setPendingTotalPages] = useState(1);
+  const [requestsLoading, setRequestsLoading] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -97,6 +113,49 @@ export default function SatisfactionPage() {
     });
   };
 
+  // Calculate days ago from a date
+  const daysAgo = (date) => {
+    const now = new Date();
+    const then = new Date(date);
+    const diffTime = now - then;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Fetch review requests data
+  const fetchRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - parseInt(dateRange));
+
+      const requestsData = await satisfaction.getRequests({
+        agentId: selectedAgent || undefined,
+        startDate: startDate.toISOString(),
+        page: pendingPage,
+        limit: 10,
+      });
+
+      setRequestStats(requestsData.stats || { sent: 0, answered: 0, pending: 0, responseRate: 0 });
+      setPendingRequests(requestsData.pending || []);
+      setPendingTotalPages(requestsData.pagination?.totalPages || 1);
+    } catch (error) {
+      console.error('Failed to fetch review requests:', error);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  // Fetch requests when filters or pending page changes
+  useEffect(() => {
+    fetchRequests();
+  }, [selectedAgent, dateRange, pendingPage]);
+
+  // Reset pending page when filters change
+  useEffect(() => {
+    setPendingPage(1);
+  }, [selectedAgent, dateRange]);
+
   // Calculate satisfaction percentage (4-5 stars = satisfied)
   const satisfiedCount = stats.distribution[4] + stats.distribution[5];
   const satisfactionPercent = stats.total > 0 ? Math.round((satisfiedCount / stats.total) * 100) : 0;
@@ -141,6 +200,153 @@ export default function SatisfactionPage() {
             className="w-full sm:w-40"
           />
         </div>
+      </div>
+
+      {/* Review Requests Section */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium text-gray-900">Review Requests</h3>
+
+        {/* Request Stats Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Requests Sent */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Requests Sent</p>
+                <p className="text-3xl font-bold text-gray-900">{requestStats.sent}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                <Send className="text-blue-500" size={24} />
+              </div>
+            </div>
+          </div>
+
+          {/* Responses */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Responses</p>
+                <p className="text-3xl font-bold text-gray-900">{requestStats.answered}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle className="text-green-500" size={24} />
+              </div>
+            </div>
+          </div>
+
+          {/* Response Rate */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Response Rate</p>
+                <p className="text-3xl font-bold text-gray-900">{requestStats.responseRate}%</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center">
+                <Percent className="text-purple-500" size={24} />
+              </div>
+            </div>
+          </div>
+
+          {/* Awaiting Response */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">Awaiting Response</p>
+                <p className="text-3xl font-bold text-gray-900">{requestStats.pending}</p>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center">
+                <Clock className="text-amber-500" size={24} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Awaiting Response List */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200">
+            <h4 className="font-medium text-gray-900">Awaiting Response</h4>
+          </div>
+
+          {requestsLoading && pendingRequests.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size="md" />
+            </div>
+          ) : pendingRequests.length === 0 ? (
+            <div className="text-center py-12">
+              <Clock size={48} className="mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900">No requests awaiting a response</h3>
+              <p className="text-gray-500 mt-1">All review requests have been answered</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {pendingRequests.map((request) => (
+                <div key={request.ticketId} className="p-4 hover:bg-gray-50">
+                  <div className="flex items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                          onClick={() => navigate(`/tickets/${request.ticketId}`)}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          Ticket #{request.ticketNumber}
+                        </button>
+                        {request.expired && (
+                          <Badge variant="warning">Link expired</Badge>
+                        )}
+                        {request.optedOut && (
+                          <Badge variant="default">Unsubscribed</Badge>
+                        )}
+                      </div>
+
+                      {request.subject && (
+                        <p className="text-sm text-gray-600 mt-1">{request.subject}</p>
+                      )}
+
+                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
+                        {request.requester && (
+                          <div className="flex items-center gap-1">
+                            <User size={14} />
+                            <span>{request.requester.name}</span>
+                            {request.requester.email && (
+                              <span className="text-gray-400">({request.requester.email})</span>
+                            )}
+                          </div>
+                        )}
+                        {request.company && (
+                          <span className="text-gray-400">{request.company}</span>
+                        )}
+                        <div className="flex items-center gap-1">
+                          <Calendar size={14} />
+                          <span>Sent {daysAgo(request.requestedAt)} days ago</span>
+                        </div>
+                        {request.agent && (
+                          <div className="flex items-center gap-1">
+                            <Avatar name={request.agent.name} size="xs" />
+                            {request.agent.name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pendingTotalPages > 1 && (
+            <div className="p-4 border-t border-gray-200">
+              <Pagination
+                currentPage={pendingPage}
+                totalPages={pendingTotalPages}
+                onPageChange={setPendingPage}
+              />
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-500">
+          Counts reflect review requests the system recorded as sent. Delivery is not tracked.
+        </p>
       </div>
 
       {/* Stats Cards */}
