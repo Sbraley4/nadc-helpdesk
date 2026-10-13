@@ -3,16 +3,16 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Users, Ticket, AlertCircle, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { companies } from '../../api';
-import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, PhoneInput } from '../../components/shared';
+import { companies, agents } from '../../api';
+import { Button, SearchInput, Pagination, EmptyState, CenteredSpinner, Avatar, Modal, Input, PhoneInput, Textarea, Select } from '../../components/shared';
 
 export default function CompanyListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: '', domain: '', phone: '', address: '' });
+  const [createForm, setCreateForm] = useState({ name: '', domain: '', phone: '', address: '', notes: '', assignedAgentId: '' });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', domain: '', phone: '', address: '' });
+  const [editForm, setEditForm] = useState({ name: '', domain: '', phone: '', address: '', notes: '', assignedAgentId: '' });
   const [deletingCompany, setDeletingCompany] = useState(null);
   const queryClient = useQueryClient();
 
@@ -41,13 +41,26 @@ export default function CompanyListPage() {
     }),
   });
 
+  const { data: agentsData } = useQuery({
+    queryKey: ['agents'],
+    queryFn: () => agents.getAgents(),
+  });
+
+  const agentOptions = [
+    { value: '', label: 'None' },
+    ...(agentsData?.agents || []).map((agent) => ({
+      value: agent.id,
+      label: agent.name,
+    })),
+  ];
+
   const createMutation = useMutation({
     mutationFn: companies.createCompany,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       toast.success('Company created successfully');
       setShowCreateModal(false);
-      setCreateForm({ name: '', domain: '', phone: '', address: '' });
+      setCreateForm({ name: '', domain: '', phone: '', address: '', notes: '', assignedAgentId: '' });
     },
     onError: (error) => {
       toast.error(error.response?.data?.error || 'Failed to create company');
@@ -86,6 +99,8 @@ export default function CompanyListPage() {
       domain: company.domain || '',
       phone: company.phone || '',
       address: company.address || '',
+      notes: company.notes || '',
+      assignedAgentId: company.assignedAgentId || '',
     });
     setShowEditModal(true);
   };
@@ -100,9 +115,11 @@ export default function CompanyListPage() {
       id: editingCompany.id,
       data: {
         name: editForm.name,
-        domain: editForm.domain || undefined,
-        phone: editForm.phone || undefined,
-        address: editForm.address || undefined,
+        domain: editForm.domain,
+        phone: editForm.phone,
+        address: editForm.address,
+        notes: editForm.notes,
+        assignedAgentId: editForm.assignedAgentId,
       },
     });
   };
@@ -128,6 +145,8 @@ export default function CompanyListPage() {
       domain: createForm.domain || undefined,
       phone: createForm.phone || undefined,
       address: createForm.address || undefined,
+      notes: createForm.notes || undefined,
+      assignedAgentId: createForm.assignedAgentId || undefined,
     });
   };
 
@@ -319,6 +338,19 @@ export default function CompanyListPage() {
             onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
             placeholder="Enter address"
           />
+          <Select
+            label="Account Manager"
+            value={createForm.assignedAgentId}
+            onChange={(e) => setCreateForm({ ...createForm, assignedAgentId: e.target.value })}
+            options={agentOptions}
+          />
+          <Textarea
+            label="Notes"
+            value={createForm.notes}
+            onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+            placeholder="Internal notes about this company"
+            rows={3}
+          />
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => setShowCreateModal(false)}>
               Cancel
@@ -356,6 +388,19 @@ export default function CompanyListPage() {
             value={editForm.address}
             onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
             placeholder="Enter address"
+          />
+          <Select
+            label="Account Manager"
+            value={editForm.assignedAgentId}
+            onChange={(e) => setEditForm({ ...editForm, assignedAgentId: e.target.value })}
+            options={agentOptions}
+          />
+          <Textarea
+            label="Notes"
+            value={editForm.notes}
+            onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+            placeholder="Internal notes about this company"
+            rows={3}
           />
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="secondary" onClick={() => { setShowEditModal(false); setEditingCompany(null); }}>

@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ArrowLeft, Globe, Users, Ticket } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Ticket, Phone, MapPin } from 'lucide-react';
 import { companies } from '../../api';
 import { Badge, Button, Avatar, CenteredSpinner, EmptyState } from '../../components/shared';
 import FormattedText from '../../components/shared/FormattedText';
@@ -59,20 +59,53 @@ export default function CompanyDetailPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Company Details</h2>
             <div className="space-y-4">
-              {company.assignedAgent && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Account Manager</p>
-                  <div className="flex items-center gap-2">
-                    <Avatar name={company.assignedAgent.name} size="sm" />
-                    <span className="text-sm font-medium text-gray-900">{company.assignedAgent.name}</span>
-                  </div>
-                </div>
-              )}
-              {company.notes && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Notes</p>
-                  <FormattedText text={company.notes} as="p" className="text-sm text-gray-700" />
-                </div>
+              {!company.phone && !company.address && !company.domain && !company.assignedAgent && !company.notes ? (
+                <p className="text-sm text-gray-400">No details added yet</p>
+              ) : (
+                <>
+                  {company.phone && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Phone</p>
+                      <a href={'tel:' + company.phone} className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+                        <Phone size={14} />
+                        {company.phone}
+                      </a>
+                    </div>
+                  )}
+                  {company.address && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Address</p>
+                      <p className="text-sm text-gray-700 flex items-start gap-1">
+                        <MapPin size={14} className="mt-0.5 flex-shrink-0" />
+                        {company.address}
+                      </p>
+                    </div>
+                  )}
+                  {company.domain && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Domain</p>
+                      <a href={'https://' + company.domain} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+                        <Globe size={14} />
+                        {company.domain}
+                      </a>
+                    </div>
+                  )}
+                  {company.assignedAgent && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Account Manager</p>
+                      <div className="flex items-center gap-2">
+                        <Avatar name={company.assignedAgent.name} size="sm" />
+                        <span className="text-sm font-medium text-gray-900">{company.assignedAgent.name}</span>
+                      </div>
+                    </div>
+                  )}
+                  {company.notes && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Notes</p>
+                      <FormattedText text={company.notes} as="p" className="text-sm text-gray-700" />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
