@@ -19,7 +19,7 @@ const {
   getSyncConfig,
   isUserEligible,
 } = require('../services/outlookCalendarService');
-const { initializeTransporter } = require('../services/emailService');
+const { initializeTransporter, getGraphClient } = require('../services/emailService');
 
 const prisma = new PrismaClient();
 
@@ -59,9 +59,10 @@ async function main() {
   // Initialize Graph client if applying
   if (applyMode) {
     console.log('Initializing Microsoft Graph client...');
-    const initialized = await initializeTransporter();
-    if (!initialized) {
-      console.log('ERROR: Failed to initialize Graph client. Check Azure credentials.');
+    await initializeTransporter();
+    const graphClient = getGraphClient();
+    if (!graphClient) {
+      console.log('ERROR: Graph client is null after initialization. Check Azure credentials.');
       process.exit(1);
     }
     console.log('Graph client ready.\n');
@@ -99,11 +100,19 @@ async function main() {
 
   const now = new Date();
 
-  // Find ticket schedules to sync
+  // Find ticket schedules to sync (future OR in-progress multi-day)
   console.log('Finding ticket schedules...');
   const ticketSchedules = await prisma.ticketSchedule.findMany({
     where: {
-      scheduledStart: { gte: now },
+      OR: [
+        // Future schedules
+        { scheduledStart: { gte: now } },
+        // In-progress multi-day: started in the past but not yet ended
+        {
+          scheduledStart: { lt: now },
+          scheduledEnd: { gte: now },
+        },
+      ],
       ticket: {
         status: { notIn: ['INVOICED', 'POSTED'] },
         OR: [
@@ -178,9 +187,10 @@ async function main() {
     }
   }
 
-  // Find orphaned mappings
+  // Find orphaned mappings (optionally filtered by mailbox)
   console.log('Finding orphaned mappings...\n');
-  const allMappings = await prisma.outlookEventSync.findMany();
+  const mappingWhere = filterEmail ? { mailbox: filterEmail } : {};
+  const allMappings = await prisma.outlookEventSync.findMany({ where: mappingWhere });
   const orphanedMappings = [];
 
   for (const mapping of allMappings) {
@@ -254,15 +264,15 @@ async function main() {
     }
   }
 
-  // Clean up orphaned mappings
+  // Clean up orphaned mappings via syncSourceDirect (deletes Outlook events and mappings)
   if (orphanedMappings.length > 0) {
     console.log('\nCleaning up orphaned mappings...');
     for (const mapping of orphanedMappings) {
       try {
-        await prisma.outlookEventSync.delete({ where: { id: mapping.id } });
-        console.log(`  Deleted mapping ${mapping.id}`);
+        console.log(`  Syncing orphan ${mapping.sourceType}:${mapping.sourceId}...`);
+        await syncSourceDirect(mapping.sourceType, mapping.sourceId);
       } catch (err) {
-        console.error(`  Error deleting mapping ${mapping.id}: ${err.message}`);
+        console.error(`  Error cleaning up ${mapping.sourceType}:${mapping.sourceId}: ${err.message}`);
       }
     }
   }
