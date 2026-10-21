@@ -10,6 +10,12 @@ const {
 } = require('../services/emailService');
 const { runAutomations } = require('../services/automationEngine');
 const { calculateMileage: calculateMileageFromService } = require('../services/mileageService');
+const {
+  queueSyncTicketSchedule,
+  queueSyncTicket,
+  getMappingSnapshot,
+  queueRemoveSnapshot,
+} = require('../services/outlookCalendarService');
 
 const prisma = new PrismaClient();
 
@@ -930,6 +936,14 @@ const updateTicket = async (req, res, next) => {
       console.error('[Automation] Error running automations:', automationError.message);
     }
 
+    // Sync to Outlook if assignees, subject, or company changed
+    const assigneesChanged = assigneeId !== undefined || additionalAssigneeIds !== undefined;
+    const subjectChanged = subject !== undefined && subject !== existingTicket.subject;
+    const companyChanged = companyId !== undefined && companyId !== existingTicket.companyId;
+    if (assigneesChanged || subjectChanged || companyChanged) {
+      queueSyncTicket(id);
+    }
+
     res.json(transformTicket(updatedTicket));
   } catch (error) {
     next(error);
@@ -953,6 +967,14 @@ const deleteTicket = async (req, res, next) => {
       return res.status(404).json({ error: 'Ticket not found' });
     }
 
+    // Capture Outlook event mappings for all schedules before deletion
+    const schedules = await prisma.ticketSchedule.findMany({
+      where: { ticketId: id },
+      select: { id: true },
+    });
+    const scheduleIds = schedules.map((s) => s.id);
+    const outlookSnapshot = await getMappingSnapshot('TICKET_SCHEDULE', scheduleIds);
+
     // Delete all related records in transaction
     await prisma.$transaction(async (tx) => {
       // Delete in correct order due to foreign keys
@@ -969,6 +991,9 @@ const deleteTicket = async (req, res, next) => {
       await tx.notification.deleteMany({ where: { ticketId: id } });
       await tx.ticket.delete({ where: { id } });
     });
+
+    // Remove from Outlook calendars
+    queueRemoveSnapshot(outlookSnapshot);
 
     res.json({ message: 'Ticket deleted' });
   } catch (error) {
@@ -1337,6 +1362,9 @@ const createTicketSchedule = async (req, res, next) => {
         },
       });
 
+      // Sync to Outlook calendars
+      queueSyncTicketSchedule(schedule.id);
+
       return res.status(201).json(schedule);
     }
 
@@ -1397,6 +1425,11 @@ const createTicketSchedule = async (req, res, next) => {
       },
     });
 
+    // Sync all recurring schedules to Outlook calendars
+    for (const schedule of schedules) {
+      queueSyncTicketSchedule(schedule.id);
+    }
+
     res.status(201).json({
       schedules,
       createdCount: schedules.length,
@@ -1427,6 +1460,9 @@ const deleteTicketSchedule = async (req, res, next) => {
       return res.status(404).json({ error: 'Schedule entry not found' });
     }
 
+    // Capture Outlook event mappings before deletion
+    const outlookSnapshot = await getMappingSnapshot('TICKET_SCHEDULE', [scheduleId]);
+
     // Delete the schedule
     await prisma.ticketSchedule.delete({
       where: { id: scheduleId },
@@ -1441,6 +1477,9 @@ const deleteTicketSchedule = async (req, res, next) => {
         userId: req.user.id,
       },
     });
+
+    // Remove from Outlook calendars
+    queueRemoveSnapshot(outlookSnapshot);
 
     res.json({ message: 'Schedule entry removed' });
   } catch (error) {
@@ -1496,6 +1535,9 @@ const updateTicketSchedule = async (req, res, next) => {
         userId: req.user.id,
       },
     });
+
+    // Sync to Outlook calendars
+    queueSyncTicketSchedule(scheduleId);
 
     res.json(updatedSchedule);
   } catch (error) {

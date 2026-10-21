@@ -741,3 +741,21 @@ model InventoryDeduction {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
+
+// OutlookEventSync - tracks Outlook calendar events created from helpdesk schedules
+// Polymorphic: no FK relations so rows survive source deletion for cleanup
+model OutlookEventSync {
+  id             String   @id @default(cuid())
+  sourceType     String   // "TICKET_SCHEDULE" | "CALENDAR_EVENT"
+  sourceId       String
+  userId         String
+  mailbox        String   // email used when the event was created
+  outlookEventId String
+  lastSyncedAt   DateTime @default(now())
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([sourceType, sourceId, userId])
+  @@index([sourceType, sourceId])
+}

@@ -1,6 +1,11 @@
 const { PrismaClient } = require('@prisma/client');
 const { addMonths, addYears, differenceInMonths, differenceInYears } = require('date-fns');
 const { v4: uuidv4 } = require('uuid');
+const {
+  queueSyncCalendarEvent,
+  getMappingSnapshot,
+  queueRemoveSnapshot,
+} = require('../services/outlookCalendarService');
 
 const prisma = new PrismaClient();
 
@@ -227,6 +232,9 @@ exports.createEvent = async (req, res) => {
         },
       });
 
+      // Sync to Outlook calendars
+      queueSyncCalendarEvent(event.id);
+
       return res.status(201).json(transformEvent(fullEvent));
     }
 
@@ -299,6 +307,11 @@ exports.createEvent = async (req, res) => {
         },
       },
     });
+
+    // Sync all recurring events to Outlook calendars
+    for (const event of events) {
+      queueSyncCalendarEvent(event.id);
+    }
 
     res.status(201).json({
       ...transformEvent(fullEvent),
@@ -377,6 +390,9 @@ exports.updateEvent = async (req, res) => {
       },
     });
 
+    // Sync to Outlook calendars
+    queueSyncCalendarEvent(id);
+
     res.json(transformEvent(event));
   } catch (error) {
     console.error('Error updating calendar event:', error);
@@ -395,9 +411,15 @@ exports.deleteEvent = async (req, res) => {
       return res.status(404).json({ error: 'Calendar event not found' });
     }
 
+    // Capture Outlook event mappings before deletion
+    const outlookSnapshot = await getMappingSnapshot('CALENDAR_EVENT', [id]);
+
     // Delete assignees first (cascade should handle this, but be explicit)
     await prisma.calendarEventAssignee.deleteMany({ where: { eventId: id } });
     await prisma.calendarEvent.delete({ where: { id } });
+
+    // Remove from Outlook calendars
+    queueRemoveSnapshot(outlookSnapshot);
 
     res.json({ message: 'Calendar event deleted successfully' });
   } catch (error) {

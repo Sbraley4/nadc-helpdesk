@@ -235,6 +235,14 @@ function isReady() {
 }
 
 /**
+ * Get the Graph client for calendar/other operations
+ * Returns null if not initialized
+ */
+function getGraphClient() {
+  return graphClient;
+}
+
+/**
  * Re-initialize transporter (after settings change)
  */
 async function reinitialize() {
@@ -563,6 +571,7 @@ module.exports = {
   clearSettingsCache,
   isReady,
   reinitialize,
+  getGraphClient,
   // Specific email functions
   sendTicketConfirmation,
   sendAgentReplyEmail,
