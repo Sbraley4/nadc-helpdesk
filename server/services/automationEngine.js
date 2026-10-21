@@ -1,6 +1,7 @@
 // server/services/automationEngine.js
 const { PrismaClient } = require('@prisma/client');
 const { sendTicketAssignedEmail } = require('./emailService');
+const { queueSyncTicket } = require('./outlookCalendarService');
 
 const prisma = new PrismaClient();
 
@@ -189,6 +190,13 @@ async function executeAction(action, ticket, ruleName) {
       });
       await createActivityLog(ticket.id, 'ASSIGNED',
         `Automation '${ruleName}': Assigned to agent`);
+
+      // Sync to Outlook calendars (fire-and-forget)
+      try {
+        queueSyncTicket(ticket.id);
+      } catch (e) {
+        console.error('[Automation] Failed to queue Outlook sync:', e.message);
+      }
 
       // Send email notification
       const agent = await prisma.user.findUnique({ where: { id: value } });
